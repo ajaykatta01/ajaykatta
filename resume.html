@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ajay Katta — Resume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0D12; --bg-soft:#06080C; --surface:#14171E; --line:#2A313D;
+  --text:#F4F6FA; --muted:#B2BAC7; --accent:#FF6B5C; --accent-2:#FF8F82; --glow:rgba(255,107,92,.40);
+  --card-grad:radial-gradient(120% 120% at 20% 0%, rgba(255,107,92,.12), transparent 60%);
+  --header-bg:rgba(11,13,18,.6);
+}
+[data-theme="light"]{
+  --bg:#F7F8FA; --bg-soft:#EEF1F5; --surface:#FFFFFF; --line:#E3E7ED;
+  --text:#11141A; --muted:#49515F; --accent:#FF6B5C; --accent-2:#E85949; --glow:rgba(255,107,92,.24);
+  --card-grad:radial-gradient(120% 120% at 20% 0%, rgba(255,107,92,.08), transparent 60%);
+  --header-bg:rgba(247,248,250,.7);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Inter',system-ui,sans-serif; line-height:1.6;
+  transition:background .5s ease,color .5s ease; overflow-x:hidden;
+}
+::selection{background:var(--accent);color:#fff}
+h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;line-height:1.1}
+.mono{font-family:'Space Mono',monospace;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+
+/* ---------- header ---------- */
+header{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  backdrop-filter:blur(14px);background:var(--header-bg);
+  border-bottom:1px solid var(--line);
+}
+.nav{max-width:920px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{font-family:'Space Grotesk';font-weight:700;font-size:1.05rem;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:10px}
+.logo .orb{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--accent-2),var(--accent));box-shadow:0 0 14px var(--glow);animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+.nav-right{display:flex;align-items:center;gap:20px}
+.nav-right a{color:var(--muted);text-decoration:none;font-size:.88rem;font-weight:500;transition:color .25s}
+.nav-right a:hover,.nav-right a:focus-visible{color:var(--text)}
+.dl-btn{color:var(--text)!important;border:1px solid var(--accent);padding:7px 16px;border-radius:99px;font-weight:600;display:inline-flex;align-items:center;gap:7px;transition:background .25s,color .25s}
+.dl-btn:hover,.dl-btn:focus-visible{background:var(--accent);color:#fff!important}
+.dl-btn svg{width:15px;height:15px}
+.theme-toggle{
+  width:54px;height:28px;border-radius:99px;border:1px solid var(--line);
+  background:var(--surface);cursor:pointer;position:relative;transition:background .4s;flex:none;
+}
+.theme-toggle .knob{
+  position:absolute;top:2.5px;left:3px;width:21px;height:21px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,var(--accent-2),var(--accent));
+  transition:transform .4s cubic-bezier(.6,.2,.1,1);
+  display:flex;align-items:center;justify-content:center;font-size:11px;
+}
+[data-theme="light"] .theme-toggle .knob{transform:translateX(26px)}
+.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+/* ---------- sheet ---------- */
+.wrap{max-width:920px;margin:0 auto;padding:120px 28px 90px}
+
+.resume-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;flex-wrap:wrap;padding-bottom:30px;border-bottom:1px solid var(--line)}
+.resume-head h1{font-size:clamp(2.4rem,6vw,3.6rem);letter-spacing:-.02em}
+.resume-head .role{color:var(--accent-2);font-family:'Space Grotesk';font-weight:500;font-size:1.15rem;margin-top:8px}
+.contact-col{display:flex;flex-direction:column;gap:6px;font-size:.86rem;color:var(--muted)}
+.contact-col a{color:var(--muted);text-decoration:none}
+.contact-col .row{display:flex;align-items:center;gap:9px;justify-content:flex-end}
+.contact-col .row:hover{color:var(--text)}
+.contact-col svg{width:14px;height:14px;color:var(--accent);flex:none}
+
+.section{margin-top:48px}
+.section > .mono{display:block;margin-bottom:18px}
+.summary{font-size:1.02rem;color:var(--text);max-width:760px;opacity:.92}
+.summary + .summary{margin-top:14px}
+.seek{margin-top:16px;font-size:.95rem;color:var(--muted);max-width:760px;border-left:2px solid var(--accent);padding-left:16px}
+
+/* competencies grid */
+.comp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.comp{background:var(--surface);background-image:var(--card-grad);border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+.comp h3{font-size:1rem;margin-bottom:10px;display:flex;align-items:center;gap:9px}
+.comp h3 .dot{width:8px;height:8px;border-radius:2px;background:var(--accent);transform:rotate(45deg);box-shadow:0 0 10px var(--glow)}
+.tags{display:flex;flex-wrap:wrap;gap:7px}
+.tag{font-size:.78rem;color:var(--muted);background:var(--bg-soft);border:1px solid var(--line);border-radius:99px;padding:4px 11px}
+
+/* experience timeline */
+.job{position:relative;padding:0 0 36px 28px;border-left:1px solid var(--line)}
+.job:last-child{padding-bottom:0}
+.job::before{content:"";position:absolute;left:-6px;top:4px;width:11px;height:11px;border-radius:3px;background:var(--accent);transform:rotate(45deg);box-shadow:0 0 12px var(--glow)}
+.job-top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
+.job-top h3{font-size:1.18rem}
+.job-top .when{font-family:'Space Mono',monospace;font-size:.74rem;color:var(--accent-2);letter-spacing:.04em;white-space:nowrap}
+.job .sub{color:var(--muted);font-size:.86rem;margin:4px 0 14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.job ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+.job li{position:relative;padding-left:18px;font-size:.93rem;color:var(--text);opacity:.9}
+.job li::before{content:"";position:absolute;left:0;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--accent-2)}
+.job li b{color:var(--accent-2);font-weight:600}
+.honors{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+.honor{font-size:.78rem;font-weight:600;color:var(--text);background:var(--bg-soft);border:1px solid var(--accent);border-radius:99px;padding:5px 13px}
+
+/* two-col bottom */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.panel{background:var(--surface);background-image:var(--card-grad);border:1px solid var(--line);border-radius:16px;padding:22px 24px}
+.panel h3{font-size:1rem;margin-bottom:14px}
+.panel ul{list-style:none;display:flex;flex-direction:column;gap:11px}
+.panel li{font-size:.9rem;color:var(--text);opacity:.92;padding-left:16px;position:relative}
+.panel li::before{content:"";position:absolute;left:0;top:.6em;width:6px;height:6px;border-radius:2px;background:var(--accent);transform:rotate(45deg)}
+.panel li span{display:block;color:var(--muted);font-size:.8rem;margin-top:2px}
+
+/* metrics */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.metric{text-align:center;padding:22px 14px;background:var(--surface);border:1px solid var(--line);border-radius:16px}
+.metric .num{font-family:'Space Grotesk';font-weight:700;font-size:1.9rem;color:var(--accent-2);line-height:1}
+.metric .lbl{font-size:.78rem;color:var(--muted);margin-top:8px;line-height:1.35}
+
+.foot{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:.8rem}
+.foot a{color:var(--accent-2);text-decoration:none}
+
+@media(max-width:720px){
+  .comp-grid,.cols{grid-template-columns:1fr}
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .contact-col .row{justify-content:flex-start}
+  .nav-right a:not(.dl-btn){display:none}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+/* print */
+@media print{
+  header{display:none}
+  body{background:#fff;color:#11131C}
+  .wrap{padding:24px 18px;max-width:none}
+  .comp,.panel,.metric{break-inside:avoid}
+  .job{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <a class="logo" href="index.html"><span class="orb"></span>AJAY&nbsp;KATTA</a>
+    <div class="nav-right">
+      <a href="index.html">← Back to portfolio</a>
+      <a class="dl-btn" href="uae_dubai_senior_3d_product_uiux_ajay_katta_2026_03.pdf" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+        PDF
+      </a>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark and light mode"><span class="knob" id="knob">🌙</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- HEAD -->
+  <div class="resume-head">
+    <div>
+      <h1>Ajay Katta</h1>
+      <div class="role">3D&nbsp;·&nbsp;Product&nbsp;·&nbsp;UI/UX Designer</div>
+    </div>
+    <div class="contact-col">
+      <a class="row" href="mailto:ajaygd01@gmail.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>ajaygd01@gmail.com</a>
+      <span class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>+91&nbsp;95024&nbsp;42366</span>
+      <span class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Hyderabad, India</span>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <section class="section">
+    <span class="mono">// Professional Summary</span>
+    <p class="summary">Impact-focused 3D, Product and UI/UX Designer with <b>5+ years</b> delivering low- and high-poly, game-ready assets and photorealistic renders for real-time, AR/VR, and 360° interactions across gaming, e-commerce, advertising, and immersive media.</p>
+    <p class="summary">Produced 1,500+ optimized 3D assets at 95% visual fidelity at Amazon while driving 40% pipeline-efficiency gains through PBR workflows, texture baking, procedural texturing, and AI-assisted tools. Passionate about leveraging Generative AI and UI/UX principles to build scalable, visually compelling experiences.</p>
+    <p class="seek">Seeking <b>UI/UX, Product Designer, or 3D-AI hybrid</b> roles in fintech, banking, gaming studios, AR/VR, advertising, and immersive media across the UAE (Dubai / Abu Dhabi).</p>
+  </section>
+
+  <!-- METRICS -->
+  <section class="section">
+    <span class="mono">// Impact Snapshot</span>
+    <div class="metrics">
+      <div class="metric"><div class="num">1,500+</div><div class="lbl">Production-ready 3D assets at 95% fidelity</div></div>
+      <div class="metric"><div class="num">40%</div><div class="lbl">Improved rendering accuracy &amp; faster cycles</div></div>
+      <div class="metric"><div class="num">50%</div><div class="lbl">Less manual effort via AI automation</div></div>
+      <div class="metric"><div class="num">Top&nbsp;2</div><div class="lbl">Global Hackathon finalist &amp; Wall of Fame</div></div>
+    </div>
+  </section>
+
+  <!-- COMPETENCIES -->
+  <section class="section">
+    <span class="mono">// Core Competencies</span>
+    <div class="comp-grid">
+      <div class="comp">
+        <h3><span class="dot"></span>Product &amp; UX</h3>
+        <div class="tags">
+          <span class="tag">Interaction Design</span><span class="tag">UI/UX</span><span class="tag">Rapid Prototyping</span><span class="tag">User Journeys</span><span class="tag">Design Systems</span><span class="tag">Usability Analysis</span><span class="tag">Wireframing</span>
+        </div>
+      </div>
+      <div class="comp">
+        <h3><span class="dot"></span>3D &amp; Visualization</h3>
+        <div class="tags">
+          <span class="tag">Modeling</span><span class="tag">Texturing</span><span class="tag">Rendering</span><span class="tag">Look Development</span><span class="tag">Real-Time Viz</span><span class="tag">AR/VR Design</span>
+        </div>
+      </div>
+      <div class="comp">
+        <h3><span class="dot"></span>AI for Design</h3>
+        <div class="tags">
+          <span class="tag">Generative AI</span><span class="tag">Prompt Engineering</span><span class="tag">Procedural Workflows</span><span class="tag">Motion Graphics</span><span class="tag">Video Compositing</span>
+        </div>
+      </div>
+      <div class="comp">
+        <h3><span class="dot"></span>Engines &amp; Tools</h3>
+        <div class="tags">
+          <span class="tag">Figma</span><span class="tag">Adobe CC</span><span class="tag">Sketch</span><span class="tag">Maya</span><span class="tag">Blender</span><span class="tag">Unreal Engine</span><span class="tag">ZBrush</span><span class="tag">Substance</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPERIENCE -->
+  <section class="section">
+    <span class="mono">// Experience</span>
+    <div class="job">
+      <div class="job-top">
+        <h3>Designer / 3D Materials Artist</h3>
+        <span class="when">Nov 2020 — Dec 2025</span>
+      </div>
+      <div class="sub"><span>Amazon · Visual Innovation Team</span><span>Hyderabad, India</span></div>
+      <ul>
+        <li>Part of pilot projects for cross-functional CX design (<b>Nike Trail, Kate Spade, Canyon Bikes</b>), improving feature adoption by 25% and strengthening visual consistency across Amazon Fashion.</li>
+        <li>Developed <b>AI-generated</b> product summaries and multilingual videos, reducing manual production effort by 50% while improving delivery consistency.</li>
+        <li>Built automated texture/material systems that increased rendering accuracy and accelerated 3D production cycles by <b>40%</b>.</li>
+        <li>Introduced procedural texturing workflows that cut manual repetition and reduced asset-production hours by <b>30–40%</b> for high-volume sequences.</li>
+      </ul>
+      <div class="honors">
+        <span class="honor">Global Hackathon — Top 2 Finalist</span>
+        <span class="honor">Wall of Fame Honoree</span>
+      </div>
+    </div>
+    <div class="job">
+      <div class="job-top">
+        <h3>Motion Graphic Artist</h3>
+        <span class="when">Mar 2019 — Jul 2019</span>
+      </div>
+      <div class="sub"><span>Santh Designs · Branding &amp; VFX</span><span>Hyderabad, India</span></div>
+      <ul>
+        <li>Designed <b>50+ brand logos</b> and visual identities aligned with business strategy, positioning, and market objectives across diverse client portfolios.</li>
+        <li>Produced video advertisements, motion graphics, and compositing for digital marketing and social campaigns using Photoshop, Illustrator, After Effects, and Premiere Pro.</li>
+        <li>Collaborated with creative and marketing teams to deliver compelling visual narratives that elevated brand presence across digital platforms.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- EDUCATION + CERTS -->
+  <section class="section">
+    <span class="mono">// Education &amp; Certifications</span>
+    <div class="cols">
+      <div class="panel">
+        <h3>Education</h3>
+        <ul>
+          <li>Bachelor of Fine Arts, Animation<span>JNFAU, Masab Tank, Hyderabad · 2015–2019</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Certifications</h3>
+        <ul>
+          <li>Google UX Design Professional Certificate<span>Coursera · 2025</span></li>
+          <li>What is Generative AI<span>LinkedIn · 2025</span></li>
+          <li>Introduction to Prompt Engineering for Generative AI<span>LinkedIn · 2025</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    © 2026 Ajay Katta · <a href="mailto:ajaygd01@gmail.com">ajaygd01@gmail.com</a> · <a href="index.html">Back to portfolio</a>
+  </div>
+
+</main>
+
+<script>
+/* ============ theme toggle (shared ak-theme) ============ */
+const root=document.documentElement, knob=document.getElementById('knob');
+(function(){ try{ const saved=localStorage.getItem('ak-theme'); if(saved){ root.dataset.theme=saved; } }catch(e){} knob.textContent=root.dataset.theme==='light'?'☀️':'🌙'; })();
+document.getElementById('themeToggle').addEventListener('click',()=>{
+  const next=root.dataset.theme==='dark'?'light':'dark';
+  root.dataset.theme=next; knob.textContent=next==='dark'?'🌙':'☀️';
+  try{ localStorage.setItem('ak-theme',next); }catch(e){}
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generative AI Designs — Ajay Katta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<template id="__bundler_thumbnail" data-bg-color="#1C1A14">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#1C1A14"/>
+    <circle cx="600" cy="400" r="150" fill="none" stroke="#C792EA" stroke-width="14"/>
+    <circle cx="600" cy="400" r="60" fill="#7C5CFF"/>
+  </svg>
+</template>
+<style>
+:root{
+  --bg:#0B0D12; --surface:#14171E; --line:#2A313D;
+  --text:#F4F6FA; --muted:#B2BAC7; --accent:#C792EA; --accent-2:#B388FF; --glow:color-mix(in srgb, #C792EA 40%, transparent);
+}
+[data-theme="light"]{
+  --bg:#F7F8FA; --surface:#FFFFFF; --line:#E3E7ED;
+  --text:#11141A; --muted:#49515F; --accent:#7C3AED; --accent-2:#9D5CF5; --glow:color-mix(in srgb, #7C3AED 24%, transparent);
+}
+/* theme toggle */
+.theme-toggle{width:54px;height:28px;border-radius:99px;border:1px solid var(--line);background:var(--surface);cursor:pointer;position:relative;transition:background .4s;flex:none}
+.theme-toggle .knob{position:absolute;top:2.5px;left:3px;width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 35% 35%,var(--accent-2),var(--accent));transition:transform .4s cubic-bezier(.2,.7,.3,1);display:flex;align-items:center;justify-content:center;font-size:11px}
+[data-theme="light"] .theme-toggle .knob{transform:translateX(26px)}
+.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.nav-right{display:flex;align-items:center;gap:18px}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;line-height:1.6;overflow-x:hidden;min-height:100vh}
+::selection{background:var(--accent);color:#fff}
+h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;line-height:1.1}
+.mono{font-family:'Space Mono',monospace;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+.container{max-width:1180px;margin:0 auto;padding:0 28px}
+/* glow backdrop */
+body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(70% 55% at 18% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%)}
+/* header */
+header{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);background:color-mix(in srgb,var(--bg) 70%,transparent);border-bottom:1px solid var(--line);transition:transform .35s cubic-bezier(.2,.7,.3,1)}
+header.nav-hidden{transform:translateY(-100%)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px}
+.back{display:inline-flex;align-items:center;gap:9px;color:var(--text);text-decoration:none;font-family:'Space Grotesk';font-weight:600;font-size:.92rem;transition:color .25s}
+.back .arr{transition:transform .3s}
+.back:hover{color:var(--accent)}
+.back:hover .arr{transform:translateX(-4px)}
+.home{display:inline-flex;align-items:center;gap:8px;font-family:'Space Grotesk';font-weight:600;font-size:.92rem;color:var(--text);text-decoration:none;transition:color .25s}
+.home .hicon{display:inline-flex;width:17px;height:17px;color:var(--accent);transition:transform .3s}
+.home:hover{color:var(--accent)}
+.home:hover .hicon{transform:translateY(-2px)}
+/* hero */
+.phead{padding:84px 0 54px;text-align:center}
+.phead h1{font-size:clamp(2.2rem,5vw,3.6rem);letter-spacing:-.03em;margin:16px 0 18px}
+.phead p{color:var(--muted);max-width:560px;font-size:1.02rem;margin-left:auto;margin-right:auto}
+/* tiles — unified project card (shared style across all project pages) */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:26px;padding-bottom:110px;max-width:1100px;margin:0 auto}
+.ptile{position:relative;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface);min-height:360px;
+  display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:var(--text);
+  transition:transform .35s cubic-bezier(.2,.7,.3,1),border-color .35s,box-shadow .35s}
+.ptile:hover{transform:translateY(-6px);border-color:var(--accent);box-shadow:0 22px 50px -26px var(--glow)}
+.ptile-img{position:relative;height:200px;flex:none;display:flex;align-items:flex-end;padding:14px;overflow:hidden;border-bottom:1px solid var(--line);
+  background:linear-gradient(135deg, color-mix(in srgb,var(--accent) 78%, var(--surface)), color-mix(in srgb,var(--accent-2) 70%, var(--surface))),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.04) 0 1px, transparent 1px 14px);
+  transition:transform .5s cubic-bezier(.2,.7,.3,1)}
+.ptile:hover .ptile-img{transform:scale(1.05)}
+.ph-label{font-family:'Space Mono';font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text);
+  background:color-mix(in srgb,var(--bg) 58%,transparent);backdrop-filter:blur(4px);padding:5px 10px;border-radius:6px;border:1px solid color-mix(in srgb,#fff 12%,transparent)}
+.ptile-body{padding:24px 26px;display:flex;flex-direction:column;flex:1}
+.ptile-tag{font-family:'Space Mono';font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2);margin-bottom:10px}
+.ptile h3{font-size:1.3rem;margin-bottom:16px;line-height:1.25}
+.ptile-link{font-family:'Space Grotesk';font-weight:600;font-size:.85rem;color:var(--accent);display:inline-flex;align-items:center;gap:6px;margin-top:auto}
+.ptile-link .arr{transition:transform .3s}
+.ptile:hover .arr{transform:translateX(5px)}
+/* reveal */
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease var(--d,0s),transform .7s cubic-bezier(.2,.7,.3,1) var(--d,0s)}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion: reduce){.reveal{opacity:1;transform:none}}
+@media(max-width:760px){
+  .container{padding:0 20px}
+  .phead{padding:60px 0 40px}
+  .pgrid{grid-template-columns:1fr;gap:20px;padding-bottom:72px}
+  .ptile{min-height:300px}
+}
+@media(max-width:440px){
+  .back .bk-rest{display:none}
+  .nav-right{gap:12px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="container nav">
+    <a class="back" href="index.html#work"><span class="arr">&larr;</span> Back<span class="bk-rest"> to projects</span></a>
+    <div class="nav-right"><a class="home" href="index.html#top"><span class="hicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11.2 12 4l9 7.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 9.6V20h13V9.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span class="hm-lbl">Home</span></a><button class="theme-toggle" id="themeToggle" aria-label="Toggle dark and light mode"><span class="knob" id="knob">🌙</span></button></div>
+  </div>
+</header>
+
+<section class="container phead">
+  <span class="mono">Generative AI · AI for Design</span>
+  <h1>Generative AI Designs</h1>
+  <p>Explorations using diffusion models and AI-assisted workflows — from prompt to polished concept.</p>
+</section>
+
+<section class="container">
+  <div class="pgrid">
+
+      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-brand","title":"Brand Concept Series","tag":"Diffusion","label":"Concept set · generated","desc":"AI-generated brand concept explorations."}' style="--d:0s">
+        <div class="ptile-body">
+          <span class="ptile-tag">Diffusion</span>
+          <h3>Brand Concept Series</h3>
+          <span class="ptile-link">Open project <span class="arr">&rarr;</span></span>
+        </div>
+      </article>
+
+      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-prodviz","title":"AI Product Visualization","tag":"Img2Img","label":"Product viz · render","desc":"AI-assisted product visualization renders."}' style="--d:0.08s">
+        <div class="ptile-body">
+          <span class="ptile-tag">Img2Img</span>
+          <h3>AI Product Visualization</h3>
+          <span class="ptile-link">Open project <span class="arr">&rarr;</span></span>
+        </div>
+      </article>
+
+      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-pattern","title":"Generative Pattern System","tag":"ControlNet","label":"Pattern system · grid","desc":"Generative, tileable pattern system."}' style="--d:0.16s">
+        <div class="ptile-body">
+          <span class="ptile-tag">ControlNet</span>
+          <h3>Generative Pattern System</h3>
+          <span class="ptile-link">Open project <span class="arr">&rarr;</span></span>
+        </div>
+      </article>
+  </div>
+</section>
+
+<script>
+const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* hide header on scroll down, reveal on scroll up */
+(function(){
+  const head=document.querySelector('header');
+  let last=window.scrollY||document.documentElement.scrollTop;
+  let ticking=false;
+  function update(){
+    const y=window.scrollY||document.documentElement.scrollTop;
+    if(y>last && y>120){head.classList.add('nav-hidden');}
+    else{head.classList.remove('nav-hidden');}
+    last=y;
+    ticking=false;
+  }
+  addEventListener('scroll',()=>{
+    if(!ticking){requestAnimationFrame(update);ticking=true;}
+  },{passive:true});
+})();
+
+/* theme toggle (shared with portfolio via localStorage) */
+const root=document.documentElement, knob=document.getElementById('knob');
+(function(){ try{ const saved=localStorage.getItem('ak-theme'); if(saved){ root.dataset.theme=saved; } }catch(e){} knob.textContent=root.dataset.theme==='light'?'☀️':'🌙'; })();
+document.getElementById('themeToggle').addEventListener('click',()=>{
+  const next=root.dataset.theme==='light'?'dark':'light';
+  root.dataset.theme=next; knob.textContent=next==='light'?'☀️':'🌙';
+  try{ localStorage.setItem('ak-theme',next); }catch(e){}
+});
+</script>
+<script>window.AK_ADMIN={page:'gen-ai',noun:'project',gridSelector:'.pgrid',tileTag:'article'};</script>
+<script src="admin.js"></script>
+</body>
+</html>
