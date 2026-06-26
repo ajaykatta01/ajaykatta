@@ -1394,6 +1394,15 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
 
   if(document.fonts) document.fonts.ready.then(()=>ScrollTrigger.refresh());
   window.addEventListener('load',()=>ScrollTrigger.refresh());
+  // Recompute layout when the viewport width changes (e.g. toggling "Desktop site"
+  // on mobile changes the layout-viewport width and must re-run pinning/positions).
+  let __rstO=-1,__rt;
+  window.addEventListener('resize',()=>{
+    if(window.innerWidth===__rstO) return;       // ignore mobile URL-bar height-only changes
+    __rstO=window.innerWidth;
+    clearTimeout(__rt);
+    __rt=setTimeout(()=>ScrollTrigger.refresh(),180);
+  });
 })();
 </script>
 <script>
@@ -1519,21 +1528,25 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   }
 
   let cur=target[0]??L, aim=cur, raf=null, active=-1;
+  // gentle easing so the drone glides smoothly and stays glued to the content as it scrolls
+  const EASE=0.055;
   function loop(){
-    cur+=(aim-cur)*0.06;
-    if(Math.abs(aim-cur)<0.3){cur=aim;place(cur);raf=null;return;}
+    cur+=(aim-cur)*EASE;
+    if(Math.abs(aim-cur)<0.25){cur=aim;place(cur);raf=null;return;}
     place(cur); raf=requestAnimationFrame(loop);
   }
-  function setActive(i){
+  function run(){ if(reduce){cur=aim;place(cur);return;} if(!raf) raf=requestAnimationFrame(loop); }
+
+  // highlight only — toggles the active row / node styling without moving the drone
+  function highlight(i){
     if(i===active) return; active=i;
     rows.forEach((r,k)=>r.classList.toggle('active',k===i));
     nodes.forEach(n=>n.classList.toggle('on',+n.dataset.i===i));
     rings.forEach(n=>n.classList.toggle('on',+n.dataset.i===i));
     yrs.forEach(n=>n.classList.toggle('on',+n.dataset.i===i));
-    aim=target[i];
-    if(reduce){cur=aim;place(cur);return;}
-    if(!raf) raf=requestAnimationFrame(loop);
   }
+  // hover / click / focus: fly straight to that stop
+  function setActive(i){ highlight(i); aim=target[i]; run(); }
   rows.forEach((r,i)=>{
     r.addEventListener('mouseenter',()=>setActive(i));
     r.addEventListener('focus',()=>setActive(i));
@@ -1541,8 +1554,30 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   });
   nodes.forEach(n=>n.addEventListener('mouseenter',()=>setActive(+n.dataset.i)));
 
-  // scroll-driven travel (web + mobile): activate the row nearest viewport centre so the
-  // drone flies along the path as you scroll the experience up or down
+  // ---- continuous scroll-driven travel (web + mobile) ----
+  // Map scroll position to a continuous point ALONG the path by interpolating between the
+  // two row stops that bracket a fixed reference line. The drone flies in lockstep with the
+  // information instead of snapping ahead between discrete stops.
+  function progressLen(){
+    const ref=window.innerHeight*0.46;                       // reference line in the viewport
+    const c=rows.map(r=>{const b=r.getBoundingClientRect();return b.top+b.height/2;}); // centres (ascending by index)
+    const last=rows.length-1;
+    if(ref<=c[0]) return {len:target[0], near:0};             // not reached the first stop yet
+    if(ref>=c[last]) return {len:target[last], near:last};    // scrolled past the last stop
+    for(let i=0;i<last;i++){
+      if(ref>=c[i] && ref<=c[i+1]){
+        const f=(ref-c[i])/((c[i+1]-c[i])||1);
+        // hysteresis dead-zone: only switch the highlighted row past 0.62 / under 0.38 so the
+        // expand/collapse of .desc can't shift row heights and re-trigger a flip (jitter)
+        let near=active;
+        if(active!==i && active!==i+1) near=f<0.5?i:i+1;
+        else if(f>0.62) near=i+1;
+        else if(f<0.38) near=i;
+        return {len:target[i]+(target[i+1]-target[i])*f, near};
+      }
+    }
+    return {len:target[0], near:0};
+  }
   let ticking=false;
   function onScroll(){
     if(ticking) return; ticking=true;
@@ -1550,17 +1585,16 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
       ticking=false;
       const sec=document.getElementById('experience')||map.closest('section');
       if(sec){const b=sec.getBoundingClientRect();if(b.bottom<0||b.top>window.innerHeight) return;}
-      const mid=window.innerHeight*0.46;
-      let bi=0,bd=1e9;
-      rows.forEach((r,i)=>{const rb=r.getBoundingClientRect();const c=rb.top+rb.height/2;const d=Math.abs(c-mid);if(d<bd){bd=d;bi=i;}});
-      setActive(bi);
+      const {len,near}=progressLen();
+      aim=len; highlight(near); run();
     });
   }
   window.addEventListener('scroll',onScroll,{passive:true});
-  onScroll();
+  window.addEventListener('resize',onScroll,{passive:true});
 
   place(cur);
-  setActive(0);
+  highlight(0);
+  onScroll();
 })();
 </script>
 </body>
