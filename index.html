@@ -296,7 +296,7 @@ header{
 .stat .num{font-family:'Space Grotesk';font-size:2.05rem;font-weight:700;color:var(--text);line-height:1.1}
 .stat .lbl{font-size:.74rem;color:color-mix(in srgb, var(--text) 50%, var(--muted));letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
 .scroll-cue{
-  position:absolute;left:50%;bottom:104px;transform:translateX(-50%);z-index:3;
+  position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:3;
   display:flex;flex-direction:column;align-items:center;gap:12px;text-decoration:none;
   color:var(--muted);opacity:0;animation:cueIn .8s ease 1.2s forwards;transition:color .25s;
 }
@@ -376,11 +376,24 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 }
 .case-card:hover .case-bg{transform:scale(1.12)}
 .case-bg::after{
-  content:'';position:absolute;inset:0;
+  content:'';position:absolute;inset:0;transition:opacity .4s ease;
   background:
     radial-gradient(130% 90% at 22% 10%, color-mix(in srgb,#fff 16%, transparent), transparent 55%),
     linear-gradient(155deg, color-mix(in srgb,var(--c1) 90%, transparent), color-mix(in srgb,var(--c2) 80%, transparent));
 }
+/* with a real cover photo, the default color tint drops to 10% so the image reads ~90% */
+.case-card.has-cover .case-bg::after{opacity:.2}
+/* cover photo legibility: solid dark gradient panel rises behind the copy, text lifted with a glow */
+.case-card.has-cover .case-scrim{
+  opacity:1;
+  background:linear-gradient(transparent 26%, color-mix(in srgb,var(--bg) 60%, transparent) 52%, color-mix(in srgb,var(--bg) 90%, transparent) 78%, var(--bg) 100%);
+}
+.case-card.has-cover .case-body{position:relative}
+.case-card.has-cover .case-body::before{
+  content:'';position:absolute;left:0;right:0;bottom:0;top:-30px;z-index:-1;border-radius:inherit;
+  background:linear-gradient(transparent, color-mix(in srgb,#000 72%, transparent) 46%, color-mix(in srgb,#000 82%, transparent));
+}
+.case-card.has-cover .case-body :where(h3,.case-tag,.case-link,.case-chips,.chip){text-shadow:0 1px 12px rgba(0,0,0,.85),0 1px 2px rgba(0,0,0,.7)}
 .case-scrim{
   position:absolute;inset:0;z-index:-1;border-radius:inherit;
   background:linear-gradient(transparent 28%, color-mix(in srgb,var(--bg) 78%, transparent) 64%, var(--bg) 100%);
@@ -499,7 +512,7 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 .exp-row.active .desc{max-height:260px;opacity:1;margin-top:13px}
 @media(max-width:860px){
   .exp-wrap{grid-template-columns:1fr;gap:24px}
-  .exp-map{display:none}
+  .exp-map{display:block;position:sticky;top:78px;justify-self:center;align-self:start;max-width:150px;margin:0 auto 6px;z-index:1}
   .exp-row{cursor:default}
   .exp-row .desc{max-height:260px;opacity:1;margin-top:13px}
   .exp-row.active{transform:none}
@@ -523,7 +536,12 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 .foot-build h3{font-size:1.5rem;margin-bottom:12px}
 .foot-build p{color:var(--muted);font-size:.92rem}
 .foot-touch .social-cards{margin-bottom:0}
-@media(max-width:760px){.foot-row{gap:30px}}
+@media(max-width:760px){
+  .foot-row{gap:30px}
+  .foot-build,.foot-touch{max-width:100%;width:100%;text-align:center}
+  .touch-head{text-align:center}
+  .social-cards{justify-content:center}
+}
 .scard{
   position:relative;display:grid;place-items:center;overflow:hidden;
   width:50px;height:50px;border:1px solid var(--line);border-radius:14px;text-decoration:none;color:var(--text);
@@ -950,8 +968,8 @@ document.getElementById('themeToggle').addEventListener('click',()=>{
     const input=card.querySelector('.cover-input');
 
     function apply(url){
-      if(url){ bg.style.backgroundImage="url('"+url+"')"; }
-      else{ bg.style.backgroundImage=''; }
+      if(url){ bg.style.backgroundImage="url('"+url+"')"; card.classList.add('has-cover'); }
+      else{ bg.style.backgroundImage=''; card.classList.remove('has-cover'); }
       reset.dataset.hasCustom=url?'true':'false';
     }
     function closeMenu(){ menu.classList.remove('open'); }
@@ -1235,7 +1253,7 @@ function hexToRgb(h){
     const ge=Math.min(1,0.20*dt), de=Math.min(1,0.16*dt), clre=Math.min(1,0.12*dt);
     const K=3.0, WSPEED=0.8, RMAX=2.8, act=0.20+energy*1.4;   // gentle base + strong, interactive mouse swell
     // content clearing zone (aspect-corrected NDC): a tall centered ellipse matching the hero copy column
-    const CCX=0.0, CCY=0.10, CRX=0.60, CRY=0.82, CMIN=0.10;
+    const CCX=0.0, CCY=0.12, CRX=0.34, CRY=0.46, CMIN=0.42;
     for(let i=0;i<COUNT;i++){
       const ix=i*3, x=pos[ix], y=pos[ix+1], z=pos[ix+2];
       const w=e[3]*x+e[7]*y+e[11]*z+e[15];
@@ -1411,6 +1429,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   if(!btn||!viewer) return;
   let cachedUrl=null;
   async function getUrl(){
+    if(window.__akResumeURL) return window.__akResumeURL;
     if(cachedUrl) return cachedUrl;
     const res=await fetch(btn.href);
     if(!res.ok) throw new Error(res.status);
@@ -1427,6 +1446,47 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   });
   closeBtn.addEventListener('click',close);
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&viewer.classList.contains('open')) close(); });
+
+  /* ---- résumé replace (admin) + load a stored override (shared with site export) ---- */
+  const RKEY='ak-resume-pdf';
+  function rdb(){ return new Promise((res,rej)=>{ const q=indexedDB.open('ak-portfolio',1); q.onupgradeneeded=()=>{ if(!q.result.objectStoreNames.contains('kv')) q.result.createObjectStore('kv'); }; q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
+  function rget(k){ return rdb().then(d=>new Promise(r=>{ const x=d.transaction('kv').objectStore('kv').get(k); x.onsuccess=()=>r(x.result); x.onerror=()=>r(null); })); }
+  function rset(k,v){ return rdb().then(d=>new Promise((r,j)=>{ const t=d.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=()=>r(); t.onerror=()=>j(t.error); })); }
+  function applyResume(dataURL){
+    if(!dataURL) return;
+    fetch(dataURL).then(r=>r.blob()).then(b=>{
+      const url=URL.createObjectURL(b);
+      window.__akResumeURL=url; cachedUrl=url;
+      document.querySelectorAll('a.resume-btn').forEach(a=>a.href=url);
+      if(dlLink) dlLink.href=url;
+      if(openLink) openLink.href=url;
+      if(viewer.classList.contains('open')) frame.src=url;
+    }).catch(()=>{});
+  }
+  rget(RKEY).then(d=>{ if(d) applyResume(d); });
+
+  const isAdmin=()=>{ try{ return sessionStorage.getItem('ak-admin-unlocked')==='1'; }catch(e){ return false; } };
+  if(isAdmin()){
+    const actions=viewer.querySelector('.rv-actions');
+    if(actions){
+      const fi=document.createElement('input');
+      fi.type='file'; fi.accept='application/pdf'; fi.style.display='none';
+      const rb=document.createElement('button');
+      rb.type='button'; rb.className='rv-link'; rb.title='Replace the résumé PDF (admin)';
+      rb.style.display='inline-flex'; rb.style.alignItems='center'; rb.style.gap='6px'; rb.style.cursor='pointer';
+      rb.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 15-6.7L21 7"/><path d="M21 3v4h-4"/><path d="M21 13a9 9 0 0 1-15 6.7L3 17"/><path d="M3 21v-4h4"/></svg><span>Replace</span>';
+      rb.appendChild(fi);
+      rb.addEventListener('click',e=>{ if(e.target!==fi){ e.preventDefault(); e.stopPropagation(); fi.click(); } });
+      fi.addEventListener('change',()=>{
+        const f=fi.files[0]; if(!f) return;
+        if(f.type!=='application/pdf'){ alert('Please choose a PDF file.'); return; }
+        const fr=new FileReader();
+        fr.onload=()=>{ rset(RKEY,fr.result).then(()=>{ applyResume(fr.result); if(viewer.classList.contains('open')&&window.__akResumeURL) frame.src=window.__akResumeURL; alert('Résumé updated. Use Admin → Export site data (on a project page) to ship it to the repo.'); }); };
+        fr.readAsDataURL(f);
+      });
+      actions.insertBefore(rb, closeBtn);
+    }
+  }
 })();
 </script>
 <script>
@@ -1480,6 +1540,24 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
     r.addEventListener('click',()=>setActive(i));
   });
   nodes.forEach(n=>n.addEventListener('mouseenter',()=>setActive(+n.dataset.i)));
+
+  // scroll-driven travel (web + mobile): activate the row nearest viewport centre so the
+  // drone flies along the path as you scroll the experience up or down
+  let ticking=false;
+  function onScroll(){
+    if(ticking) return; ticking=true;
+    requestAnimationFrame(()=>{
+      ticking=false;
+      const sec=document.getElementById('experience')||map.closest('section');
+      if(sec){const b=sec.getBoundingClientRect();if(b.bottom<0||b.top>window.innerHeight) return;}
+      const mid=window.innerHeight*0.46;
+      let bi=0,bd=1e9;
+      rows.forEach((r,i)=>{const rb=r.getBoundingClientRect();const c=rb.top+rb.height/2;const d=Math.abs(c-mid);if(d<bd){bd=d;bi=i;}});
+      setActive(bi);
+    });
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});
+  onScroll();
 
   place(cur);
   setActive(0);

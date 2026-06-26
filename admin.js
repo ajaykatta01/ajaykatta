@@ -242,9 +242,16 @@
     /* tile admin controls */
     .ak-tile-ctl{position:absolute;top:10px;right:10px;z-index:6;display:none;gap:6px}
     body.ak-on .ak-tile-ctl{display:flex}
+    .ak-grip{cursor:grab;touch-action:none}
+    .ak-grip:active{cursor:grabbing}
     .ptile[data-ak-item]{cursor:pointer}
     .ak-fab{position:fixed;right:22px;bottom:22px;z-index:115}
-    @media(max-width:640px){.ak-menu{position:fixed;left:12px;right:12px;top:64px;min-width:0}}
+    @media(max-width:640px){.ak-menu{position:fixed;left:12px;right:12px;top:64px;min-width:0}
+      .ak-d-bar .inner{padding:8px 16px;gap:10px;flex-wrap:nowrap;justify-content:flex-start}
+      .ak-d-bar .cs-back{flex:0 0 auto;padding:7px 13px;font-size:.84rem}
+      .ak-d-bar .title{display:none}
+      .ak-d-bar .tabbar{flex:1 1 auto;min-width:0;justify-content:flex-start}
+      .ak-item-actions{flex:0 0 auto}}
 
     /* full-bleed media (matches FinTrack gallery dimensions) */
     .ak-wide{width:min(1600px,93vw);margin-left:50%;transform:translateX(-50%)}
@@ -560,6 +567,67 @@
     renderTiles(); renderCases(); if (openItemId) renderDetail();
   }
 
+  /* ============================================================ DRAG REORDER (projects + sticky tab bar) — pointer based, works on touch */
+  var _akDrag = { id: null, el: null, start: null, moved: false }, _akSuppressTap = 0;
+  function reorderItem(fromId, toId) {
+    var a = DATA.items, fi = -1, ti = -1;
+    for (var i = 0; i < a.length; i++) { if (a[i].id === fromId) fi = i; if (a[i].id === toId) ti = i; }
+    if (fi < 0 || ti < 0 || fi === ti) return;
+    a.splice(ti, 0, a.splice(fi, 1)[0]);
+    renderTiles();
+    save();
+  }
+  function _akClearOver() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-ak-item],[data-ak-item-tab]"), function (n) { n.style.outline = ""; n.style.outlineOffset = ""; });
+  }
+  function _akTargetUnder(x, y, selfId) {
+    var stack = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [document.elementFromPoint(x, y)];
+    for (var i = 0; i < stack.length; i++) {
+      var n = stack[i] && stack[i].closest && stack[i].closest("[data-ak-item],[data-ak-item-tab]");
+      if (n) { var nid = n.getAttribute("data-ak-item") || n.getAttribute("data-ak-item-tab"); if (nid && nid !== selfId) return n; }
+    }
+    return null;
+  }
+  // el = the reorderable item; handle = optional child to grab from (defaults to el). Works with mouse, pen and touch.
+  function makeDraggable(el, id, handle) {
+    var grip = handle || el;
+    grip.style.cursor = "grab";
+    grip.style.touchAction = "none";
+    grip.addEventListener("pointerdown", function (e) {
+      if (e.button != null && e.button > 0) return;
+      if (!handle && e.target.closest && e.target.closest(".ak-tile-ctl")) return; // let edit/delete buttons work
+      _akDrag.id = id; _akDrag.el = el; _akDrag.moved = false; _akDrag.start = { x: e.clientX, y: e.clientY };
+      try { grip.setPointerCapture(e.pointerId); } catch (er) {}
+    });
+    grip.addEventListener("pointermove", function (e) {
+      if (_akDrag.id !== id) return;
+      if (!_akDrag.moved) {
+        if (Math.abs(e.clientX - _akDrag.start.x) + Math.abs(e.clientY - _akDrag.start.y) < 8) return;
+        _akDrag.moved = true; el.style.opacity = ".45"; grip.style.cursor = "grabbing"; document.body.style.userSelect = "none";
+      }
+      e.preventDefault();
+      _akClearOver();
+      var t = _akTargetUnder(e.clientX, e.clientY, id);
+      if (t) { t.style.outline = "2px dashed var(--accent)"; t.style.outlineOffset = "2px"; }
+    });
+    function finish(e) {
+      if (_akDrag.id !== id) return;
+      try { grip.releasePointerCapture(e.pointerId); } catch (er) {}
+      el.style.opacity = ""; grip.style.cursor = "grab"; document.body.style.userSelect = "";
+      var moved = _akDrag.moved, t = moved ? _akTargetUnder(e.clientX, e.clientY, id) : null;
+      _akClearOver(); _akDrag.id = null; _akDrag.el = null;
+      if (moved) {
+        _akSuppressTap = Date.now();
+        var toId = t && (t.getAttribute("data-ak-item") || t.getAttribute("data-ak-item-tab"));
+        if (toId && toId !== id) reorderItem(id, toId);
+      }
+    }
+    grip.addEventListener("pointerup", finish);
+    grip.addEventListener("pointercancel", finish);
+    // swallow the tap that fires right after a drag so we don't open the project
+    el.addEventListener("click", function (e) { if (Date.now() - _akSuppressTap < 350) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  }
+
   /* ============================================================ TILES (index) */
   function tileGrid() { return $(CFG.gridSelector); }
   function renderTiles() {
@@ -570,7 +638,9 @@
       var coverStyle = it.cover
         ? "background:url('" + dataURLtoBlobURL(it.cover) + "') center/cover no-repeat"
         : "";
+      var grip = isUnlocked() ? h("button", { class: "ak-tb ak-grip", title: "Drag to reorder", html: I.dots, onclick: function (e) { e.stopPropagation(); e.preventDefault(); } }) : null;
       var ctl = h("div", { class: "ak-tile-ctl" }, [
+        grip,
         h("button", { class: "ak-tb", title: "Edit", html: I.edit, onclick: function (e) { e.stopPropagation(); editItem(it); } }),
         h("button", { class: "ak-tb warn", title: "Delete", html: I.trash, onclick: function (e) { e.stopPropagation(); deleteItem(it); } })
       ]);
@@ -584,6 +654,7 @@
         ])
       ]);
       tile.addEventListener("click", function () { openDetail(it.id); });
+      if (isUnlocked()) makeDraggable(tile, it.id, grip);
       grid.insertBefore(tile, tileAnchor);
     });
     renderItemTabs();
@@ -604,6 +675,7 @@
     DATA.items.forEach(function (it) {
       var tab = h("button", { class: "tab" + (openItemId === it.id ? " active" : ""), role: "tab", "data-ak-item-tab": it.id,
         onclick: function () { openDetail(it.id); } }, [it.title || "Untitled"]);
+      if (isUnlocked()) makeDraggable(tab, it.id);
       tabbar.insertBefore(tab, tabAnchor);
     });
   }
@@ -1433,6 +1505,10 @@
         bundle = JSON.parse(JSON.stringify(bundle)); // clone — never corrupt live data
 
         var files = [], used = {}, seen = {}, fetches = [];
+        // include a replaced résumé PDF (admin) at the exact path the pages reference
+        fetches.push(idbGet("ak-resume-pdf").then(function (d) {
+          if (d && d.indexOf("data:") === 0) { var got = _dataURLBytes(d); files.push({ name: "uae_dubai_senior_3d_product_uiux_ajay_katta_2026_03-b0c06348.pdf", bytes: got.bytes }); }
+        }).catch(function () {}));
         function nameFor(base, ext) { base = base || "asset"; var nm = base + "." + ext, n = 2; while (used[nm]) nm = base + "-" + (n++) + "." + ext; used[nm] = 1; return nm; }
         function stash(ref, hintBase, hintExt) {
           if (!ref || typeof ref !== "string") return ref;
@@ -1473,14 +1549,38 @@
         });
 
         Promise.all(fetches).then(function () {
-          files.unshift({ name: "portfolio-data.json", bytes: new TextEncoder().encode(JSON.stringify(bundle, null, 2)) });
-          var zip = makeZip(files);
-          var a = h("a", { href: URL.createObjectURL(zip), download: "portfolio-site-data.zip" });
-          document.body.appendChild(a); a.click(); a.remove();
-          var mediaCount = files.length - 1;
-          setTimeout(function () {
-            alert("Exported portfolio-site-data.zip\n\nInside:\n  \u2022 portfolio-data.json  (your content \u2014 now tiny)\n  \u2022 media/  (" + mediaCount + " file" + (mediaCount === 1 ? "" : "s") + ")\n\nTo publish:\n1. Unzip it.\n2. Copy portfolio-data.json AND the media folder into your site repo, next to your HTML pages \u2014 replace the old ones.\n3. Push to GitHub. Vercel redeploys automatically.");
-          }, 200);
+          var mediaCount = files.length; // media only — JSON not added yet
+          function counts(obj) { var o = { total: 0 }; keys.forEach(function (k) { var n = (obj && obj[k] && obj[k].items) ? obj[k].items.length : 0; o[k] = n; o.total += n; }); return o; }
+          var nowC = counts(bundle);
+          function proceed() {
+            files.unshift({ name: "portfolio-data.json", bytes: new TextEncoder().encode(JSON.stringify(bundle, null, 2)) });
+            var zip = makeZip(files);
+            var a = h("a", { href: URL.createObjectURL(zip), download: "portfolio-site-data.zip" });
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () {
+              alert("Exported portfolio-site-data.zip\n\nInside:\n  \u2022 portfolio-data.json  (your content \u2014 now tiny)\n  \u2022 media/  (" + mediaCount + " file" + (mediaCount === 1 ? "" : "s") + ")\n\nTo publish:\n1. Unzip it.\n2. Copy portfolio-data.json AND the media folder into your site repo, next to your HTML pages \u2014 replace the old ones.\n3. Push to GitHub. Vercel redeploys automatically.");
+            }, 200);
+          }
+          // pre-flight: compare against the currently-published JSON so a partial export can't silently wipe projects
+          fetch("portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (pub) {
+            var summary = "You're about to export:\n\n" +
+              "  \u2022 UI/UX: " + nowC["ui-ux"] + " project(s)\n" +
+              "  \u2022 Gen AI: " + nowC["gen-ai"] + " project(s)\n" +
+              "  \u2022 3D: " + nowC["3d"] + " project(s)\n" +
+              "  \u2022 Media files: " + mediaCount + "\n\n" +
+              "This ZIP REPLACES all project data on your live site.";
+            var warn = "";
+            if (pub) {
+              var pubC = counts(pub);
+              keys.forEach(function (k) { if (nowC[k] < pubC[k]) warn += "  \u2022 " + k + ": live has " + pubC[k] + ", this export has only " + nowC[k] + "\n"; });
+            }
+            if (warn) {
+              if (!confirm("\u26A0\uFE0F WARNING \u2014 this export has FEWER projects than your live site:\n\n" + warn + "\nPublishing it will DELETE those missing projects from the live site.\n\n" + summary + "\n\nExport anyway?")) return;
+            } else if (!confirm(summary + "\n\nContinue?")) {
+              return;
+            }
+            proceed();
+          });
         });
       });
     });
