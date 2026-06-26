@@ -296,7 +296,7 @@ header{
 .stat .num{font-family:'Space Grotesk';font-size:2.05rem;font-weight:700;color:var(--text);line-height:1.1}
 .stat .lbl{font-size:.74rem;color:color-mix(in srgb, var(--text) 50%, var(--muted));letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
 .scroll-cue{
-  position:absolute;left:50%;bottom:72px;transform:translateX(-50%);z-index:3;
+  position:absolute;left:50%;bottom:104px;transform:translateX(-50%);z-index:3;
   display:flex;flex-direction:column;align-items:center;gap:12px;text-decoration:none;
   color:var(--muted);opacity:0;animation:cueIn .8s ease 1.2s forwards;transition:color .25s;
 }
@@ -464,15 +464,46 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 @keyframes floatY{0%,100%{transform:translateY(-7px)}50%{transform:translateY(7px)}}
 @media (prefers-reduced-motion: reduce){.tool-row-track{animation:none}.tool-word{animation:none}}
 
-/* ---------- experience strip ---------- */
-.exp{display:flex;flex-direction:column;gap:0}
-.exp-item{display:grid;grid-template-columns:252px 1fr;gap:26px;padding:30px 14px;border-bottom:1px solid var(--line)}
-.exp-item:first-child{border-top:1px solid var(--line)}
-.exp-item .when{font-family:'Space Mono';font-size:clamp(.9rem,1.2vw,1.02rem);color:var(--muted);letter-spacing:.08em;padding-top:5px;white-space:nowrap}
-.exp-item h3{font-size:1.15rem;margin-bottom:5px}
-.exp-item .role{color:var(--accent);font-size:clamp(.9rem,1.2vw,1.02rem);margin-bottom:8px}
-.exp-item p{color:var(--muted);font-size:clamp(.9rem,1.2vw,1.02rem);max-width:660px}
-@media(max-width:640px){.exp-item{grid-template-columns:1fr;gap:6px}}
+/* ---------- experience · drone flight map ---------- */
+.exp-wrap{display:grid;grid-template-columns:minmax(260px,0.82fr) 1.05fr;gap:40px;align-items:stretch;margin-top:4px}
+.exp-map{align-self:center;justify-self:end;position:sticky;top:108px;width:100%;max-width:330px}
+.exp-map svg{width:100%;height:auto;display:block;overflow:visible}
+.fm-route{fill:none;stroke:var(--line);stroke-width:2;stroke-dasharray:1 9;stroke-linecap:round}
+.fm-done{fill:none;stroke:var(--accent);stroke-width:2.6;stroke-linecap:round;filter:drop-shadow(0 0 7px color-mix(in srgb,var(--accent) 60%,transparent))}
+.fm-node{fill:var(--surface);stroke:var(--line);stroke-width:2;cursor:pointer;transition:stroke .35s,fill .35s}
+.fm-node.on{stroke:var(--accent);fill:var(--accent)}
+.fm-ring{fill:none;stroke:var(--accent);stroke-width:1.5;opacity:0;transform-box:fill-box;transform-origin:center;transition:opacity .35s}
+.fm-ring.on{opacity:.5;animation:fmPing 1.9s ease-out infinite}
+@keyframes fmPing{0%{transform:scale(.55);opacity:.6}100%{transform:scale(2.1);opacity:0}}
+.fm-yr{font-family:'Space Mono';font-size:12.5px;letter-spacing:.04em;fill:var(--muted);transition:fill .35s;pointer-events:none}
+.fm-yr.on{fill:var(--text)}
+.fm-cap{font-family:'Space Mono';font-size:11px;fill:color-mix(in srgb,var(--muted) 75%,transparent);letter-spacing:.22em;text-transform:uppercase}
+.fm-drone .glow{fill:var(--accent);opacity:.16}
+.fm-drone .body{fill:var(--accent)}
+.fm-drone .strut{stroke:var(--accent);stroke-width:1.7;stroke-linecap:round}
+.fm-drone .rotor{fill:none;stroke:var(--accent);stroke-width:1.5;opacity:.9}
+
+.exp-list{display:flex;flex-direction:column;gap:16px}
+.exp-row{position:relative;display:block;width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit;
+  border:1px solid var(--line);border-radius:18px;padding:22px 24px;background:var(--surface);
+  transition:border-color .4s,transform .45s cubic-bezier(.2,.7,.3,1),box-shadow .45s;overflow:hidden}
+.exp-row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);transform:scaleY(0);transform-origin:top;transition:transform .5s cubic-bezier(.2,.7,.3,1)}
+.exp-row.active{border-color:color-mix(in srgb,var(--accent) 50%,var(--line));transform:translateX(7px);box-shadow:0 20px 44px -28px color-mix(in srgb,var(--accent) 75%,transparent)}
+.exp-row.active::before{transform:scaleY(1)}
+.exp-row .when{font-family:'Space Mono';font-size:.82rem;color:var(--muted);letter-spacing:.05em;margin-bottom:9px;transition:color .35s}
+.exp-row.active .when{color:var(--accent)}
+.exp-row h3{font-size:1.24rem;margin-bottom:4px}
+.exp-row .role{color:var(--accent);font-size:.97rem}
+.exp-row .desc{color:var(--muted);font-size:.95rem;line-height:1.55;max-width:640px;max-height:0;opacity:0;overflow:hidden;margin-top:0;
+  transition:max-height .55s ease,opacity .4s ease,margin-top .4s ease}
+.exp-row.active .desc{max-height:260px;opacity:1;margin-top:13px}
+@media(max-width:860px){
+  .exp-wrap{grid-template-columns:1fr;gap:24px}
+  .exp-map{display:none}
+  .exp-row{cursor:default}
+  .exp-row .desc{max-height:260px;opacity:1;margin-top:13px}
+  .exp-row.active{transform:none}
+}
 
 /* ---------- footer ---------- */
 footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-soft);position:relative;overflow:hidden}
@@ -602,6 +633,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
   <div class="rv-bar">
     <span class="rv-title">Ajay Katta — Résumé</span>
     <div class="rv-actions">
+      <a class="rv-link" id="rvDownload" href="uae_dubai_senior_3d_product_uiux_ajay_katta_2026_03-b0c06348.pdf" download="Ajay Katta - Resume.pdf">Download ↓</a>
       <a class="rv-link" id="rvOpen" href="#" target="_blank" rel="noopener">Open in new tab ↗</a>
       <button type="button" class="rv-close" id="rvClose" aria-label="Close résumé">✕</button>
     </div>
@@ -784,30 +816,56 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
       <span class="mono">// Trajectory</span>
       <h2>Experience</h2>
     </div>
-    <div class="exp">
-      <div class="exp-item reveal">
-        <div class="when">Nov 2020 — Dec 2025</div>
-        <div>
+    <div class="exp-wrap">
+      <div class="exp-map reveal" aria-hidden="true">
+        <svg viewBox="0 0 320 470" role="img" aria-label="Career flight path">
+          <path class="fm-route" d="M 238 410 C 272 332 46 336 92 232 C 132 146 282 158 228 64"/>
+          <path class="fm-done" id="fmDone" d="M 238 410 C 272 332 46 336 92 232 C 132 146 282 158 228 64"/>
+
+          <circle class="fm-ring" data-i="2" cx="238" cy="410" r="14"/>
+          <circle class="fm-ring" data-i="1" cx="92" cy="232" r="14"/>
+          <circle class="fm-ring" data-i="0" cx="228" cy="64" r="14"/>
+          <circle class="fm-node" data-i="2" cx="238" cy="410" r="6.5"/>
+          <circle class="fm-node" data-i="1" cx="92" cy="232" r="6.5"/>
+          <circle class="fm-node" data-i="0" cx="228" cy="64" r="6.5"/>
+
+          <text class="fm-yr" data-i="2" x="254" y="414" text-anchor="start">2015 — 19</text>
+          <text class="fm-yr" data-i="1" x="74" y="228" text-anchor="end">2019</text>
+          <text class="fm-yr" data-i="0" x="244" y="68" text-anchor="end">2020 — 25</text>
+
+          <g class="fm-drone" id="fmDrone">
+            <circle class="glow" r="19"/>
+            <line class="strut" x1="-11" y1="-7" x2="11" y2="7"/>
+            <line class="strut" x1="-11" y1="7" x2="11" y2="-7"/>
+            <ellipse class="rotor" cx="-11" cy="-7" rx="5.5" ry="2"/>
+            <ellipse class="rotor" cx="11" cy="-7" rx="5.5" ry="2"/>
+            <ellipse class="rotor" cx="-11" cy="7" rx="5.5" ry="2"/>
+            <ellipse class="rotor" cx="11" cy="7" rx="5.5" ry="2"/>
+            <rect class="body" x="-8.5" y="-3" width="17" height="6" rx="3"/>
+          </g>
+
+          <text class="fm-cap" x="0" y="458">Flight log · hover to travel</text>
+        </svg>
+      </div>
+      <div class="exp-list">
+        <button class="exp-row reveal" type="button" data-i="0">
+          <div class="when">Nov 2020 — Dec 2025</div>
           <h3>Amazon</h3>
           <div class="role">Designer / 3D Materials Artist · Visual Innovation Team</div>
-          <p>Delivered 1,500+ production-ready 3D assets at 95% visual fidelity; drove cross-functional CX pilots, AI video systems and procedural pipelines. Global Hackathon Top-2 Finalist & Wall of Fame honoree.</p>
-        </div>
-      </div>
-      <div class="exp-item reveal">
-        <div class="when">Mar 2019 — Jul 2019</div>
-        <div>
+          <p class="desc">Delivered 1,500+ production-ready 3D assets at 95% visual fidelity; drove cross-functional CX pilots, AI video systems and procedural pipelines. Global Hackathon Top-2 Finalist &amp; Wall of Fame honoree.</p>
+        </button>
+        <button class="exp-row reveal" type="button" data-i="1">
+          <div class="when">Mar 2019 — Jul 2019</div>
           <h3>Santh Designs</h3>
-          <div class="role">Motion Graphic Artist · Branding & VFX</div>
-          <p>Designed 50+ brand identities and produced video advertisements, motion graphics and compositing for digital marketing campaigns.</p>
-        </div>
-      </div>
-      <div class="exp-item reveal">
-        <div class="when">2015 — 2019</div>
-        <div>
+          <div class="role">Motion Graphic Artist · Branding &amp; VFX</div>
+          <p class="desc">Designed 50+ brand identities and produced video advertisements, motion graphics and compositing for digital marketing campaigns.</p>
+        </button>
+        <button class="exp-row reveal" type="button" data-i="2">
+          <div class="when">2015 — 2019</div>
           <h3>JNAFAU, Hyderabad</h3>
           <div class="role">Bachelor of Fine Arts, Animation</div>
-          <p>Certifications: Google UX Design Professional Certificate (2025) · Generative AI & Prompt Engineering, LinkedIn (2025).</p>
-        </div>
+          <p class="desc">Certifications: Google UX Design Professional Certificate (2025) · Generative AI &amp; Prompt Engineering, LinkedIn (2025).</p>
+        </button>
       </div>
     </div>
   </div>
@@ -1349,6 +1407,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   const frame=document.getElementById('rvFrame');
   const closeBtn=document.getElementById('rvClose');
   const openLink=document.getElementById('rvOpen');
+  const dlLink=document.getElementById('rvDownload');
   if(!btn||!viewer) return;
   let cachedUrl=null;
   async function getUrl(){
@@ -1362,12 +1421,68 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   function close(){ viewer.classList.remove('open'); viewer.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
   btn.addEventListener('click',async e=>{
     e.preventDefault();
-    try{ const u=await getUrl(); frame.src=u; openLink.href=u; }
-    catch(err){ frame.src=btn.href; openLink.href=btn.href; }
+    try{ const u=await getUrl(); frame.src=u; openLink.href=u; if(dlLink) dlLink.href=u; }
+    catch(err){ frame.src=btn.href; openLink.href=btn.href; if(dlLink) dlLink.href=btn.href; }
     open();
   });
   closeBtn.addEventListener('click',close);
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&viewer.classList.contains('open')) close(); });
+})();
+</script>
+<script>
+/* ============ experience · drone flight map ============ */
+(function(){
+  const map=document.querySelector('.exp-map');
+  if(!map) return;
+  const route=map.querySelector('.fm-route');
+  const done=document.getElementById('fmDone');
+  const drone=document.getElementById('fmDrone');
+  const rows=[...document.querySelectorAll('.exp-row')];
+  const nodes=[...map.querySelectorAll('.fm-node')];
+  const rings=[...map.querySelectorAll('.fm-ring')];
+  const yrs=[...map.querySelectorAll('.fm-yr')];
+  if(!route||!drone||!rows.length) return;
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const L=route.getTotalLength();
+  done.style.strokeDasharray=L;
+  function lenAt(x,y){let best=0,bd=1e9;for(let i=0;i<=600;i++){const l=L*i/600;const p=route.getPointAtLength(l);const d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);if(d<bd){bd=d;best=l;}}return best;}
+  const target={};
+  nodes.forEach(n=>{target[+n.dataset.i]=lenAt(+n.getAttribute('cx'),+n.getAttribute('cy'));});
+
+  function place(l){
+    const p=route.getPointAtLength(l);
+    const p2=route.getPointAtLength(Math.min(L,l+1.2));
+    const ang=Math.atan2(p2.y-p.y,p2.x-p.x)*180/Math.PI;
+    drone.setAttribute('transform','translate('+p.x.toFixed(2)+' '+p.y.toFixed(2)+') rotate('+ang.toFixed(1)+')');
+    done.style.strokeDashoffset=(L-l);
+  }
+
+  let cur=target[0]??L, aim=cur, raf=null, active=-1;
+  function loop(){
+    cur+=(aim-cur)*0.06;
+    if(Math.abs(aim-cur)<0.3){cur=aim;place(cur);raf=null;return;}
+    place(cur); raf=requestAnimationFrame(loop);
+  }
+  function setActive(i){
+    if(i===active) return; active=i;
+    rows.forEach((r,k)=>r.classList.toggle('active',k===i));
+    nodes.forEach(n=>n.classList.toggle('on',+n.dataset.i===i));
+    rings.forEach(n=>n.classList.toggle('on',+n.dataset.i===i));
+    yrs.forEach(n=>n.classList.toggle('on',+n.dataset.i===i));
+    aim=target[i];
+    if(reduce){cur=aim;place(cur);return;}
+    if(!raf) raf=requestAnimationFrame(loop);
+  }
+  rows.forEach((r,i)=>{
+    r.addEventListener('mouseenter',()=>setActive(i));
+    r.addEventListener('focus',()=>setActive(i));
+    r.addEventListener('click',()=>setActive(i));
+  });
+  nodes.forEach(n=>n.addEventListener('mouseenter',()=>setActive(+n.dataset.i)));
+
+  place(cur);
+  setActive(0);
 })();
 </script>
 </body>

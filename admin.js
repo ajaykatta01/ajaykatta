@@ -19,8 +19,13 @@
     window.AK_ADMIN || {}
   );
   var NS = "ak-admin:" + CFG.page;
-  var PW_KEY = "ak-admin-pw";            // shared SHA-256 password hash (all pages)
+  var PW_KEY = "ak-admin-pw";            // local override SHA-256 password hash (per browser)
   var SESSION_KEY = "ak-admin-unlocked"; // session unlock flag (all pages)
+  // Baked-in default password hash, shipped with the site so EVERY browser/device
+  // uses the same admin password out of the box. SHA-256 of the chosen password.
+  // "Change password" stores a per-browser override in PW_KEY that takes precedence here.
+  var BAKED_PW = "fc3bc90afab65978286ab14b40b51bbe5b8ab2d3208e6a440c7844babcf89892";
+  function storedPW() { try { return localStorage.getItem(PW_KEY) || BAKED_PW; } catch (e) { return BAKED_PW; } }
 
   /* ---------- tiny helpers ---------- */
   function h(tag, attrs, kids) {
@@ -415,7 +420,7 @@
     }).then(function (v) {
       if (!v) return false;
       return sha256(v.p).then(function (hash) {
-        if (hash === localStorage.getItem(PW_KEY)) { sessionStorage.setItem(SESSION_KEY, "1"); UNLOCKED = true; return true; }
+        if (hash === storedPW()) { sessionStorage.setItem(SESSION_KEY, "1"); UNLOCKED = true; return true; }
         alert("Incorrect password."); return false;
       });
     });
@@ -432,13 +437,46 @@
     }).then(function (v) {
       if (!v) return;
       return sha256(v.cur).then(function (cur) {
-        if (cur !== localStorage.getItem(PW_KEY)) { alert("Current password is incorrect."); return; }
-        return sha256(v.p1).then(function (nh) { localStorage.setItem(PW_KEY, nh); alert("Password updated."); });
+        if (cur !== storedPW()) { alert("Current password is incorrect."); return; }
+        return sha256(v.p1).then(function (nh) { localStorage.setItem(PW_KEY, nh); showBakeHash(nh); });
       });
     });
   }
+  // Show the new hash + the exact code line so the owner can make the new password
+  // site-wide (update BAKED_PW in admin.js and redeploy). Owner stays in full control.
+  function showBakeHash(nh) {
+    var line = 'var BAKED_PW = "' + nh + '";';
+    var ov = h("div", { class: "ak-ov" });
+    function close() { ov.remove(); document.removeEventListener("keydown", onKey); }
+    function onKey(e) { if (e.key === "Escape") close(); }
+    var code = h("textarea", { readonly: "", style: "width:100%;min-height:70px;resize:none;font-family:'Space Mono',monospace;font-size:.78rem;line-height:1.5;color:var(--text);background:color-mix(in srgb,var(--bg) 60%,var(--surface));border:1px solid var(--line);border-radius:10px;padding:11px 13px" });
+    code.value = line;
+    var copyBtn = h("button", { class: "ak-btn ghost", html: I.dl + "<span>Copy code line</span>", onclick: function () {
+      code.select(); try { document.execCommand("copy"); } catch (e) {}
+      try { if (navigator.clipboard) navigator.clipboard.writeText(line); } catch (e) {}
+      copyBtn.querySelector("span").textContent = "Copied \u2713";
+    } });
+    var m = h("div", { class: "ak-modal", style: "width:min(560px,100%)" }, [
+      h("h3", {}, ["Password changed on this browser"]),
+      h("div", { class: "sub" }, ["It works here right now. To make it the password for the whole live site (every browser & device), do the two steps below \u2014 you stay in full control of the master password."]),
+      h("div", { class: "ak-field" }, [
+        h("label", {}, ["1 \u00b7 Replace this line in admin.js"]),
+        code,
+        h("div", { class: "ak-hint" }, ["Find the existing line that starts with \u201cvar BAKED_PW =\u201d near the top of admin.js and replace it with this one."])
+      ]),
+      h("div", { class: "ak-hint", style: "margin-top:-4px" }, ["2 \u00b7 Save the file and redeploy (push to GitHub \u2014 Vercel redeploys automatically)."]),
+      h("div", { class: "ak-acts" }, [
+        copyBtn,
+        h("button", { class: "ak-btn", onclick: close }, ["Done"])
+      ])
+    ]);
+    ov.appendChild(m);
+    ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(ov);
+  }
   function requestUnlock() {
-    if (!localStorage.getItem(PW_KEY)) return setupPassword();
+    if (!storedPW()) return setupPassword();
     if (!isUnlocked()) return login();
     return Promise.resolve(true);
   }
@@ -527,6 +565,7 @@
   function renderTiles() {
     var grid = tileGrid(); if (!grid) return;
     grid.querySelectorAll("[data-ak-item]").forEach(function (n) { n.remove(); });
+    var tileAnchor = grid.querySelector(".ptile[data-case]"); // newest items render before any built-in case tiles
     DATA.items.forEach(function (it) {
       var coverStyle = it.cover
         ? "background:url('" + dataURLtoBlobURL(it.cover) + "') center/cover no-repeat"
@@ -545,7 +584,7 @@
         ])
       ]);
       tile.addEventListener("click", function () { openDetail(it.id); });
-      grid.appendChild(tile);
+      grid.insertBefore(tile, tileAnchor);
     });
     renderItemTabs();
   }
@@ -561,10 +600,11 @@
     var tabbar = document.querySelector(".cs-detail .tabbar");
     if (!tabbar) return;
     tabbar.querySelectorAll("[data-ak-item-tab]").forEach(function (n) { n.remove(); });
+    var tabAnchor = tabbar.querySelector(".tab[data-tab]"); // newest items appear before built-in tabs
     DATA.items.forEach(function (it) {
       var tab = h("button", { class: "tab" + (openItemId === it.id ? " active" : ""), role: "tab", "data-ak-item-tab": it.id,
         onclick: function () { openDetail(it.id); } }, [it.title || "Untitled"]);
-      tabbar.appendChild(tab);
+      tabbar.insertBefore(tab, tabAnchor);
     });
   }
 
@@ -764,7 +804,7 @@
       var meta = { role: v.role, timeline: v.timeline, platform: v.platform, focus: v.focus, software: v.software };
       if (creating) {
         var item = { id: uid(), title: v.title, tag: v.tag, desc: v.desc, cover: v.cover || "", meta: meta, blocks: [] };
-        DATA.items.push(item);
+        DATA.items.unshift(item); // newest project/case study first
         save().then(function () { renderTiles(); openDetail(item.id); });
       } else {
         it.title = v.title; it.tag = v.tag; it.desc = v.desc; it.meta = meta;
@@ -914,11 +954,11 @@
     var hdrEl = document.querySelector("header");
     // sticky case-study / project tab bar (all project pages), with this one active
     var strip = h("div", { class: "tabbar" }, []);
+    DATA.items.forEach(function (x) { // newest items first
+      strip.appendChild(h("button", { class: "tab" + (x.id === it.id ? " active" : ""), onclick: function () { if (x.id !== it.id) openDetail(x.id); } }, [x.title || "Untitled"]));
+    });
     builtinTabs().forEach(function (b) {
       strip.appendChild(h("button", { class: "tab", onclick: function () { closeDetail(); if (window.openCase) window.openCase(b.key); } }, [b.label]));
-    });
-    DATA.items.forEach(function (x) {
-      strip.appendChild(h("button", { class: "tab" + (x.id === it.id ? " active" : ""), onclick: function () { if (x.id !== it.id) openDetail(x.id); } }, [x.title || "Untitled"]));
     });
     var plural = CFG.noun === "case study" ? "case studies" : CFG.noun + "s";
     var bar = h("div", { class: "ak-d-bar" }, [ h("div", { class: "inner" }, [
@@ -1106,19 +1146,93 @@
     function onKey(e) { if (e.key === "Escape") { revert(); close(); } }
     function applyLive(val) { paint(val); }
     var seed = /^#[0-9a-f]{6}$/i.test(orig) ? orig : "#11131c";
-    var colorInput = h("input", { type: "color", value: seed, style: "width:54px;height:42px;border:1px solid var(--line);background:none;cursor:pointer;border-radius:9px;padding:2px" });
     var hexInput = h("input", { type: "text", value: orig, placeholder: "#11131c or any CSS color", style: "flex:1" });
-    colorInput.addEventListener("input", function () { hexInput.value = colorInput.value; applyLive(colorInput.value); });
-    hexInput.addEventListener("input", function () { var hv = hexInput.value.trim(); applyLive(hv); if (/^#[0-9a-f]{6}$/i.test(hv)) colorInput.value = hv; });
+
+    /* ---- self-contained color picker (no native dialog; works in any sandbox) ---- */
+    function _clamp(v) { return Math.max(0, Math.min(1, v)); }
+    function _hexToRgb(x) { var m2 = /^#?([0-9a-f]{6})$/i.exec((x || "").trim()); if (!m2) return null; var n = parseInt(m2[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+    function _rgbToHex(r, g, b) { return "#" + [r, g, b].map(function (v) { return ("0" + Math.max(0, Math.min(255, Math.round(v))).toString(16)).slice(-2); }).join(""); }
+    function _hsvToRgb(h0, s, v) { var i = Math.floor(h0 / 60), f = h0 / 60 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s), r, g, b; switch (i % 6) { case 0: r = v; g = t; b = p; break; case 1: r = q; g = v; b = p; break; case 2: r = p; g = v; b = t; break; case 3: r = p; g = q; b = v; break; case 4: r = t; g = p; b = v; break; default: r = v; g = p; b = q; } return [r * 255, g * 255, b * 255]; }
+    function _rgbToHsv(r, g, b) { r /= 255; g /= 255; b /= 255; var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h0 = 0, s = mx ? d / mx : 0, v = mx; if (d) { if (mx === r) h0 = ((g - b) / d) % 6; else if (mx === g) h0 = (b - r) / d + 2; else h0 = (r - g) / d + 4; h0 *= 60; if (h0 < 0) h0 += 360; } return [h0, s, v]; }
+    var _ir = _hexToRgb(seed) || [17, 19, 28];
+    var hsv = _rgbToHsv(_ir[0], _ir[1], _ir[2]);
+
+    var svArea = h("div", { style: "position:relative;width:100%;height:150px;border-radius:10px;overflow:hidden;cursor:crosshair;border:1px solid var(--line);touch-action:none" }, [
+      h("div", { style: "position:absolute;inset:0;background:linear-gradient(to right,#fff,rgba(255,255,255,0))" }),
+      h("div", { style: "position:absolute;inset:0;background:linear-gradient(to top,#000,rgba(0,0,0,0))" })
+    ]);
+    var svDot = h("div", { style: "position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.45);transform:translate(-50%,-50%);pointer-events:none" });
+    svArea.appendChild(svDot);
+    var hueBar = h("div", { style: "position:relative;width:100%;height:14px;border-radius:8px;margin-top:12px;cursor:pointer;border:1px solid var(--line);touch-action:none;background:linear-gradient(to right,#f00 0%,#ff0 17%,#0f0 33%,#0ff 50%,#00f 67%,#f0f 83%,#f00 100%)" });
+    var hueDot = h("div", { style: "position:absolute;top:50%;width:12px;height:20px;border-radius:5px;border:2px solid #fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.45);transform:translate(-50%,-50%);pointer-events:none" });
+    hueBar.appendChild(hueDot);
+    var preview = h("div", { style: "width:42px;height:42px;border-radius:9px;border:1px solid var(--line);flex:none;background:" + (orig || seed) });
+
+    function paintDots() {
+      svArea.style.background = "hsl(" + Math.round(hsv[0]) + ",100%,50%)";
+      svDot.style.left = (hsv[1] * 100) + "%";
+      svDot.style.top = ((1 - hsv[2]) * 100) + "%";
+      hueDot.style.left = (hsv[0] / 360 * 100) + "%";
+    }
+    function commit() {
+      var rgb = _hsvToRgb(hsv[0], hsv[1], hsv[2]);
+      var hex = _rgbToHex(rgb[0], rgb[1], rgb[2]);
+      paintDots();
+      hexInput.value = hex;
+      preview.style.background = hex;
+      applyLive(hex);
+    }
+    function dragSV(e) { var r = svArea.getBoundingClientRect(); hsv[1] = _clamp((e.clientX - r.left) / r.width); hsv[2] = 1 - _clamp((e.clientY - r.top) / r.height); commit(); }
+    function dragHue(e) { var r = hueBar.getBoundingClientRect(); hsv[0] = _clamp((e.clientX - r.left) / r.width) * 360; commit(); }
+    function attachDrag(el, fn) {
+      el.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (er) {} fn(e);
+        function mv(ev) { fn(ev); }
+        function up() { el.removeEventListener("pointermove", mv); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); }
+        el.addEventListener("pointermove", mv); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+      });
+    }
+    attachDrag(svArea, dragSV);
+    attachDrag(hueBar, dragHue);
+    hexInput.addEventListener("input", function () {
+      var hv = hexInput.value.trim(); applyLive(hv); preview.style.background = hv || "transparent";
+      var rgb = _hexToRgb(hv); if (rgb) { hsv = _rgbToHsv(rgb[0], rgb[1], rgb[2]); paintDots(); }
+    });
+    paintDots();
+
+    /* convert any CSS color (hex / rgb / hsl / named) to #rrggbb */
+    function _cssToHex(c) { try { var cv = document.createElement("canvas"); cv.width = cv.height = 1; var cx = cv.getContext("2d"); cx.fillStyle = "#000"; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); var d = cx.getImageData(0, 0, 1, 1).data; return _rgbToHex(d[0], d[1], d[2]); } catch (er) { return null; } }
+    function _applyPicked(c) { var hx = _cssToHex(c); if (hx) { var rgb = _hexToRgb(hx); hsv = _rgbToHsv(rgb[0], rgb[1], rgb[2]); commit(); } else { hexInput.value = c; preview.style.background = c; applyLive(c); } }
+    /* eyedropper — sample a color from anywhere on the page, or match the site background */
+    var eyeBtn = h("button", { type: "button", title: "Pick a color from the page",
+      style: "width:42px;height:42px;flex:none;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--text);cursor:pointer;transition:.2s",
+      html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l1.5-4.5L15 6l3 3L6.5 20.5 2 22z"/><path d="M14.5 6.5l3 3 2.4-2.4a2 2 0 0 0 0-2.8l-.3-.3a2 2 0 0 0-2.8 0L14.5 6.5z"/></svg>',
+      onclick: function () {
+        if (window.EyeDropper) {
+          ov.style.visibility = "hidden";
+          try {
+            new EyeDropper().open()
+              .then(function (res) { ov.style.visibility = ""; _applyPicked(res.sRGBHex); })
+              .catch(function () { ov.style.visibility = ""; });
+            return;
+          } catch (er) { ov.style.visibility = ""; }
+        }
+        var root = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+        _applyPicked(root || getComputedStyle(document.body).backgroundColor);
+      }
+    });
+    eyeBtn.addEventListener("mouseenter", function () { eyeBtn.style.borderColor = "var(--accent)"; eyeBtn.style.color = "var(--accent)"; });
+    eyeBtn.addEventListener("mouseleave", function () { eyeBtn.style.borderColor = "var(--line)"; eyeBtn.style.color = "var(--text)"; });
+
     var swatches = h("div", { style: "display:flex;flex-wrap:wrap;gap:8px" }, presets.map(function (col) {
       return h("button", { type: "button", title: col, style: "width:32px;height:32px;border-radius:9px;border:1px solid var(--line);cursor:pointer;background:" + col,
-        onclick: function () { hexInput.value = col; colorInput.value = col; applyLive(col); } });
+        onclick: function () { var rgb = _hexToRgb(col); if (rgb) { hsv = _rgbToHsv(rgb[0], rgb[1], rgb[2]); } commit(); } });
     }));
     var where = openCaseKey ? "case study" : CFG.noun;
     var m = h("div", { class: "ak-modal", style: "width:min(460px,100%)" }, [
       h("h3", {}, ["Background color"]),
       h("div", { class: "sub" }, ["Set the content background of this " + where + " so uploaded files blend in. The cover area and footer keep the theme color. Updates live as you pick."]),
-      h("div", { class: "ak-field" }, [h("label", {}, ["Pick a color"]), h("div", { style: "display:flex;gap:10px;align-items:center" }, [colorInput, hexInput])]),
+      h("div", { class: "ak-field" }, [h("label", {}, ["Pick a color"]), svArea, hueBar, h("div", { style: "display:flex;gap:10px;align-items:center;margin-top:12px" }, [preview, eyeBtn, hexInput])]),
       h("div", { class: "ak-field" }, [h("label", {}, ["Presets"]), swatches]),
       h("div", { class: "ak-acts" }, [
         h("button", { class: "ak-btn ghost", onclick: function () { c.obj.bg = ""; applyLive(""); save().then(c.rerender); close(); } }, ["Reset to theme"]),

@@ -2,83 +2,82 @@
   "ui-ux": {
     "items": [
       {
-        "id": "mqqj77xbo1mre",
-        "title": "FinTrack",
+        "id": "mqqyp8l695tv9",
+        "title": "MotoCare",
         "tag": "Fintech",
-        "desc": "A complete UX case study for young professionals\nwho want a simpler way to understand their money.",
-        "cover": "media/fintrack-cover.png",
+        "desc": "A UX case study focused on helping stranded drivers connect with nearby mechanics through real-time booking, tracking, and roadside support.",
+        "cover": "media/motocare-cover.png",
         "meta": {
-          "role": "Product Designer    End-to-End",
-          "timeline": "May 2026",
-          "platform": "IOS WEB",
-          "focus": "Research-UI",
-          "software": "Figma. Photoshop"
+          "role": "End-To-End . Product Designer",
+          "timeline": "June 2026",
+          "platform": "IOS",
+          "focus": "",
+          "software": "Figma . Photoshop . Illustrator"
         },
         "blocks": [
           {
-            "id": "mqqk1g30wnzji",
+            "id": "mqqypicsn9mmm",
             "type": "image",
-            "src": "media/fintrack-image-1.jpg",
+            "src": "media/motocare-image-1.png",
             "caption": ""
           },
           {
-            "id": "mqqk2jvzw9u41",
+            "id": "mqqypmpdv0nn3",
             "type": "image",
-            "src": "media/fintrack-image-2.png",
+            "src": "media/motocare-image-2.png",
             "caption": ""
           },
           {
-            "id": "mqqk2yan644ow",
+            "id": "mqqypqqo2jkbr",
             "type": "image",
-            "src": "media/fintrack-image-3.jpg",
+            "src": "media/motocare-image-3.png",
             "caption": ""
           },
           {
-            "id": "mqqk360jjd80k",
+            "id": "mqqypv3d0wioe",
             "type": "image",
-            "src": "media/fintrack-image-4.jpg",
+            "src": "media/motocare-image-4.png",
             "caption": ""
           },
           {
-            "id": "mqqk3fs97rqzh",
+            "id": "mqqyq1kb4onoi",
             "type": "image",
-            "src": "media/fintrack-image-5.jpg",
+            "src": "media/motocare-image-5.png",
             "caption": ""
           },
           {
-            "id": "mqqk3mlfhn92a",
+            "id": "mqqyqgrmm87k6",
             "type": "image",
-            "src": "media/fintrack-image-6.jpg",
+            "src": "media/motocare-image-6.png",
             "caption": ""
           },
           {
-            "id": "mqqk3s1w92ca0",
+            "id": "mqqyql5dp7usv",
             "type": "image",
-            "src": "media/fintrack-image-7.jpg",
+            "src": "media/motocare-image-7.png",
             "caption": ""
           },
           {
-            "id": "mqqk3zjp21aad",
+            "id": "mqqyqpch24o2n",
             "type": "image",
-            "src": "media/fintrack-image-8.jpg",
+            "src": "media/motocare-image-8.png",
             "caption": ""
           },
           {
-            "id": "mqqk45s6qwncv",
+            "id": "mqqyqtnprif06",
             "type": "image",
-            "src": "media/fintrack-image-9.jpg",
+            "src": "media/motocare-image-9.png",
             "caption": ""
           },
           {
-            "id": "mqr3insxibezl",
+            "id": "mqr3w45i1eg0z",
             "type": "prototype",
-            "raw": "<iframe style=\"border: 1px solid rgba(0, 0, 0, 0.1);\" width=\"800\" height=\"450\" src=\"https://embed.figma.com/proto/E3EkAfMiaC9OAF9mAOCap1/FinTrack?node-id=54-2177&viewport=301%2C215%2C0.25&scaling=contain&content-scaling=fixed&page-id=54%3A1754&embed-host=share\" allowfullscreen></iframe>",
-            "src": "https://embed.figma.com/proto/E3EkAfMiaC9OAF9mAOCap1/FinTrack?node-id=54-2177&viewport=301%2C215%2C0.25&scaling=contain&content-scaling=fixed&page-id=54%3A1754&embed-host=share",
+            "src": "https://embed.figma.com/proto/Iav9P7Cvl56RLMZYEg0WQt/MotoCare?node-id=35-13163&viewport=1620%2C-222%2C0.21&scaling=contain&content-scaling=fixed&starting-point-node-id=35%3A13163&page-id=7%3A1217&embed-host=share",
             "caption": ""
           }
         ],
         "spacing": 0,
-        "bg": "#f5f6fb"
+        "bg": "#ffffff"
       },
       {
         "id": "mqqydror5crur",
@@ -163,7 +162,6 @@
           {
             "id": "mqqyi1fzx7vjt",
             "type": "prototype",
-            "raw": "<iframe style=\"border: 1px solid rgba(0, 0, 0, 0.1);\" width=\"800\" height=\"450\" src=\"https://embed.figma.com/proto/7kzpATybsa5knOeyKVyJxU/Coinwave?node-id=118-4484&viewport=-1069%2C403%2C0.57&scaling=contain&content-scaling=fixed&starting-point-node-id=118%3A4484&page-id=118%3A4274&embed-host=share\" allowfullscreen></iframe>",
             "src": "https://embed.figma.com/proto/7kzpATybsa5knOeyKVyJxU/Coinwave?node-id=118-4484&viewport=-1069%2C403%2C0.57&scaling=contain&content-scaling=fixed&starting-point-node-id=118%3A4484&page-id=118%3A4274&embed-host=share",
             "caption": ""
           }
@@ -172,90 +170,87 @@
         "bg": "#05060b"
       },
       {
-        "id": "mqqyp8l695tv9",
-        "title": "MotoCare",
+        "id": "mqqj77xbo1mre",
+        "title": "FinTrack",
         "tag": "Fintech",
-        "desc": "A UX case study focused on helping stranded drivers connect with nearby mechanics through real-time booking, tracking, and roadside support.",
-        "cover": "media/motocare-cover.png",
+        "desc": "A complete UX case study for young professionals\nwho want a simpler way to understand their money.",
+        "cover": "media/fintrack-cover.png",
         "meta": {
-          "role": "End-To-End . Product Designer",
-          "timeline": "June 2026",
-          "platform": "IOS",
-          "focus": "",
-          "software": "Figma . Photoshop . Illustrator"
+          "role": "Product Designer    End-to-End",
+          "timeline": "May 2026",
+          "platform": "IOS WEB",
+          "focus": "Research-UI",
+          "software": "Figma. Photoshop"
         },
         "blocks": [
           {
-            "id": "mqqypicsn9mmm",
+            "id": "mqqk1g30wnzji",
             "type": "image",
-            "src": "media/motocare-image-1.png",
+            "src": "media/fintrack-image-1.jpg",
             "caption": ""
           },
           {
-            "id": "mqqypmpdv0nn3",
+            "id": "mqqk2jvzw9u41",
             "type": "image",
-            "src": "media/motocare-image-2.png",
+            "src": "media/fintrack-image-2.png",
             "caption": ""
           },
           {
-            "id": "mqqypqqo2jkbr",
+            "id": "mqqk2yan644ow",
             "type": "image",
-            "src": "media/motocare-image-3.png",
+            "src": "media/fintrack-image-3.jpg",
             "caption": ""
           },
           {
-            "id": "mqqypv3d0wioe",
+            "id": "mqqk360jjd80k",
             "type": "image",
-            "src": "media/motocare-image-4.png",
+            "src": "media/fintrack-image-4.jpg",
             "caption": ""
           },
           {
-            "id": "mqqyq1kb4onoi",
+            "id": "mqqk3fs97rqzh",
             "type": "image",
-            "src": "media/motocare-image-5.png",
+            "src": "media/fintrack-image-5.jpg",
             "caption": ""
           },
           {
-            "id": "mqqyqgrmm87k6",
+            "id": "mqqk3mlfhn92a",
             "type": "image",
-            "src": "media/motocare-image-6.png",
+            "src": "media/fintrack-image-6.jpg",
             "caption": ""
           },
           {
-            "id": "mqqyql5dp7usv",
+            "id": "mqqk3s1w92ca0",
             "type": "image",
-            "src": "media/motocare-image-7.png",
+            "src": "media/fintrack-image-7.jpg",
             "caption": ""
           },
           {
-            "id": "mqqyqpch24o2n",
+            "id": "mqqk3zjp21aad",
             "type": "image",
-            "src": "media/motocare-image-8.png",
+            "src": "media/fintrack-image-8.jpg",
             "caption": ""
           },
           {
-            "id": "mqqyqtnprif06",
+            "id": "mqqk45s6qwncv",
             "type": "image",
-            "src": "media/motocare-image-9.png",
+            "src": "media/fintrack-image-9.jpg",
             "caption": ""
           },
           {
-            "id": "mqr3w45i1eg0z",
+            "id": "mqr3insxibezl",
             "type": "prototype",
-            "raw": "<iframe style=\"border: 1px solid rgba(0, 0, 0, 0.1);\" width=\"800\" height=\"450\" src=\"https://embed.figma.com/proto/Iav9P7Cvl56RLMZYEg0WQt/MotoCare?node-id=35-13163&viewport=1620%2C-222%2C0.21&scaling=contain&content-scaling=fixed&starting-point-node-id=35%3A13163&page-id=7%3A1217&embed-host=share\" allowfullscreen></iframe>",
-            "src": "https://embed.figma.com/proto/Iav9P7Cvl56RLMZYEg0WQt/MotoCare?node-id=35-13163&viewport=1620%2C-222%2C0.21&scaling=contain&content-scaling=fixed&starting-point-node-id=35%3A13163&page-id=7%3A1217&embed-host=share",
+            "src": "https://embed.figma.com/proto/E3EkAfMiaC9OAF9mAOCap1/FinTrack?node-id=54-2177&viewport=301%2C215%2C0.25&scaling=contain&content-scaling=fixed&page-id=54%3A1754&embed-host=share",
             "caption": ""
           }
         ],
         "spacing": 0,
-        "bg": "#ffffff"
+        "bg": "#f5f6fb"
       }
     ],
     "cases": {
       "fintrack": {
-        "blocks": [],
-        "spacing": null,
-        "bg": ""
+        "blocks": []
       },
       "checkout": {
         "blocks": []
@@ -280,13 +275,7 @@
         "label": "Concept set · generated",
         "desc": "AI-generated brand concept explorations.",
         "cover": "",
-        "meta": {
-          "role": "",
-          "timeline": "",
-          "platform": "",
-          "focus": "",
-          "software": ""
-        },
+        "meta": {},
         "blocks": [],
         "seeded": true
       },
