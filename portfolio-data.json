@@ -310,25 +310,95 @@
     "items": [
       {
         "id": "seed-3d-hero",
-        "title": "Product Hero Renders",
-        "tag": "Modeling",
+        "title": "Rusty Satellite",
+        "tag": "Modeling.  Terxturing . Rendering",
         "label": "Hero render · 3D",
         "desc": "Modeled and lit product hero renders.",
-        "cover": "",
-        "meta": {},
-        "blocks": [],
-        "seeded": true
+        "cover": "media/rusty-satellite-cover.jpg",
+        "meta": {
+          "role": "3D Designer",
+          "timeline": "2019",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Substance Painter .  IRAY"
+        },
+        "blocks": [
+          {
+            "id": "mqums3pwmtw0p",
+            "type": "image",
+            "src": "media/rusty-satellite-cover.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqumsab9k7xdx",
+            "type": "image",
+            "src": "media/rusty-satellite-image-2.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqumsf5fignxt",
+            "type": "image",
+            "src": "media/rusty-satellite-image-3.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqumsivcwjfdb",
+            "type": "image",
+            "src": "media/rusty-satellite-image-4.jpg",
+            "caption": ""
+          }
+        ],
+        "seeded": true,
+        "spacing": 0
       },
       {
         "id": "seed-3d-pbr",
-        "title": "PBR Material Studies",
-        "tag": "Texturing",
+        "title": "Brasserie Wine",
+        "tag": "Modeling . Texturing . Rendering",
         "label": "Material study · PBR",
         "desc": "Physically based material and texturing studies.",
-        "cover": "",
-        "meta": {},
-        "blocks": [],
-        "seeded": true
+        "cover": "media/brasserie-wine-cover.jpg",
+        "meta": {
+          "role": "3D Designer",
+          "timeline": "2019",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Blender . Keyshot"
+        },
+        "blocks": [
+          {
+            "id": "mqumuz1tepty2",
+            "type": "image",
+            "src": "media/brasserie-wine-cover.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqumv82aeoqc1",
+            "type": "image",
+            "src": "media/brasserie-wine-image-2.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqumvdg5ssekd",
+            "type": "image",
+            "src": "media/brasserie-wine-image-3.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqumvi4byw7c7",
+            "type": "image",
+            "src": "media/brasserie-wine-image-4.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqumvl9efd79z",
+            "type": "image",
+            "src": "media/brasserie-wine-image-5.jpg",
+            "caption": ""
+          }
+        ],
+        "seeded": true,
+        "spacing": 0
       },
       {
         "id": "seed-3d-cine",
