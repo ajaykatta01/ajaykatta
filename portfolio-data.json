@@ -1,26 +1,270 @@
 {
   "ui-ux": {
-    "items": [],
+    "items": [
+      {
+        "id": "mqqyp8l695tv9",
+        "title": "MotoCare",
+        "tag": "Fintech",
+        "desc": "A UX case study focused on helping stranded drivers connect with nearby mechanics through real-time booking, tracking, and roadside support.",
+        "cover": "media/motocare-cover.png",
+        "meta": {
+          "role": "End-To-End . Product Designer",
+          "timeline": "June 2026",
+          "platform": "IOS",
+          "focus": "",
+          "software": "Figma . Photoshop . Illustrator"
+        },
+        "blocks": [
+          {
+            "id": "mqqypicsn9mmm",
+            "type": "image",
+            "src": "media/motocare-image-1.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqypmpdv0nn3",
+            "type": "image",
+            "src": "media/motocare-image-2.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqypqqo2jkbr",
+            "type": "image",
+            "src": "media/motocare-image-3.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqypv3d0wioe",
+            "type": "image",
+            "src": "media/motocare-image-4.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyq1kb4onoi",
+            "type": "image",
+            "src": "media/motocare-image-5.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyqgrmm87k6",
+            "type": "image",
+            "src": "media/motocare-image-6.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyql5dp7usv",
+            "type": "image",
+            "src": "media/motocare-image-7.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyqpch24o2n",
+            "type": "image",
+            "src": "media/motocare-image-8.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyqtnprif06",
+            "type": "image",
+            "src": "media/motocare-image-9.png",
+            "caption": ""
+          },
+          {
+            "id": "mqr3w45i1eg0z",
+            "type": "prototype",
+            "src": "https://embed.figma.com/proto/Iav9P7Cvl56RLMZYEg0WQt/MotoCare?node-id=35-13163&viewport=1620%2C-222%2C0.21&scaling=contain&content-scaling=fixed&starting-point-node-id=35%3A13163&page-id=7%3A1217&embed-host=share",
+            "caption": ""
+          }
+        ],
+        "spacing": 0,
+        "bg": "#ffffff"
+      },
+      {
+        "id": "mqqydror5crur",
+        "title": "CoinWave",
+        "tag": "Fintech",
+        "desc": "CoinWave- A crypto investment platform designed to make digital assets.",
+        "cover": "media/coinwave-cover.png",
+        "meta": {
+          "role": "End-To-End . Product Designer",
+          "timeline": "May 2026",
+          "platform": "IOS . WEB",
+          "focus": "",
+          "software": "Figma . Photoshop . Claude"
+        },
+        "blocks": [
+          {
+            "id": "mqqye3l6r7aj0",
+            "type": "image",
+            "src": "media/coinwave-image-1.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyec80h61gm",
+            "type": "image",
+            "src": "media/coinwave-image-2.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyegzkyllqh",
+            "type": "image",
+            "src": "media/coinwave-image-3.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyen53vwy0z",
+            "type": "image",
+            "src": "media/coinwave-image-4.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyewzm1i14l",
+            "type": "image",
+            "src": "media/coinwave-image-5.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyf0sfuny8w",
+            "type": "image",
+            "src": "media/coinwave-image-6.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyf4i2qid4v",
+            "type": "image",
+            "src": "media/coinwave-image-7.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyf8h1qiphq",
+            "type": "image",
+            "src": "media/coinwave-image-8.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyfd5w7qzou",
+            "type": "image",
+            "src": "media/coinwave-image-9.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyfgybb0id4",
+            "type": "image",
+            "src": "media/coinwave-image-10.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyflbtxlhu6",
+            "type": "image",
+            "src": "media/coinwave-image-11.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyi1fzx7vjt",
+            "type": "prototype",
+            "src": "https://embed.figma.com/proto/7kzpATybsa5knOeyKVyJxU/Coinwave?node-id=118-4484&viewport=-1069%2C403%2C0.57&scaling=contain&content-scaling=fixed&starting-point-node-id=118%3A4484&page-id=118%3A4274&embed-host=share",
+            "caption": ""
+          }
+        ],
+        "spacing": 0,
+        "bg": "#05060b"
+      },
+      {
+        "id": "mqqj77xbo1mre",
+        "title": "FinTrack",
+        "tag": "Fintech",
+        "desc": "A complete UX case study for young professionals\nwho want a simpler way to understand their money.",
+        "cover": "media/fintrack-cover.png",
+        "meta": {
+          "role": "Product Designer    End-to-End",
+          "timeline": "May 2026",
+          "platform": "IOS WEB",
+          "focus": "Research-UI",
+          "software": "Figma. Photoshop"
+        },
+        "blocks": [
+          {
+            "id": "mqqk1g30wnzji",
+            "type": "image",
+            "src": "media/fintrack-image-1.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk2jvzw9u41",
+            "type": "image",
+            "src": "media/fintrack-image-2.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqk2yan644ow",
+            "type": "image",
+            "src": "media/fintrack-image-3.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk360jjd80k",
+            "type": "image",
+            "src": "media/fintrack-image-4.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3fs97rqzh",
+            "type": "image",
+            "src": "media/fintrack-image-5.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3mlfhn92a",
+            "type": "image",
+            "src": "media/fintrack-image-6.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3s1w92ca0",
+            "type": "image",
+            "src": "media/fintrack-image-7.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3zjp21aad",
+            "type": "image",
+            "src": "media/fintrack-image-8.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk45s6qwncv",
+            "type": "image",
+            "src": "media/fintrack-image-9.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqr3insxibezl",
+            "type": "prototype",
+            "src": "https://embed.figma.com/proto/E3EkAfMiaC9OAF9mAOCap1/FinTrack?node-id=54-2177&viewport=301%2C215%2C0.25&scaling=contain&content-scaling=fixed&page-id=54%3A1754&embed-host=share",
+            "caption": ""
+          }
+        ],
+        "spacing": 0,
+        "bg": "#f5f6fb"
+      }
+    ],
     "cases": {
       "fintrack": {
         "blocks": []
       },
       "checkout": {
-        "blocks": [
-          {
-            "id": "mqr8gi0iz92il",
-            "type": "image",
-            "src": "media/checkout-image-1.png",
-            "caption": ""
-          }
-        ]
+        "blocks": []
       },
       "analytics": {
         "blocks": []
       }
     },
     "removedSeeds": [],
-    "removedCases": []
+    "removedCases": [
+      "analytics",
+      "checkout",
+      "fintrack"
+    ]
   },
   "gen-ai": {
     "items": [
@@ -66,95 +310,25 @@
     "items": [
       {
         "id": "seed-3d-hero",
-        "title": "Rusty Satellite",
-        "tag": "Modeling.  Terxturing . Rendering",
+        "title": "Product Hero Renders",
+        "tag": "Modeling",
         "label": "Hero render · 3D",
         "desc": "Modeled and lit product hero renders.",
-        "cover": "media/rusty-satellite-cover.jpg",
-        "meta": {
-          "role": "3D Designer",
-          "timeline": "2019",
-          "platform": "",
-          "focus": "",
-          "software": "Maya . Substance Painter .  IRAY"
-        },
-        "blocks": [
-          {
-            "id": "mqums3pwmtw0p",
-            "type": "image",
-            "src": "media/rusty-satellite-cover.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqumsab9k7xdx",
-            "type": "image",
-            "src": "media/rusty-satellite-image-2.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqumsf5fignxt",
-            "type": "image",
-            "src": "media/rusty-satellite-image-3.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqumsivcwjfdb",
-            "type": "image",
-            "src": "media/rusty-satellite-image-4.jpg",
-            "caption": ""
-          }
-        ],
-        "seeded": true,
-        "spacing": 0
+        "cover": "",
+        "meta": {},
+        "blocks": [],
+        "seeded": true
       },
       {
         "id": "seed-3d-pbr",
-        "title": "Brasserie Wine",
-        "tag": "Modeling . Texturing . Rendering",
+        "title": "PBR Material Studies",
+        "tag": "Texturing",
         "label": "Material study · PBR",
         "desc": "Physically based material and texturing studies.",
-        "cover": "media/brasserie-wine-cover.jpg",
-        "meta": {
-          "role": "3D Designer",
-          "timeline": "2019",
-          "platform": "",
-          "focus": "",
-          "software": "Maya . Blender . Keyshot"
-        },
-        "blocks": [
-          {
-            "id": "mqumuz1tepty2",
-            "type": "image",
-            "src": "media/brasserie-wine-cover.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqumv82aeoqc1",
-            "type": "image",
-            "src": "media/brasserie-wine-image-2.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqumvdg5ssekd",
-            "type": "image",
-            "src": "media/brasserie-wine-image-3.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqumvi4byw7c7",
-            "type": "image",
-            "src": "media/brasserie-wine-image-4.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqumvl9efd79z",
-            "type": "image",
-            "src": "media/brasserie-wine-image-5.jpg",
-            "caption": ""
-          }
-        ],
-        "seeded": true,
-        "spacing": 0
+        "cover": "",
+        "meta": {},
+        "blocks": [],
+        "seeded": true
       },
       {
         "id": "seed-3d-cine",
@@ -169,7 +343,6 @@
       }
     ],
     "cases": {},
-    "removedSeeds": [],
-    "removedCases": []
+    "removedSeeds": []
   }
 }
