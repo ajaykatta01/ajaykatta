@@ -126,7 +126,10 @@ header{
 #heroCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
 .hero-inner{position:relative;z-index:2;padding-top:160px;padding-bottom:60px;width:100%;text-align:center;display:flex;flex-direction:column;align-items:center}
 .hero-avatar{width:168px;height:168px;border-radius:50%;margin-bottom:40px;
-  background-image:url(profile-photo.jpeg);background-size:cover;background-position:center 18%;background-repeat:no-repeat;
+  background-image:url(profile-photo.jpeg);
+  background-image:-webkit-image-set(url(profile-photo.webp) type("image/webp"),url(profile-photo.jpeg) type("image/jpeg"));
+  background-image:image-set(url(profile-photo.webp) type("image/webp"),url(profile-photo.jpeg) type("image/jpeg"));
+  background-size:cover;background-position:center 18%;background-repeat:no-repeat;
   border:1px solid color-mix(in srgb,var(--accent-2) 55%,transparent);
   box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent), 0 24px 60px -22px var(--glow), 0 10px 28px -14px rgba(0,0,0,.6);
   animation:gcFloat 6s ease-in-out infinite}
@@ -141,7 +144,10 @@ header{
   border:1px solid color-mix(in srgb,#fff 22%,transparent);
   box-shadow:0 42px 92px -30px rgba(0,0,0,.82), 0 12px 32px -14px var(--glow), inset 0 1px 0 color-mix(in srgb,#fff 42%,transparent), inset 0 -22px 44px -22px rgba(0,0,0,.55)}
 .gc-photo{position:absolute;inset:0;z-index:2;border-radius:26px;transform:translateZ(34px);
-  background-image:url(profile-cutout.png);background-size:cover;background-position:center 8%;background-repeat:no-repeat;
+  background-image:url(profile-cutout.png);
+  background-image:-webkit-image-set(url(profile-cutout.webp) type("image/webp"),url(profile-cutout.png) type("image/png"));
+  background-image:image-set(url(profile-cutout.webp) type("image/webp"),url(profile-cutout.png) type("image/png"));
+  background-size:cover;background-position:center 8%;background-repeat:no-repeat;
   filter:contrast(1.03) brightness(1.02) drop-shadow(0 10px 20px rgba(0,0,0,.45));
   -webkit-mask:linear-gradient(180deg,#000 70%,transparent 96%);mask:linear-gradient(180deg,#000 70%,transparent 96%)}
 .gc-tint{position:absolute;inset:0;z-index:2;border-radius:26px;transform:translateZ(32px);pointer-events:none;mix-blend-mode:soft-light;
@@ -400,6 +406,57 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
   transition:opacity .45s;
 }
 .case-card:hover .case-scrim{opacity:.88}
+/* ── animated 3D cover scenes (sit above the gradient bg, below the scrim/text) ── */
+.cover-3d{position:absolute;inset:0;z-index:-2;display:grid;place-items:center;overflow:hidden;pointer-events:none;
+  perspective:600px;perspective-origin:center 42%}
+.cover-3d .scene{position:relative;width:180px;height:180px;transform-style:preserve-3d;
+  --stroke:color-mix(in srgb,#fff 38%,transparent);--accent:color-mix(in srgb,var(--c1) 90%,#fff)}
+.case-card.has-cover .cover-3d{display:none}
+.case-card:hover .cover-3d{filter:brightness(1.25)}
+/* AI — orbiting line atom */
+.ai-scene{transform:translateY(-42px) rotateX(8deg);animation:aiTilt 32s linear infinite}
+@keyframes aiTilt{to{transform:translateY(-42px) rotateX(8deg) rotateY(360deg)}}
+.ai-core{position:absolute;inset:0;margin:auto;width:11px;height:11px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 10px color-mix(in srgb,var(--c1) 55%,transparent);animation:corePulse 3.6s ease-in-out infinite}
+@keyframes corePulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.25);opacity:1}}
+.ai-orbit{position:absolute;inset:0;margin:auto;width:160px;height:160px;transform-style:preserve-3d}
+.ai-orbit.o1{transform:rotateX(74deg)}
+.ai-orbit.o2{transform:rotateX(74deg) rotateY(62deg)}
+.ai-orbit.o3{transform:rotateX(74deg) rotateY(122deg)}
+.ai-ring{position:absolute;inset:0;border-radius:50%;transform-style:preserve-3d;border:1px solid var(--stroke)}
+.ai-orbit.o1 .ai-ring{animation:ringSpin 7s linear infinite}
+.ai-orbit.o2 .ai-ring{animation:ringSpin 9.5s linear infinite reverse}
+.ai-orbit.o3 .ai-ring{animation:ringSpin 12s linear infinite}
+@keyframes ringSpin{to{transform:rotateZ(360deg)}}
+.ai-e{position:absolute;top:-3.5px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;
+  background:#fff;box-shadow:0 0 7px color-mix(in srgb,var(--c1) 55%,transparent)}
+/* UI/UX — floating wireframe panels */
+.ux-scene{transform-style:preserve-3d;animation:uxFloat 8s ease-in-out infinite}
+@keyframes uxFloat{0%,100%{transform:translateY(-38px) rotateX(52deg) rotateZ(-32deg)}50%{transform:translateY(-50px) rotateX(54deg) rotateZ(-31deg)}}
+.ux-card{position:absolute;inset:0;margin:auto;width:148px;height:102px;border-radius:12px;
+  background:transparent;border:1px solid var(--stroke)}
+.ux-card.b3{transform:translateZ(0) translate(28px,24px);opacity:.4}
+.ux-card.b2{transform:translateZ(18px) translate(14px,12px);opacity:.65}
+.ux-card.b1{transform:translateZ(40px);display:flex;flex-direction:column;gap:9px;padding:16px 17px;border-color:color-mix(in srgb,#fff 52%,transparent)}
+.ux-bar{height:6px;border-radius:4px;background:color-mix(in srgb,#fff 32%,transparent)}
+.ux-bar.w1{width:50%}
+.ux-bar.w2{width:78%}
+.ux-bar.w3{width:36%}
+.ux-chip{width:32px;height:12px;border-radius:6px;margin-top:4px;background:var(--accent);opacity:.9}
+/* 3D — wireframe cube */
+.cube-scene{animation:cubeBob 7s ease-in-out infinite}
+@keyframes cubeBob{0%,100%{transform:translateY(-40px)}50%{transform:translateY(-50px)}}
+.cube{position:absolute;inset:0;margin:auto;width:116px;height:116px;transform-style:preserve-3d;animation:cubeSpin 19s linear infinite}
+@keyframes cubeSpin{0%{transform:rotateX(-24deg) rotateY(0)}100%{transform:rotateX(-24deg) rotateY(360deg)}}
+.face{position:absolute;width:116px;height:116px;background:transparent;border:1px solid var(--stroke)}
+.fx1{border-color:color-mix(in srgb,#fff 52%,transparent)}
+.fx1{transform:translateZ(59px)}
+.fx2{transform:rotateY(180deg) translateZ(59px)}
+.fx3{transform:rotateY(90deg) translateZ(59px)}
+.fx4{transform:rotateY(-90deg) translateZ(59px)}
+.fx5{transform:rotateX(90deg) translateZ(59px)}
+.fx6{transform:rotateX(-90deg) translateZ(59px)}
+@media(prefers-reduced-motion:reduce){.cover-3d *{animation:none !important}}
 .case-eyebrow{
   position:absolute;top:18px;left:18px;z-index:1;
   font-family:'Space Mono';font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text);
@@ -691,6 +748,14 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
       <span class="stack-hint"><span class="dot"></span>Hover to explore · 3 projects</span>
       <a class="case-card" data-cover="gen-ai" href="project-gen-ai.html" style="--c1:#C792EA;--c2:#7C5CFF;--img:linear-gradient(135deg,#1b1626,#0f0c16)">
         <div class="case-bg"></div>
+        <div class="cover-3d c-ai" aria-hidden="true">
+          <div class="scene ai-scene">
+            <div class="ai-orbit o1"><div class="ai-ring"><i class="ai-e"></i></div></div>
+            <div class="ai-orbit o2"><div class="ai-ring"><i class="ai-e"></i></div></div>
+            <div class="ai-orbit o3"><div class="ai-ring"><i class="ai-e"></i></div></div>
+            <div class="ai-core"></div>
+          </div>
+        </div>
         <div class="case-scrim"></div>
         <div class="cover-ctrl">
           <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Cover</button>
@@ -710,6 +775,13 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
       </a>
       <a class="case-card" data-cover="ui-ux" href="project-ui-ux.html" style="--c1:#FF6B5C;--c2:#E85949;--img:linear-gradient(135deg,#241712,#130c0a)">
         <div class="case-bg"></div>
+        <div class="cover-3d c-ux" aria-hidden="true">
+          <div class="scene ux-scene">
+            <div class="ux-card b3"></div>
+            <div class="ux-card b2"></div>
+            <div class="ux-card b1"><span class="ux-bar w1"></span><span class="ux-bar w2"></span><span class="ux-bar w3"></span><span class="ux-chip"></span></div>
+          </div>
+        </div>
         <div class="case-scrim"></div>
         <div class="cover-ctrl">
           <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Cover</button>
@@ -729,6 +801,11 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
       </a>
       <a class="case-card" data-cover="3d" href="project-3d.html" style="--c1:#5CCFE6;--c2:#3AA8D6;--img:linear-gradient(135deg,#10212a,#0a1116)">
         <div class="case-bg"></div>
+        <div class="cover-3d c-cube" aria-hidden="true">
+          <div class="scene cube-scene">
+            <div class="cube"><span class="face fx1"></span><span class="face fx2"></span><span class="face fx3"></span><span class="face fx4"></span><span class="face fx5"></span><span class="face fx6"></span></div>
+          </div>
+        </div>
         <div class="case-scrim"></div>
         <div class="cover-ctrl">
           <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Cover</button>
