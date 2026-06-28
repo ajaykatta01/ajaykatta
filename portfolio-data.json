@@ -445,5 +445,341 @@
       "checkout",
       "fintrack"
     ]
+  },
+  "3d": {
+    "items": [
+      {
+        "id": "mqy24ho2p549q",
+        "title": "Action Bolt Sniper Rifle",
+        "tag": "Modeling . Texturing . Rendering",
+        "desc": "Action Bolt Sniper Rifle is a inspired gun used in game called fortnite.",
+        "cover": "media/action-bolt-sniper-rifle-cover.webp",
+        "meta": {
+          "role": "3D Designer",
+          "timeline": "2021",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Substance painter . Marmoset toolbag"
+        },
+        "blocks": [
+          {
+            "id": "mqy24lvuy9zgn",
+            "type": "image",
+            "src": "media/action-bolt-sniper-rifle-cover.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy24ovgmjltf",
+            "type": "image",
+            "src": "media/action-bolt-sniper-rifle-image-2.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy24s6sic3mx",
+            "type": "image",
+            "src": "media/action-bolt-sniper-rifle-image-3.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy24vburwrip",
+            "type": "image",
+            "src": "media/action-bolt-sniper-rifle-image-4.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy24ylyryz50",
+            "type": "image",
+            "src": "media/action-bolt-sniper-rifle-image-5.webp",
+            "caption": ""
+          }
+        ],
+        "spacing": 0
+      },
+      {
+        "id": "mqy1v1gv3zqan",
+        "title": "Rainbow Smash",
+        "tag": "Modeling . Texturing . Rendering",
+        "desc": "Rainbow Smash is a tool called Pickaxe in Fortnite Game",
+        "cover": "media/rainbow-smash-cover.webp",
+        "meta": {
+          "role": "3D Designer",
+          "timeline": "2020",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Substance painter . Marmoset toolbag"
+        },
+        "blocks": [
+          {
+            "id": "mqy1v604qmwag",
+            "type": "image",
+            "src": "media/rainbow-smash-cover.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1vahgyk4ep",
+            "type": "image",
+            "src": "media/rainbow-smash-image-2.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1vem83h5pz",
+            "type": "image",
+            "src": "media/rainbow-smash-image-3.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1vjciayo7b",
+            "type": "image",
+            "src": "media/rainbow-smash-image-4.webp",
+            "caption": ""
+          }
+        ],
+        "spacing": 0
+      },
+      {
+        "id": "mqy1m91hmmutv",
+        "title": "Mini Machine Gun",
+        "tag": "Modeling . Texturing . Rendering",
+        "desc": "3D Game ready asset Mini Machine Gun",
+        "cover": "media/mini-machine-gun-cover.webp",
+        "meta": {
+          "role": "3D Designer",
+          "timeline": "2020",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Substance Painter . Marmoset Toolbag"
+        },
+        "blocks": [
+          {
+            "id": "mqy1mds6wye33",
+            "type": "image",
+            "src": "media/mini-machine-gun-cover.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1mhmnjevpi",
+            "type": "image",
+            "src": "media/mini-machine-gun-image-2.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1ml43azxam",
+            "type": "image",
+            "src": "media/mini-machine-gun-image-3.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1moso21r3g",
+            "type": "image",
+            "src": "media/mini-machine-gun-image-4.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1mssrrr31e",
+            "type": "image",
+            "src": "media/mini-machine-gun-image-5.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1mvnnwembq",
+            "type": "image",
+            "src": "media/mini-machine-gun-image-6.webp",
+            "caption": ""
+          }
+        ],
+        "spacing": 0
+      },
+      {
+        "id": "mqy1ge1h002ss",
+        "title": "Camouflage Panzer",
+        "tag": "Modeling . Texturing . Rendering",
+        "desc": "Photorealistic Design of Camouflage Panzer",
+        "cover": "media/camouflage-panzer-cover.webp",
+        "meta": {
+          "role": "3D Designer",
+          "timeline": "2020",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Substance Painter . Marmoset Toolbag"
+        },
+        "blocks": [
+          {
+            "id": "mqy1gi37rilm5",
+            "type": "image",
+            "src": "media/camouflage-panzer-cover.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1glov4fiww",
+            "type": "image",
+            "src": "media/camouflage-panzer-image-2.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1gp47b54ac",
+            "type": "image",
+            "src": "media/camouflage-panzer-image-3.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1gt0fl2ns0",
+            "type": "image",
+            "src": "media/camouflage-panzer-image-4.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy1gwn9cobpn",
+            "type": "image",
+            "src": "media/camouflage-panzer-image-5.webp",
+            "caption": ""
+          }
+        ],
+        "spacing": 0
+      },
+      {
+        "id": "seed-3d-pbr",
+        "title": "Brasserie Wine",
+        "tag": "Modeling . Texturing . Rendering",
+        "label": "Material study · PBR",
+        "desc": "Physically based material and texturing studies.",
+        "cover": "media/brasserie-wine-cover.webp",
+        "meta": {
+          "role": "3D Photorealistic Design",
+          "timeline": "2019",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Photoshop . Keyshot"
+        },
+        "blocks": [
+          {
+            "id": "mqy0fqwifdtjz",
+            "type": "image",
+            "src": "media/brasserie-wine-cover.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0fuc977cy6",
+            "type": "image",
+            "src": "media/brasserie-wine-image-2.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0fyr4ppqsz",
+            "type": "image",
+            "src": "media/brasserie-wine-image-3.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0g1qoao6fj",
+            "type": "image",
+            "src": "media/brasserie-wine-image-4.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0g4lych215",
+            "type": "image",
+            "src": "media/brasserie-wine-image-5.webp",
+            "caption": ""
+          }
+        ],
+        "seeded": true
+      },
+      {
+        "id": "mqy0jkgy4f2xi",
+        "title": "Cartoon Plane",
+        "tag": "Modeling . Texturing . Rendering",
+        "desc": "3D cartoon plane",
+        "cover": "media/cartoon-plane-cover.webp",
+        "meta": {
+          "role": "3D Design",
+          "timeline": "2019",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Substance Painter . Iray"
+        },
+        "blocks": [
+          {
+            "id": "mqy0rck8itpov",
+            "type": "image",
+            "src": "media/cartoon-plane-image-1.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0riferjwee",
+            "type": "image",
+            "src": "media/cartoon-plane-image-2.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0rplx0oyqn",
+            "type": "image",
+            "src": "media/cartoon-plane-image-3.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0rt9g3e05s",
+            "type": "image",
+            "src": "media/cartoon-plane-image-4.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0rwxzagrxl",
+            "type": "image",
+            "src": "media/cartoon-plane-cover.webp",
+            "caption": ""
+          }
+        ],
+        "bg": "",
+        "spacing": 0
+      },
+      {
+        "id": "seed-3d-cine",
+        "title": "Rusty Satellite",
+        "tag": "Modeling . Texturing . Rendering",
+        "label": "Render set · lighting",
+        "desc": "Fantasy Modeling  and Texture set.",
+        "cover": "media/rusty-satellite-cover.webp",
+        "meta": {
+          "role": "3D Design",
+          "timeline": "2019",
+          "platform": "",
+          "focus": "",
+          "software": "Maya . Substance Painter . Iray"
+        },
+        "blocks": [
+          {
+            "id": "mqy0d0ecltafe",
+            "type": "image",
+            "src": "media/rusty-satellite-cover.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0d52oyu36n",
+            "type": "image",
+            "src": "media/rusty-satellite-image-2.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0d8gfhqrsc",
+            "type": "image",
+            "src": "media/rusty-satellite-image-3.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqy0dcdh3ewkk",
+            "type": "image",
+            "src": "media/rusty-satellite-image-4.webp",
+            "caption": ""
+          }
+        ],
+        "seeded": true,
+        "spacing": 0
+      }
+    ],
+    "cases": {},
+    "removedSeeds": [
+      "seed-3d-hero"
+    ],
+    "removedCases": []
   }
 }
