@@ -493,7 +493,7 @@
             "caption": ""
           }
         ],
-        "spacing": 0
+        "spacing": 30
       },
       {
         "id": "mqy1v1gv3zqan",
@@ -534,7 +534,7 @@
             "caption": ""
           }
         ],
-        "spacing": 0
+        "spacing": 30
       },
       {
         "id": "mqy1m91hmmutv",
@@ -587,7 +587,7 @@
             "caption": ""
           }
         ],
-        "spacing": 0
+        "spacing": 30
       },
       {
         "id": "mqy1ge1h002ss",
@@ -634,7 +634,7 @@
             "caption": ""
           }
         ],
-        "spacing": 0
+        "spacing": 30
       },
       {
         "id": "seed-3d-pbr",
@@ -682,7 +682,8 @@
             "caption": ""
           }
         ],
-        "seeded": true
+        "seeded": true,
+        "spacing": 30
       },
       {
         "id": "mqy0jkgy4f2xi",
@@ -730,7 +731,7 @@
           }
         ],
         "bg": "",
-        "spacing": 0
+        "spacing": 30
       },
       {
         "id": "seed-3d-cine",
@@ -773,7 +774,7 @@
           }
         ],
         "seeded": true,
-        "spacing": 0
+        "spacing": 30
       }
     ],
     "cases": {},
