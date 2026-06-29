@@ -1,4 +1,452 @@
 {
+  "ui-ux": {
+    "items": [
+      {
+        "id": "mqqyp8l695tv9",
+        "title": "MotoCare",
+        "tag": "Fintech",
+        "desc": "A UX case study focused on helping stranded drivers connect with nearby mechanics through real-time booking, tracking, and roadside support.",
+        "cover": "media/motocare-cover.webp",
+        "meta": {
+          "role": "End-To-End . Product Designer",
+          "timeline": "June 2026",
+          "platform": "IOS",
+          "focus": "",
+          "software": "Figma . Photoshop . Illustrator"
+        },
+        "blocks": [
+          {
+            "id": "mqqypicsn9mmm",
+            "type": "image",
+            "src": "media/motocare-image-1.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqypmpdv0nn3",
+            "type": "image",
+            "src": "media/motocare-image-2.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqypqqo2jkbr",
+            "type": "image",
+            "src": "media/motocare-image-3.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqypv3d0wioe",
+            "type": "image",
+            "src": "media/motocare-image-4.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyq1kb4onoi",
+            "type": "image",
+            "src": "media/motocare-image-5.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyqgrmm87k6",
+            "type": "image",
+            "src": "media/motocare-image-6.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyql5dp7usv",
+            "type": "image",
+            "src": "media/motocare-image-7.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyqpch24o2n",
+            "type": "image",
+            "src": "media/motocare-image-8.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyqtnprif06",
+            "type": "image",
+            "src": "media/motocare-image-9.png",
+            "caption": ""
+          },
+          {
+            "id": "mqxzv77puc6hh",
+            "type": "image",
+            "src": "media/motocare-image-10.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzvf4x0j5in",
+            "type": "image",
+            "src": "media/motocare-image-11.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzvzi5p21a1",
+            "type": "image",
+            "src": "media/motocare-image-12.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzw3hcnyx6y",
+            "type": "image",
+            "src": "media/motocare-image-13.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzw7n6p0p8b",
+            "type": "image",
+            "src": "media/motocare-image-14.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzwbuxyhwew",
+            "type": "image",
+            "src": "media/motocare-image-15.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzwhj7nnrab",
+            "type": "image",
+            "src": "media/motocare-image-16.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzwmm796jxv",
+            "type": "image",
+            "src": "media/motocare-image-17.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzwswdfv1wj",
+            "type": "image",
+            "src": "media/motocare-image-18.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqr3w45i1eg0z",
+            "type": "prototype",
+            "src": "https://embed.figma.com/proto/Iav9P7Cvl56RLMZYEg0WQt/MotoCare?node-id=35-13163&viewport=1620%2C-222%2C0.21&scaling=contain&content-scaling=fixed&starting-point-node-id=35%3A13163&page-id=7%3A1217&embed-host=share",
+            "caption": ""
+          }
+        ],
+        "spacing": 0,
+        "bg": "#ffffff"
+      },
+      {
+        "id": "mqqydror5crur",
+        "title": "CoinWave",
+        "tag": "Fintech",
+        "desc": "CoinWave- A crypto investment platform designed to make digital assets.",
+        "cover": "media/coinwave-cover.webp",
+        "meta": {
+          "role": "End-To-End . Product Designer",
+          "timeline": "May 2026",
+          "platform": "IOS . WEB",
+          "focus": "",
+          "software": "Figma . Photoshop . Claude"
+        },
+        "blocks": [
+          {
+            "id": "mqqye3l6r7aj0",
+            "type": "image",
+            "src": "media/coinwave-image-1.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyec80h61gm",
+            "type": "image",
+            "src": "media/coinwave-image-2.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyegzkyllqh",
+            "type": "image",
+            "src": "media/coinwave-image-3.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyen53vwy0z",
+            "type": "image",
+            "src": "media/coinwave-image-4.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyewzm1i14l",
+            "type": "image",
+            "src": "media/coinwave-image-5.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyf0sfuny8w",
+            "type": "image",
+            "src": "media/coinwave-image-6.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyf4i2qid4v",
+            "type": "image",
+            "src": "media/coinwave-image-7.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyf8h1qiphq",
+            "type": "image",
+            "src": "media/coinwave-image-8.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyfd5w7qzou",
+            "type": "image",
+            "src": "media/coinwave-image-9.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyfgybb0id4",
+            "type": "image",
+            "src": "media/coinwave-image-10.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqyflbtxlhu6",
+            "type": "image",
+            "src": "media/coinwave-image-11.png",
+            "caption": ""
+          },
+          {
+            "id": "mqxzroyunplmc",
+            "type": "image",
+            "src": "media/coinwave-cover.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzs19dx6wvo",
+            "type": "image",
+            "src": "media/coinwave-image-13.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzs6uej0k7w",
+            "type": "image",
+            "src": "media/coinwave-image-14.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzsb8zs8432",
+            "type": "image",
+            "src": "media/coinwave-image-15.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzsfw3m5l0a",
+            "type": "image",
+            "src": "media/coinwave-image-16.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzsk587utdo",
+            "type": "image",
+            "src": "media/coinwave-image-17.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzsob4u0ps5",
+            "type": "image",
+            "src": "media/coinwave-image-18.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzsrv7nrks1",
+            "type": "image",
+            "src": "media/coinwave-image-19.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzsxix1c72x",
+            "type": "image",
+            "src": "media/coinwave-image-20.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzt3b4pt3vu",
+            "type": "image",
+            "src": "media/coinwave-image-21.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzt7g0xxfmu",
+            "type": "image",
+            "src": "media/coinwave-image-22.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxztbe02y3aa",
+            "type": "image",
+            "src": "media/coinwave-image-23.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqqyi1fzx7vjt",
+            "type": "prototype",
+            "src": "https://embed.figma.com/proto/7kzpATybsa5knOeyKVyJxU/Coinwave?node-id=118-4484&viewport=-1069%2C403%2C0.57&scaling=contain&content-scaling=fixed&starting-point-node-id=118%3A4484&page-id=118%3A4274&embed-host=share",
+            "caption": ""
+          }
+        ],
+        "spacing": 0,
+        "bg": "#05060b"
+      },
+      {
+        "id": "mqqj77xbo1mre",
+        "title": "FinTrack",
+        "tag": "Fintech",
+        "desc": "A complete UX case study for young professionals\nwho want a simpler way to understand their money.",
+        "cover": "media/fintrack-cover.webp",
+        "meta": {
+          "role": "Product Designer    End-to-End",
+          "timeline": "May 2026",
+          "platform": "IOS WEB",
+          "focus": "Research-UI",
+          "software": "Figma. Photoshop"
+        },
+        "blocks": [
+          {
+            "id": "mqqk1g30wnzji",
+            "type": "image",
+            "src": "media/fintrack-image-1.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk2jvzw9u41",
+            "type": "image",
+            "src": "media/fintrack-image-2.png",
+            "caption": ""
+          },
+          {
+            "id": "mqqk2yan644ow",
+            "type": "image",
+            "src": "media/fintrack-image-3.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk360jjd80k",
+            "type": "image",
+            "src": "media/fintrack-image-4.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3fs97rqzh",
+            "type": "image",
+            "src": "media/fintrack-image-5.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3mlfhn92a",
+            "type": "image",
+            "src": "media/fintrack-image-6.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3s1w92ca0",
+            "type": "image",
+            "src": "media/fintrack-image-7.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk3zjp21aad",
+            "type": "image",
+            "src": "media/fintrack-image-8.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqqk45s6qwncv",
+            "type": "image",
+            "src": "media/fintrack-image-9.jpg",
+            "caption": ""
+          },
+          {
+            "id": "mqxzo52sqrg41",
+            "type": "image",
+            "src": "media/fintrack-image-10.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzogof3tuy8",
+            "type": "image",
+            "src": "media/fintrack-image-11.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzomevh3bfu",
+            "type": "image",
+            "src": "media/fintrack-image-12.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzord2ji4cg",
+            "type": "image",
+            "src": "media/fintrack-image-13.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzoyi6ax2mb",
+            "type": "image",
+            "src": "media/fintrack-image-14.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzp453edts0",
+            "type": "image",
+            "src": "media/fintrack-image-15.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzp877jlp1f",
+            "type": "image",
+            "src": "media/fintrack-image-16.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzpdvy9neqz",
+            "type": "image",
+            "src": "media/fintrack-image-17.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqxzpjlfttwzy",
+            "type": "image",
+            "src": "media/fintrack-image-18.webp",
+            "caption": ""
+          },
+          {
+            "id": "mqr3insxibezl",
+            "type": "prototype",
+            "src": "https://embed.figma.com/proto/E3EkAfMiaC9OAF9mAOCap1/FinTrack?node-id=54-2177&viewport=301%2C215%2C0.25&scaling=contain&content-scaling=fixed&page-id=54%3A1754&embed-host=share",
+            "caption": ""
+          }
+        ],
+        "spacing": 0,
+        "bg": "#f5f6fb"
+      }
+    ],
+    "cases": {
+      "fintrack": {
+        "blocks": []
+      },
+      "checkout": {
+        "blocks": []
+      },
+      "analytics": {
+        "blocks": []
+      }
+    },
+    "removedSeeds": [],
+    "removedCases": [
+      "analytics",
+      "checkout",
+      "fintrack"
+    ]
+  },
+{
   "3d": {
     "items": [
       {
