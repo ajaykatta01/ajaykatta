@@ -446,7 +446,47 @@
       "fintrack"
     ]
   },
-    "3d": {
+  "gen-ai": {
+    "items": [
+      {
+        "id": "seed-genai-brand",
+        "title": "Brand Concept Series",
+        "tag": "Diffusion",
+        "label": "Concept set · generated",
+        "desc": "AI-generated brand concept explorations.",
+        "cover": "",
+        "meta": {},
+        "blocks": [],
+        "seeded": true
+      },
+      {
+        "id": "seed-genai-prodviz",
+        "title": "AI Product Visualization",
+        "tag": "Img2Img",
+        "label": "Product viz · render",
+        "desc": "AI-assisted product visualization renders.",
+        "cover": "",
+        "meta": {},
+        "blocks": [],
+        "seeded": true
+      },
+      {
+        "id": "seed-genai-pattern",
+        "title": "Generative Pattern System",
+        "tag": "ControlNet",
+        "label": "Pattern system · grid",
+        "desc": "Generative, tileable pattern system.",
+        "cover": "",
+        "meta": {},
+        "blocks": [],
+        "seeded": true
+      }
+    ],
+    "cases": {},
+    "removedSeeds": [],
+    "removedCases": []
+  },
+  "3d": {
     "items": [
       {
         "id": "mqywyla683ill",

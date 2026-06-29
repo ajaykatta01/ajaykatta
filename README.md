@@ -19,7 +19,7 @@ GitHub and Vercel serves it as-is.
 | `portfolio-data.json` | **All your case-study content** — visitors load this automatically |
 | `media/` | Every image / PDF / video your content points to (real files) |
 | `*.jpg / *.png / *.jpeg` | Built-in site imagery (profile photo, FinTrack screens…) |
-| `uae_dubai_…_2026_03*.pdf` | Résumé PDFs |
+| `Ajay-Katta-uiux-product-designer-2026.pdf` | Résumé PDF |
 | `vercel.json` | Clean URLs (`/resume` instead of `/resume.html`) |
 
 > `portfolio-data.json` and `media/` come out of the **Export** step below. Drop them in here,

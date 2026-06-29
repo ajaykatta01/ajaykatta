@@ -28,7 +28,8 @@
 .theme-toggle .knob{position:absolute;top:2.5px;left:3px;width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 35% 35%,var(--accent-2),var(--accent));transition:transform .4s cubic-bezier(.2,.7,.3,1);display:flex;align-items:center;justify-content:center;font-size:11px}
 [data-theme="light"] .theme-toggle .knob{transform:translateX(26px)}
 .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.nav-right{display:flex;align-items:center;gap:18px}
+.nav-right{display:flex;align-items:center;gap:16px}
+.nav-div{width:1px;height:22px;background:var(--line);flex:none}
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;line-height:1.6;overflow-x:hidden;min-height:100vh}
@@ -94,7 +95,7 @@ header.nav-hidden{transform:translateY(-100%)}
 <header>
   <div class="container nav">
     <a class="back" href="index.html#work"><span class="arr">&larr;</span> Back<span class="bk-rest"> to projects</span></a>
-    <div class="nav-right"><a class="home" href="index.html#top"><span class="hicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11.2 12 4l9 7.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 9.6V20h13V9.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span class="hm-lbl">Home</span></a><button class="theme-toggle" id="themeToggle" aria-label="Toggle dark and light mode"><span class="knob" id="knob">🌙</span></button></div>
+    <div class="nav-right"><a class="home" href="index.html#top"><span class="hicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11.2 12 4l9 7.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 9.6V20h13V9.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span> <span class="hm-lbl">Home</span></a><span class="nav-div" aria-hidden="true"></span><button class="theme-toggle" id="themeToggle" aria-label="Toggle dark and light mode"><span class="knob" id="knob">🌙</span></button></div>
   </div>
 </header>
 
