@@ -774,14 +774,22 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
   .nav-links{display:none}
   .nav-div{display:none}
   .nav-toggle{display:flex}
-  .mobile-menu{position:fixed;top:64px;left:0;right:0;z-index:49;display:flex;flex-direction:column;
-    background:var(--header-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-    border-bottom:1px solid var(--line);padding:6px 28px 14px;
-    opacity:0;visibility:hidden;transform:translateY(-10px);
-    transition:opacity .3s,transform .3s,visibility .3s}
+  .mobile-menu{position:fixed;top:58px;right:14px;left:auto;width:min(282px,calc(100vw - 28px));z-index:49;
+    display:flex;flex-direction:column;gap:2px;
+    background:var(--header-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border:1px solid var(--line);border-radius:16px;padding:8px;
+    box-shadow:0 20px 50px -16px rgba(0,0,0,.45);
+    opacity:0;visibility:hidden;transform:translateY(-8px) scale(.97);transform-origin:top right;
+    transition:opacity .22s ease,transform .22s cubic-bezier(.2,.7,.3,1),visibility .22s}
   .mobile-menu.open{opacity:1;visibility:visible;transform:none}
-  .mobile-menu a{color:var(--text);text-decoration:none;font-family:'Space Grotesk';font-weight:600;font-size:1.06rem;padding:15px 6px;border-bottom:1px solid var(--line)}
-  .mobile-menu a:last-child{border-bottom:0;color:var(--accent)}
+  .mobile-menu a{display:flex;flex-direction:column;gap:1px;text-decoration:none;border:0;
+    padding:9px 13px;border-radius:11px;transition:background .18s}
+  .mobile-menu a:active{background:color-mix(in srgb,var(--text) 9%,transparent)}
+  .mobile-menu .mm-label{font-family:'Space Grotesk';font-weight:600;font-size:.98rem;color:var(--text)}
+  .mobile-menu .mm-sub{font-family:'Inter',sans-serif;font-weight:400;font-size:.72rem;color:var(--muted)}
+  .mobile-menu .mm-resume{margin-top:5px;flex-direction:row;align-items:center;justify-content:center;gap:6px;
+    background:var(--accent);border-radius:12px;color:#fff;font-family:'Space Grotesk';font-weight:700;font-size:.95rem;padding:12px}
+  .mobile-menu .mm-resume:active{background:var(--accent-2)}
   section{padding:74px 0}
   .hero-inner{padding-top:118px;padding-bottom:46px}
   .hero-stats{gap:26px;margin-top:28px}
@@ -823,11 +831,11 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 
 <!-- MOBILE MENU -->
 <div class="mobile-menu" id="mobileMenu">
-  <a href="#work">Projects</a>
-  <a href="#skills">Skills</a>
-  <a href="#experience">Experience</a>
-  <a href="#contact">Contact</a>
-  <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf" target="_blank" rel="noopener">Resume ↗</a>
+  <a href="#work"><span class="mm-label">Projects</span><span class="mm-sub">Selected case studies</span></a>
+  <a href="#skills"><span class="mm-label">Skills</span><span class="mm-sub">Tools &amp; expertise</span></a>
+  <a href="#experience"><span class="mm-label">Experience</span><span class="mm-sub">Career timeline</span></a>
+  <a href="#contact"><span class="mm-label">Contact</span><span class="mm-sub">Get in touch</span></a>
+  <a class="mm-resume" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf" target="_blank" rel="noopener">Resume ↗</a>
 </div>
 
 <!-- RESUME VIEWER -->

@@ -61,7 +61,11 @@
       var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
 
       var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (!document.startViewTransition || reduce || busy) { apply(next); return; }
+      // Phones/touch screens choke on the per-frame mask-ripple repaint, which
+      // makes the swap stutter. Skip the heavy view-transition there and swap the
+      // theme instantly — the knob still slides via its own cheap CSS transition.
+      var lite = window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+      if (!document.startViewTransition || reduce || busy || lite) { apply(next); return; }
 
       // ripple origin = centre of the toggle
       var r = toggle.getBoundingClientRect();
