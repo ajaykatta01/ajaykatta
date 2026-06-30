@@ -331,7 +331,7 @@
           {
             "id": "mqywzzs98aa31",
             "type": "media",
-            "src": "media/hashtag-cycle-media-1.bin",
+            "src": "media/3d/hashtag-cycle-media-1.bin",
             "mime": "video/matroska",
             "caption": ""
           },
@@ -380,7 +380,7 @@
           {
             "id": "mqyx2g2f81rly",
             "type": "model",
-            "src": "media/hashtag-cycle-model-9.glb",
+            "src": "media/3d/hashtag-cycle-model-9.glb",
             "format": "glb",
             "caption": ""
           }
@@ -452,7 +452,7 @@
           {
             "id": "mqywvqwaelxx7",
             "type": "model",
-            "src": "media/clx-cabinet-model-9.glb",
+            "src": "media/3d/clx-cabinet-model-9.glb",
             "format": "glb",
             "caption": ""
           }
@@ -609,7 +609,7 @@
           {
             "id": "mqywfi1d3qlyf",
             "type": "model",
-            "src": "media/baggalini-bag-model-8.glb",
+            "src": "media/3d/baggalini-bag-model-8.glb",
             "format": "glb",
             "caption": ""
           }
@@ -662,7 +662,7 @@
           {
             "id": "mqyvlu9i2ezp2",
             "type": "model",
-            "src": "media/loreal-shampoo-model-6.glb",
+            "src": "media/3d/loreal-shampoo-model-6.glb",
             "format": "glb",
             "caption": ""
           }
@@ -715,7 +715,7 @@
           {
             "id": "mqyvenql8ncu8",
             "type": "model",
-            "src": "media/office-chair-model-6.glb",
+            "src": "media/3d/office-chair-model-6.glb",
             "format": "glb",
             "caption": ""
           }
