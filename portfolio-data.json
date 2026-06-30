@@ -6,7 +6,7 @@
         "title": "MotoCare",
         "tag": "Fintech",
         "desc": "A UX case study focused on helping stranded drivers connect with nearby mechanics through real-time booking, tracking, and roadside support.",
-        "cover": "media/motocare-cover.webp",
+        "cover": "media/ui-ux/motocare-cover.webp",
         "meta": {
           "role": "End-To-End . Product Designer",
           "timeline": "June 2026",
@@ -16,111 +16,57 @@
         },
         "blocks": [
           {
-            "id": "mqqypicsn9mmm",
-            "type": "image",
-            "src": "media/motocare-image-1.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqypmpdv0nn3",
-            "type": "image",
-            "src": "media/motocare-image-2.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqypqqo2jkbr",
-            "type": "image",
-            "src": "media/motocare-image-3.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqypv3d0wioe",
-            "type": "image",
-            "src": "media/motocare-image-4.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyq1kb4onoi",
-            "type": "image",
-            "src": "media/motocare-image-5.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyqgrmm87k6",
-            "type": "image",
-            "src": "media/motocare-image-6.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyql5dp7usv",
-            "type": "image",
-            "src": "media/motocare-image-7.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyqpch24o2n",
-            "type": "image",
-            "src": "media/motocare-image-8.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyqtnprif06",
-            "type": "image",
-            "src": "media/motocare-image-9.png",
-            "caption": ""
-          },
-          {
             "id": "mqxzv77puc6hh",
             "type": "image",
-            "src": "media/motocare-image-10.webp",
+            "src": "media/ui-ux/motocare-image-10.webp",
             "caption": ""
           },
           {
             "id": "mqxzvf4x0j5in",
             "type": "image",
-            "src": "media/motocare-image-11.webp",
+            "src": "media/ui-ux/motocare-image-11.webp",
             "caption": ""
           },
           {
             "id": "mqxzvzi5p21a1",
             "type": "image",
-            "src": "media/motocare-image-12.webp",
+            "src": "media/ui-ux/motocare-image-12.webp",
             "caption": ""
           },
           {
             "id": "mqxzw3hcnyx6y",
             "type": "image",
-            "src": "media/motocare-image-13.webp",
+            "src": "media/ui-ux/motocare-image-13.webp",
             "caption": ""
           },
           {
             "id": "mqxzw7n6p0p8b",
             "type": "image",
-            "src": "media/motocare-image-14.webp",
+            "src": "media/ui-ux/motocare-image-14.webp",
             "caption": ""
           },
           {
             "id": "mqxzwbuxyhwew",
             "type": "image",
-            "src": "media/motocare-image-15.webp",
+            "src": "media/ui-ux/motocare-image-15.webp",
             "caption": ""
           },
           {
             "id": "mqxzwhj7nnrab",
             "type": "image",
-            "src": "media/motocare-image-16.webp",
+            "src": "media/ui-ux/motocare-image-16.webp",
             "caption": ""
           },
           {
             "id": "mqxzwmm796jxv",
             "type": "image",
-            "src": "media/motocare-image-17.webp",
+            "src": "media/ui-ux/motocare-image-17.webp",
             "caption": ""
           },
           {
             "id": "mqxzwswdfv1wj",
             "type": "image",
-            "src": "media/motocare-image-18.webp",
+            "src": "media/ui-ux/motocare-image-18.webp",
             "caption": ""
           },
           {
@@ -138,7 +84,7 @@
         "title": "CoinWave",
         "tag": "Fintech",
         "desc": "CoinWave- A crypto investment platform designed to make digital assets.",
-        "cover": "media/coinwave-cover.webp",
+        "cover": "media/ui-ux/coinwave-cover.webp",
         "meta": {
           "role": "End-To-End . Product Designer",
           "timeline": "May 2026",
@@ -148,141 +94,75 @@
         },
         "blocks": [
           {
-            "id": "mqqye3l6r7aj0",
-            "type": "image",
-            "src": "media/coinwave-image-1.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyec80h61gm",
-            "type": "image",
-            "src": "media/coinwave-image-2.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyegzkyllqh",
-            "type": "image",
-            "src": "media/coinwave-image-3.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyen53vwy0z",
-            "type": "image",
-            "src": "media/coinwave-image-4.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyewzm1i14l",
-            "type": "image",
-            "src": "media/coinwave-image-5.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyf0sfuny8w",
-            "type": "image",
-            "src": "media/coinwave-image-6.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyf4i2qid4v",
-            "type": "image",
-            "src": "media/coinwave-image-7.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyf8h1qiphq",
-            "type": "image",
-            "src": "media/coinwave-image-8.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyfd5w7qzou",
-            "type": "image",
-            "src": "media/coinwave-image-9.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyfgybb0id4",
-            "type": "image",
-            "src": "media/coinwave-image-10.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqyflbtxlhu6",
-            "type": "image",
-            "src": "media/coinwave-image-11.png",
-            "caption": ""
-          },
-          {
             "id": "mqxzroyunplmc",
             "type": "image",
-            "src": "media/coinwave-cover.webp",
+            "src": "media/ui-ux/coinwave-cover.webp",
             "caption": ""
           },
           {
             "id": "mqxzs19dx6wvo",
             "type": "image",
-            "src": "media/coinwave-image-13.webp",
+            "src": "media/ui-ux/coinwave-image-13.webp",
             "caption": ""
           },
           {
             "id": "mqxzs6uej0k7w",
             "type": "image",
-            "src": "media/coinwave-image-14.webp",
+            "src": "media/ui-ux/coinwave-image-14.webp",
             "caption": ""
           },
           {
             "id": "mqxzsb8zs8432",
             "type": "image",
-            "src": "media/coinwave-image-15.webp",
+            "src": "media/ui-ux/coinwave-image-15.webp",
             "caption": ""
           },
           {
             "id": "mqxzsfw3m5l0a",
             "type": "image",
-            "src": "media/coinwave-image-16.webp",
+            "src": "media/ui-ux/coinwave-image-16.webp",
             "caption": ""
           },
           {
             "id": "mqxzsk587utdo",
             "type": "image",
-            "src": "media/coinwave-image-17.webp",
+            "src": "media/ui-ux/coinwave-image-17.webp",
             "caption": ""
           },
           {
             "id": "mqxzsob4u0ps5",
             "type": "image",
-            "src": "media/coinwave-image-18.webp",
+            "src": "media/ui-ux/coinwave-image-18.webp",
             "caption": ""
           },
           {
             "id": "mqxzsrv7nrks1",
             "type": "image",
-            "src": "media/coinwave-image-19.webp",
+            "src": "media/ui-ux/coinwave-image-19.webp",
             "caption": ""
           },
           {
             "id": "mqxzsxix1c72x",
             "type": "image",
-            "src": "media/coinwave-image-20.webp",
+            "src": "media/ui-ux/coinwave-image-20.webp",
             "caption": ""
           },
           {
             "id": "mqxzt3b4pt3vu",
             "type": "image",
-            "src": "media/coinwave-image-21.webp",
+            "src": "media/ui-ux/coinwave-image-21.webp",
             "caption": ""
           },
           {
             "id": "mqxzt7g0xxfmu",
             "type": "image",
-            "src": "media/coinwave-image-22.webp",
+            "src": "media/ui-ux/coinwave-image-22.webp",
             "caption": ""
           },
           {
             "id": "mqxztbe02y3aa",
             "type": "image",
-            "src": "media/coinwave-image-23.webp",
+            "src": "media/ui-ux/coinwave-image-23.webp",
             "caption": ""
           },
           {
@@ -300,7 +180,7 @@
         "title": "FinTrack",
         "tag": "Fintech",
         "desc": "A complete UX case study for young professionals\nwho want a simpler way to understand their money.",
-        "cover": "media/fintrack-cover.webp",
+        "cover": "media/ui-ux/fintrack-cover.webp",
         "meta": {
           "role": "Product Designer    End-to-End",
           "timeline": "May 2026",
@@ -310,111 +190,57 @@
         },
         "blocks": [
           {
-            "id": "mqqk1g30wnzji",
-            "type": "image",
-            "src": "media/fintrack-image-1.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqqk2jvzw9u41",
-            "type": "image",
-            "src": "media/fintrack-image-2.png",
-            "caption": ""
-          },
-          {
-            "id": "mqqk2yan644ow",
-            "type": "image",
-            "src": "media/fintrack-image-3.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqqk360jjd80k",
-            "type": "image",
-            "src": "media/fintrack-image-4.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqqk3fs97rqzh",
-            "type": "image",
-            "src": "media/fintrack-image-5.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqqk3mlfhn92a",
-            "type": "image",
-            "src": "media/fintrack-image-6.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqqk3s1w92ca0",
-            "type": "image",
-            "src": "media/fintrack-image-7.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqqk3zjp21aad",
-            "type": "image",
-            "src": "media/fintrack-image-8.jpg",
-            "caption": ""
-          },
-          {
-            "id": "mqqk45s6qwncv",
-            "type": "image",
-            "src": "media/fintrack-image-9.jpg",
-            "caption": ""
-          },
-          {
             "id": "mqxzo52sqrg41",
             "type": "image",
-            "src": "media/fintrack-image-10.webp",
+            "src": "media/ui-ux/fintrack-image-10.webp",
             "caption": ""
           },
           {
             "id": "mqxzogof3tuy8",
             "type": "image",
-            "src": "media/fintrack-image-11.webp",
+            "src": "media/ui-ux/fintrack-image-11.webp",
             "caption": ""
           },
           {
             "id": "mqxzomevh3bfu",
             "type": "image",
-            "src": "media/fintrack-image-12.webp",
+            "src": "media/ui-ux/fintrack-image-12.webp",
             "caption": ""
           },
           {
             "id": "mqxzord2ji4cg",
             "type": "image",
-            "src": "media/fintrack-image-13.webp",
+            "src": "media/ui-ux/fintrack-image-13.webp",
             "caption": ""
           },
           {
             "id": "mqxzoyi6ax2mb",
             "type": "image",
-            "src": "media/fintrack-image-14.webp",
+            "src": "media/ui-ux/fintrack-image-14.webp",
             "caption": ""
           },
           {
             "id": "mqxzp453edts0",
             "type": "image",
-            "src": "media/fintrack-image-15.webp",
+            "src": "media/ui-ux/fintrack-image-15.webp",
             "caption": ""
           },
           {
             "id": "mqxzp877jlp1f",
             "type": "image",
-            "src": "media/fintrack-image-16.webp",
+            "src": "media/ui-ux/fintrack-image-16.webp",
             "caption": ""
           },
           {
             "id": "mqxzpdvy9neqz",
             "type": "image",
-            "src": "media/fintrack-image-17.webp",
+            "src": "media/ui-ux/fintrack-image-17.webp",
             "caption": ""
           },
           {
             "id": "mqxzpjlfttwzy",
             "type": "image",
-            "src": "media/fintrack-image-18.webp",
+            "src": "media/ui-ux/fintrack-image-18.webp",
             "caption": ""
           },
           {
@@ -493,7 +319,7 @@
         "title": "Hashtag Cycle",
         "tag": "Modeling . Texturing . Lighting . Rendering",
         "desc": "Hashtag Cycle is a 3D Photorealistic Product",
-        "cover": "media/hashtag-cycle-cover.webp",
+        "cover": "media/3d/hashtag-cycle-cover.webp",
         "meta": {
           "role": "3D Product Designer",
           "timeline": "2026",
@@ -512,43 +338,43 @@
           {
             "id": "mqywyrp47k6xp",
             "type": "image",
-            "src": "media/hashtag-cycle-image-2.webp",
+            "src": "media/3d/hashtag-cycle-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqywyx83j8wgc",
             "type": "image",
-            "src": "media/hashtag-cycle-image-3.webp",
+            "src": "media/3d/hashtag-cycle-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqywz03ab0uhp",
             "type": "image",
-            "src": "media/hashtag-cycle-cover.webp",
+            "src": "media/3d/hashtag-cycle-cover.webp",
             "caption": ""
           },
           {
             "id": "mqywz6otiszyh",
             "type": "image",
-            "src": "media/hashtag-cycle-image-5.webp",
+            "src": "media/3d/hashtag-cycle-image-5.webp",
             "caption": ""
           },
           {
             "id": "mqywz34qaeh1a",
             "type": "image",
-            "src": "media/hashtag-cycle-image-6.webp",
+            "src": "media/3d/hashtag-cycle-image-6.webp",
             "caption": ""
           },
           {
             "id": "mqywzjt9k0apf",
             "type": "image",
-            "src": "media/hashtag-cycle-image-7.webp",
+            "src": "media/3d/hashtag-cycle-image-7.webp",
             "caption": ""
           },
           {
             "id": "mqywzn8f07rzj",
             "type": "image",
-            "src": "media/hashtag-cycle-image-8.webp",
+            "src": "media/3d/hashtag-cycle-image-8.webp",
             "caption": ""
           },
           {
@@ -566,7 +392,7 @@
         "title": "CLX Cabinet",
         "tag": "Modeling . Texturing . Lighting .Rendering",
         "desc": "CLX Cabinet 3D photorealistic product",
-        "cover": "media/clx-cabinet-cover.webp",
+        "cover": "media/3d/clx-cabinet-cover.webp",
         "meta": {
           "role": "3D product Designer",
           "timeline": "2026",
@@ -578,49 +404,49 @@
           {
             "id": "mqywuophre52c",
             "type": "image",
-            "src": "media/clx-cabinet-cover.webp",
+            "src": "media/3d/clx-cabinet-cover.webp",
             "caption": ""
           },
           {
             "id": "mqywurwx95zjh",
             "type": "image",
-            "src": "media/clx-cabinet-image-2.webp",
+            "src": "media/3d/clx-cabinet-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqywuuu98mql2",
             "type": "image",
-            "src": "media/clx-cabinet-image-3.webp",
+            "src": "media/3d/clx-cabinet-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqywv04ufovzl",
             "type": "image",
-            "src": "media/clx-cabinet-image-4.webp",
+            "src": "media/3d/clx-cabinet-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqywv3ea6rpy9",
             "type": "image",
-            "src": "media/clx-cabinet-image-5.webp",
+            "src": "media/3d/clx-cabinet-image-5.webp",
             "caption": ""
           },
           {
             "id": "mqywv69q8rpdd",
             "type": "image",
-            "src": "media/clx-cabinet-image-6.webp",
+            "src": "media/3d/clx-cabinet-image-6.webp",
             "caption": ""
           },
           {
             "id": "mqywv9ueeedyv",
             "type": "image",
-            "src": "media/clx-cabinet-image-7.webp",
+            "src": "media/3d/clx-cabinet-image-7.webp",
             "caption": ""
           },
           {
             "id": "mqywvcjongri4",
             "type": "image",
-            "src": "media/clx-cabinet-image-8.webp",
+            "src": "media/3d/clx-cabinet-image-8.webp",
             "caption": ""
           },
           {
@@ -637,7 +463,7 @@
         "title": "Cream of Nature shampoo",
         "tag": "Modeling . Texturing . Lighting . Rendering",
         "desc": "Cream of Nature shampoo 3D Product",
-        "cover": "media/cream-of-nature-shampoo-cover.webp",
+        "cover": "media/3d/cream-of-nature-shampoo-cover.webp",
         "meta": {
           "role": "3D Product Designer",
           "timeline": "2025",
@@ -649,31 +475,31 @@
           {
             "id": "mqywp7ydrtnjj",
             "type": "image",
-            "src": "media/cream-of-nature-shampoo-cover.webp",
+            "src": "media/3d/cream-of-nature-shampoo-cover.webp",
             "caption": ""
           },
           {
             "id": "mqywpjg70ymjw",
             "type": "image",
-            "src": "media/cream-of-nature-shampoo-image-2.webp",
+            "src": "media/3d/cream-of-nature-shampoo-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqywpo0ozqmu5",
             "type": "image",
-            "src": "media/cream-of-nature-shampoo-image-3.webp",
+            "src": "media/3d/cream-of-nature-shampoo-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqywpqzksceqe",
             "type": "image",
-            "src": "media/cream-of-nature-shampoo-image-4.webp",
+            "src": "media/3d/cream-of-nature-shampoo-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqywptsp5ic4q",
             "type": "image",
-            "src": "media/cream-of-nature-shampoo-image-5.webp",
+            "src": "media/3d/cream-of-nature-shampoo-image-5.webp",
             "caption": ""
           }
         ]
@@ -683,7 +509,7 @@
         "title": "Tommy Hilfiger Watch",
         "tag": "Modeling . Texturing . Lighting . Rendering",
         "desc": "High Quality 3D Tommy Hilfiger Watch",
-        "cover": "media/tommy-hilfiger-watch-cover.webp",
+        "cover": "media/3d/tommy-hilfiger-watch-cover.webp",
         "meta": {
           "role": "3D Product Designer",
           "timeline": "2025",
@@ -695,31 +521,31 @@
           {
             "id": "mqywjc5npogun",
             "type": "image",
-            "src": "media/tommy-hilfiger-watch-cover.webp",
+            "src": "media/3d/tommy-hilfiger-watch-cover.webp",
             "caption": ""
           },
           {
             "id": "mqywjfzxsub30",
             "type": "image",
-            "src": "media/tommy-hilfiger-watch-image-2.webp",
+            "src": "media/3d/tommy-hilfiger-watch-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqywiykclbffd",
             "type": "image",
-            "src": "media/tommy-hilfiger-watch-image-3.webp",
+            "src": "media/3d/tommy-hilfiger-watch-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqywj5fjxhmgi",
             "type": "image",
-            "src": "media/tommy-hilfiger-watch-image-4.webp",
+            "src": "media/3d/tommy-hilfiger-watch-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqywj9i2k2smo",
             "type": "image",
-            "src": "media/tommy-hilfiger-watch-image-5.webp",
+            "src": "media/3d/tommy-hilfiger-watch-image-5.webp",
             "caption": ""
           }
         ]
@@ -729,7 +555,7 @@
         "title": "Baggalini Bag",
         "tag": "Modeling . Texturing . Rendering",
         "desc": "Baggalini bag is a 3D Luxury Product for E-Commerce",
-        "cover": "media/baggalini-bag-cover.webp",
+        "cover": "media/3d/baggalini-bag-cover.webp",
         "meta": {
           "role": "3D Product Designer",
           "timeline": "2025",
@@ -741,43 +567,43 @@
           {
             "id": "mqyweh27us6sn",
             "type": "image",
-            "src": "media/baggalini-bag-image-1.webp",
+            "src": "media/3d/baggalini-bag-image-1.webp",
             "caption": ""
           },
           {
             "id": "mqyweog1gs9sz",
             "type": "image",
-            "src": "media/baggalini-bag-image-2.webp",
+            "src": "media/3d/baggalini-bag-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqywerpqthiyl",
             "type": "image",
-            "src": "media/baggalini-bag-image-3.webp",
+            "src": "media/3d/baggalini-bag-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqywevhms9wxc",
             "type": "image",
-            "src": "media/baggalini-bag-image-4.webp",
+            "src": "media/3d/baggalini-bag-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqywez9xexvin",
             "type": "image",
-            "src": "media/baggalini-bag-cover.webp",
+            "src": "media/3d/baggalini-bag-cover.webp",
             "caption": ""
           },
           {
             "id": "mqywf20s9f9ng",
             "type": "image",
-            "src": "media/baggalini-bag-image-6.webp",
+            "src": "media/3d/baggalini-bag-image-6.webp",
             "caption": ""
           },
           {
             "id": "mqywf4u725psv",
             "type": "image",
-            "src": "media/baggalini-bag-image-7.webp",
+            "src": "media/3d/baggalini-bag-image-7.webp",
             "caption": ""
           },
           {
@@ -794,7 +620,7 @@
         "title": "Loreal shampoo",
         "tag": "Modeling . Texturing . Rendering",
         "desc": "Loreal shampoo 3D Product Model",
-        "cover": "media/loreal-shampoo-cover.webp",
+        "cover": "media/3d/loreal-shampoo-cover.webp",
         "meta": {
           "role": "3D Product Designer",
           "timeline": "2024",
@@ -806,31 +632,31 @@
           {
             "id": "mqyvl8e1865x2",
             "type": "image",
-            "src": "media/loreal-shampoo-image-1.webp",
+            "src": "media/3d/loreal-shampoo-image-1.webp",
             "caption": ""
           },
           {
             "id": "mqyvlbmjf484c",
             "type": "image",
-            "src": "media/loreal-shampoo-cover.webp",
+            "src": "media/3d/loreal-shampoo-cover.webp",
             "caption": ""
           },
           {
             "id": "mqyvlht8zi3av",
             "type": "image",
-            "src": "media/loreal-shampoo-image-3.webp",
+            "src": "media/3d/loreal-shampoo-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqyvlkuy787lt",
             "type": "image",
-            "src": "media/loreal-shampoo-image-4.webp",
+            "src": "media/3d/loreal-shampoo-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqyvlontp8i7a",
             "type": "image",
-            "src": "media/loreal-shampoo-image-5.webp",
+            "src": "media/3d/loreal-shampoo-image-5.webp",
             "caption": ""
           },
           {
@@ -847,7 +673,7 @@
         "title": "Office Chair",
         "tag": "Modeling . texturing . Lighting . Rendering",
         "desc": "Office Chair with GLB",
-        "cover": "media/office-chair-cover.webp",
+        "cover": "media/3d/office-chair-cover.webp",
         "meta": {
           "role": "3D Product Design",
           "timeline": "2023",
@@ -859,31 +685,31 @@
           {
             "id": "mqyvdrxor952l",
             "type": "image",
-            "src": "media/office-chair-cover.webp",
+            "src": "media/3d/office-chair-cover.webp",
             "caption": ""
           },
           {
             "id": "mqyvdx4jwlomv",
             "type": "image",
-            "src": "media/office-chair-image-2.webp",
+            "src": "media/3d/office-chair-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqyve26nk69sx",
             "type": "image",
-            "src": "media/office-chair-image-3.webp",
+            "src": "media/3d/office-chair-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqyve50yrnfmd",
             "type": "image",
-            "src": "media/office-chair-image-4.webp",
+            "src": "media/3d/office-chair-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqyve82ncxowk",
             "type": "image",
-            "src": "media/office-chair-image-5.webp",
+            "src": "media/3d/office-chair-image-5.webp",
             "caption": ""
           },
           {
@@ -900,7 +726,7 @@
         "title": "Action Bolt Sniper Rifle",
         "tag": "Modeling . Texturing . Rendering",
         "desc": "Action Bolt Sniper Rifle is a inspired gun used in game called fortnite.",
-        "cover": "media/action-bolt-sniper-rifle-cover.webp",
+        "cover": "media/3d/action-bolt-sniper-rifle-cover.webp",
         "meta": {
           "role": "3D Designer",
           "timeline": "2021",
@@ -912,31 +738,31 @@
           {
             "id": "mqy24lvuy9zgn",
             "type": "image",
-            "src": "media/action-bolt-sniper-rifle-cover.webp",
+            "src": "media/3d/action-bolt-sniper-rifle-cover.webp",
             "caption": ""
           },
           {
             "id": "mqy24ovgmjltf",
             "type": "image",
-            "src": "media/action-bolt-sniper-rifle-image-2.webp",
+            "src": "media/3d/action-bolt-sniper-rifle-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqy24s6sic3mx",
             "type": "image",
-            "src": "media/action-bolt-sniper-rifle-image-3.webp",
+            "src": "media/3d/action-bolt-sniper-rifle-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqy24vburwrip",
             "type": "image",
-            "src": "media/action-bolt-sniper-rifle-image-4.webp",
+            "src": "media/3d/action-bolt-sniper-rifle-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqy24ylyryz50",
             "type": "image",
-            "src": "media/action-bolt-sniper-rifle-image-5.webp",
+            "src": "media/3d/action-bolt-sniper-rifle-image-5.webp",
             "caption": ""
           }
         ],
@@ -947,7 +773,7 @@
         "title": "Rainbow Smash",
         "tag": "Modeling . Texturing . Rendering",
         "desc": "Rainbow Smash is a tool called Pickaxe in Fortnite Game",
-        "cover": "media/rainbow-smash-cover.webp",
+        "cover": "media/3d/rainbow-smash-cover.webp",
         "meta": {
           "role": "3D Designer",
           "timeline": "2020",
@@ -959,25 +785,25 @@
           {
             "id": "mqy1v604qmwag",
             "type": "image",
-            "src": "media/rainbow-smash-cover.webp",
+            "src": "media/3d/rainbow-smash-cover.webp",
             "caption": ""
           },
           {
             "id": "mqy1vahgyk4ep",
             "type": "image",
-            "src": "media/rainbow-smash-image-2.webp",
+            "src": "media/3d/rainbow-smash-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqy1vem83h5pz",
             "type": "image",
-            "src": "media/rainbow-smash-image-3.webp",
+            "src": "media/3d/rainbow-smash-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqy1vjciayo7b",
             "type": "image",
-            "src": "media/rainbow-smash-image-4.webp",
+            "src": "media/3d/rainbow-smash-image-4.webp",
             "caption": ""
           }
         ],
@@ -988,7 +814,7 @@
         "title": "Mini Machine Gun",
         "tag": "Modeling . Texturing . Rendering",
         "desc": "3D Game ready asset Mini Machine Gun",
-        "cover": "media/mini-machine-gun-cover.webp",
+        "cover": "media/3d/mini-machine-gun-cover.webp",
         "meta": {
           "role": "3D Designer",
           "timeline": "2020",
@@ -1000,37 +826,37 @@
           {
             "id": "mqy1mds6wye33",
             "type": "image",
-            "src": "media/mini-machine-gun-cover.webp",
+            "src": "media/3d/mini-machine-gun-cover.webp",
             "caption": ""
           },
           {
             "id": "mqy1mhmnjevpi",
             "type": "image",
-            "src": "media/mini-machine-gun-image-2.webp",
+            "src": "media/3d/mini-machine-gun-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqy1ml43azxam",
             "type": "image",
-            "src": "media/mini-machine-gun-image-3.webp",
+            "src": "media/3d/mini-machine-gun-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqy1moso21r3g",
             "type": "image",
-            "src": "media/mini-machine-gun-image-4.webp",
+            "src": "media/3d/mini-machine-gun-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqy1mssrrr31e",
             "type": "image",
-            "src": "media/mini-machine-gun-image-5.webp",
+            "src": "media/3d/mini-machine-gun-image-5.webp",
             "caption": ""
           },
           {
             "id": "mqy1mvnnwembq",
             "type": "image",
-            "src": "media/mini-machine-gun-image-6.webp",
+            "src": "media/3d/mini-machine-gun-image-6.webp",
             "caption": ""
           }
         ],
@@ -1041,7 +867,7 @@
         "title": "Camouflage Panzer",
         "tag": "Modeling . Texturing . Rendering",
         "desc": "Photorealistic Design of Camouflage Panzer",
-        "cover": "media/camouflage-panzer-cover.webp",
+        "cover": "media/3d/camouflage-panzer-cover.webp",
         "meta": {
           "role": "3D Designer",
           "timeline": "2020",
@@ -1053,31 +879,31 @@
           {
             "id": "mqy1gi37rilm5",
             "type": "image",
-            "src": "media/camouflage-panzer-cover.webp",
+            "src": "media/3d/camouflage-panzer-cover.webp",
             "caption": ""
           },
           {
             "id": "mqy1glov4fiww",
             "type": "image",
-            "src": "media/camouflage-panzer-image-2.webp",
+            "src": "media/3d/camouflage-panzer-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqy1gp47b54ac",
             "type": "image",
-            "src": "media/camouflage-panzer-image-3.webp",
+            "src": "media/3d/camouflage-panzer-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqy1gt0fl2ns0",
             "type": "image",
-            "src": "media/camouflage-panzer-image-4.webp",
+            "src": "media/3d/camouflage-panzer-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqy1gwn9cobpn",
             "type": "image",
-            "src": "media/camouflage-panzer-image-5.webp",
+            "src": "media/3d/camouflage-panzer-image-5.webp",
             "caption": ""
           }
         ],
@@ -1089,7 +915,7 @@
         "tag": "Modeling . Texturing . Rendering",
         "label": "Material study · PBR",
         "desc": "Physically based material and texturing studies.",
-        "cover": "media/brasserie-wine-cover.webp",
+        "cover": "media/3d/brasserie-wine-cover.webp",
         "meta": {
           "role": "3D Photorealistic Design",
           "timeline": "2019",
@@ -1101,31 +927,31 @@
           {
             "id": "mqy0fqwifdtjz",
             "type": "image",
-            "src": "media/brasserie-wine-cover.webp",
+            "src": "media/3d/brasserie-wine-cover.webp",
             "caption": ""
           },
           {
             "id": "mqy0fuc977cy6",
             "type": "image",
-            "src": "media/brasserie-wine-image-2.webp",
+            "src": "media/3d/brasserie-wine-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqy0fyr4ppqsz",
             "type": "image",
-            "src": "media/brasserie-wine-image-3.webp",
+            "src": "media/3d/brasserie-wine-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqy0g1qoao6fj",
             "type": "image",
-            "src": "media/brasserie-wine-image-4.webp",
+            "src": "media/3d/brasserie-wine-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqy0g4lych215",
             "type": "image",
-            "src": "media/brasserie-wine-image-5.webp",
+            "src": "media/3d/brasserie-wine-image-5.webp",
             "caption": ""
           }
         ],
@@ -1137,7 +963,7 @@
         "title": "Cartoon Plane",
         "tag": "Modeling . Texturing . Rendering",
         "desc": "3D cartoon plane",
-        "cover": "media/cartoon-plane-cover.webp",
+        "cover": "media/3d/cartoon-plane-cover.webp",
         "meta": {
           "role": "3D Design",
           "timeline": "2019",
@@ -1149,31 +975,31 @@
           {
             "id": "mqy0rck8itpov",
             "type": "image",
-            "src": "media/cartoon-plane-image-1.webp",
+            "src": "media/3d/cartoon-plane-image-1.webp",
             "caption": ""
           },
           {
             "id": "mqy0riferjwee",
             "type": "image",
-            "src": "media/cartoon-plane-image-2.webp",
+            "src": "media/3d/cartoon-plane-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqy0rplx0oyqn",
             "type": "image",
-            "src": "media/cartoon-plane-image-3.webp",
+            "src": "media/3d/cartoon-plane-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqy0rt9g3e05s",
             "type": "image",
-            "src": "media/cartoon-plane-image-4.webp",
+            "src": "media/3d/cartoon-plane-image-4.webp",
             "caption": ""
           },
           {
             "id": "mqy0rwxzagrxl",
             "type": "image",
-            "src": "media/cartoon-plane-cover.webp",
+            "src": "media/3d/cartoon-plane-cover.webp",
             "caption": ""
           }
         ],
@@ -1186,7 +1012,7 @@
         "tag": "Modeling . Texturing . Rendering",
         "label": "Render set · lighting",
         "desc": "Fantasy Modeling  and Texture set.",
-        "cover": "media/rusty-satellite-cover.webp",
+        "cover": "media/3d/rusty-satellite-cover.webp",
         "meta": {
           "role": "3D Design",
           "timeline": "2019",
@@ -1198,25 +1024,25 @@
           {
             "id": "mqy0d0ecltafe",
             "type": "image",
-            "src": "media/rusty-satellite-cover.webp",
+            "src": "media/3d/rusty-satellite-cover.webp",
             "caption": ""
           },
           {
             "id": "mqy0d52oyu36n",
             "type": "image",
-            "src": "media/rusty-satellite-image-2.webp",
+            "src": "media/3d/rusty-satellite-image-2.webp",
             "caption": ""
           },
           {
             "id": "mqy0d8gfhqrsc",
             "type": "image",
-            "src": "media/rusty-satellite-image-3.webp",
+            "src": "media/3d/rusty-satellite-image-3.webp",
             "caption": ""
           },
           {
             "id": "mqy0dcdh3ewkk",
             "type": "image",
-            "src": "media/rusty-satellite-image-4.webp",
+            "src": "media/3d/rusty-satellite-image-4.webp",
             "caption": ""
           }
         ],

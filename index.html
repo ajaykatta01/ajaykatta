@@ -129,7 +129,7 @@ header{
 #heroCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
 .hero-inner{position:relative;z-index:2;padding-top:160px;padding-bottom:60px;width:100%;text-align:center;display:flex;flex-direction:column;align-items:center}
 .hero-avatar{width:168px;height:168px;border-radius:50%;margin-bottom:40px;
-  background-image:url(profile-photo.webp);
+  background-image:url(media/home/profile-photo.webp);
   background-size:cover;background-position:center 18%;background-repeat:no-repeat;
   border:1px solid color-mix(in srgb,var(--accent-2) 55%,transparent);
   box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent), 0 24px 60px -22px var(--glow), 0 10px 28px -14px rgba(0,0,0,.6);
@@ -145,7 +145,7 @@ header{
   border:1px solid color-mix(in srgb,#fff 22%,transparent);
   box-shadow:0 42px 92px -30px rgba(0,0,0,.82), 0 12px 32px -14px var(--glow), inset 0 1px 0 color-mix(in srgb,#fff 42%,transparent), inset 0 -22px 44px -22px rgba(0,0,0,.55)}
 .gc-photo{position:absolute;inset:0;z-index:2;border-radius:26px;transform:translateZ(34px);
-  background-image:url(profile-cutout.webp);
+  background-image:url(media/home/profile-cutout.webp);
   background-size:cover;background-position:center 8%;background-repeat:no-repeat;
   filter:contrast(1.03) brightness(1.02) drop-shadow(0 10px 20px rgba(0,0,0,.45));
   -webkit-mask:linear-gradient(180deg,#000 70%,transparent 96%);mask:linear-gradient(180deg,#000 70%,transparent 96%)}
@@ -803,12 +803,11 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
         <a href="#work">Projects</a>
         <a href="#skills">Skills</a>
         <a href="#experience">Experience</a>
-        <a href="#certifications">Certifications</a>
         <a href="#contact">Contact</a>
       </nav>
       <span class="nav-div" aria-hidden="true"></span>
       <div class="nav-actions">
-        <a class="resume-btn" href="Ajay-Katta-uiux-product-designer-2026.pdf" id="resumeBtn" target="_blank" rel="noopener">Resume</a>
+        <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf" id="resumeBtn" target="_blank" rel="noopener">Resume</a>
         <button class="home-admin" id="homeAdmin" type="button" title="Admin — locked" aria-label="Admin — locked"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="dot"></span></button>
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark and light mode"><span class="knob" id="knob">🌙</span></button>
       </div>
@@ -822,9 +821,8 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
   <a href="#work">Projects</a>
   <a href="#skills">Skills</a>
   <a href="#experience">Experience</a>
-  <a href="#certifications">Certifications</a>
   <a href="#contact">Contact</a>
-  <a class="resume-btn" href="Ajay-Katta-uiux-product-designer-2026.pdf" target="_blank" rel="noopener">Resume ↗</a>
+  <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf" target="_blank" rel="noopener">Resume ↗</a>
 </div>
 
 <!-- RESUME VIEWER -->
@@ -832,7 +830,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
   <div class="rv-bar">
     <span class="rv-title">Ajay Katta — Résumé</span>
     <div class="rv-actions">
-      <a class="rv-link" id="rvDownload" href="Ajay-Katta-uiux-product-designer-2026.pdf" download="Ajay Katta - Resume.pdf">Download ↓</a>
+      <a class="rv-link" id="rvDownload" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf" download="Ajay Katta - Resume.pdf">Download ↓</a>
       <a class="rv-link" id="rvOpen" href="#" target="_blank" rel="noopener">Open in new tab ↗</a>
       <button type="button" class="rv-close" id="rvClose" aria-label="Close résumé">✕</button>
     </div>
@@ -848,12 +846,6 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
     <div class="hero-avatar"></div>
     <h1><span class="hero-greet">Hi, I'm a</span><span class="role-rotator" aria-label="Product Designer, UX Researcher, AI Content Creator, 3D Visual Artist"><span class="role-size" aria-hidden="true">AI Content Creator</span><span class="role-word" style="--i:0;color:#FF6B5C">Product Designer</span><span class="role-word" style="--i:1;color:#FFB454">UX Researcher</span><span class="role-word" style="--i:2;color:#C792EA">AI Content Creator</span><span class="role-word" style="--i:3;color:#5CCFE6">3D Visual Artist</span></span></h1>
     <p class="tagline"><span id="streamText" style="padding: 0px"></span><span class="caret" id="caret"></span></p>
-    <div class="hero-stats">
-      <div class="stat"><div class="num" data-count="5">0</div><div class="lbl">Years Experience</div></div>
-      <div class="stat"><div class="num" data-count="1500">0</div><div class="lbl">3D Assets Shipped</div></div>
-      <div class="stat"><div class="num" data-count="95">0</div><div class="lbl">% Visual Fidelity</div></div>
-      <div class="stat"><div class="num" data-count="40">0</div><div class="lbl">% Faster Pipelines</div></div>
-    </div>
   </div>
   <a class="scroll-cue" href="#work" aria-label="Scroll down">
     <span class="mouse"><span class="wheel"></span></span>
@@ -1088,13 +1080,8 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
         </button>
       </div>
     </div>
-  </div>
-</section>
 
-<!-- CERTIFICATIONS -->
-<section id="certifications" data-num="04" style="padding-top:24px">
-  <div class="container">
-    <div class="section-head reveal">
+    <div class="section-head reveal" id="certifications" style="margin-top:84px">
       <span class="mono">// Credentials</span>
       <h2>Certifications</h2>
     </div>
@@ -1142,13 +1129,13 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 </div>
 
 <!-- FOOTER -->
-<footer id="contact" data-num="05">
+<footer id="contact" data-num="04">
   <div class="container">
     <div class="foot-row">
       <div class="foot-build">
         <span class="mono">// Let's build the new way</span>
         <h3>Ready to create something weightless?</h3>
-        <p>Open to UI/UX, Product Design and 3D-AI hybrid roles across the UAE — Fintech, gaming, AR/VR and immersive media.</p>
+        <p>Open to global UI/UX, Product Design &amp; 3D-AI roles across FinTech, AI, SaaS, Gaming, AR/VR and Enterprise products.</p>
       </div>
       <div class="foot-touch">
         <div class="touch-head">
@@ -1226,9 +1213,14 @@ document.getElementById('themeToggle').addEventListener('click',()=>{
     }
     function closeMenu(){ menu.classList.remove('open'); }
 
-    // load saved cover — always shown to visitors
+    // load saved cover — local edits on this device win; otherwise use what was published
     let saved=null; try{ saved=localStorage.getItem(key); }catch(e){}
-    apply(saved);
+    if(saved!=null){ apply(saved); }
+    else{
+      apply(null);
+      (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
+        .then(function(pub){ var pc=pub&&pub.home&&pub.home.covers&&pub.home.covers[card.dataset.cover]; if(pc) apply(pc); });
+    }
 
     // edit controls are admin-only: hide unless the admin session is unlocked
     const isAdmin=()=>{ try{ return sessionStorage.getItem('ak-admin-unlocked')==='1'; }catch(e){ return false; } };
@@ -1278,7 +1270,7 @@ const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /* ============ streaming tagline ============ */
 const lines=[
- "I enjoy turning complex problems into simple, intuitive experiences by combining <span class='hl'>UX strategy</span>, <span class='hl'>user-centered design, 3D Photorealistic Design and AI-powered workflows</span>. My goal is to create digital products that not only look great but also solve real user needs and deliver measurable business value."
+ "With 5+ years of experience, I enjoy turning complex problems into simple, intuitive experiences by combining <span class='hl'>UX strategy</span>, <span class='hl'>user-centered design, photorealistic 3D visualization, and AI-powered workflows</span>. I create digital products that not only look great but also solve real user needs and deliver measurable business value."
 ];
 
 
@@ -1289,13 +1281,14 @@ document.getElementById('caret').style.display='none';
 /* ============ count-up stats ============ */
 document.querySelectorAll('[data-count]').forEach(el=>{
   const target=+el.dataset.count;
-  if(reduceMotion){ el.textContent=target+(target>=95&&target<100?'%':'+'); return; }
+  const suffix=el.dataset.suffix!=null?el.dataset.suffix:'+';
+  if(reduceMotion){ el.textContent=target+suffix; return; }
   const io=new IntersectionObserver(es=>{
     if(!es[0].isIntersecting) return; io.disconnect();
     const t0=performance.now(), dur=1600;
     (function tick(t){
       const p=Math.min((t-t0)/dur,1), e=1-Math.pow(1-p,3);
-      el.textContent=Math.round(target*e)+(target===95||target===40?'%':'+');
+      el.textContent=Math.round(target*e)+suffix;
       if(p<1) requestAnimationFrame(tick);
     })(t0);
   },{threshold:.4});
@@ -1869,11 +1862,21 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 
   var DEFAULTS=[
-    {id:uid(),title:"Google UX Design Professional Certificate",issuer:"Coursera",year:"2025",img:""},
-    {id:uid(),title:"Generative AI & Prompt Engineering",issuer:"LinkedIn",year:"2025",img:""}
+    {id:uid(),title:"Google UX Design Professional Certificate",issuer:"Coursera",year:"2026",img:"media/home/cert-google-ux.webp"},
+    {id:uid(),title:"Introduction to Prompt Engineering for Generative AI",issuer:"LinkedIn Learning",year:"2025",img:"media/home/cert-prompt-eng.webp"},
+    {id:uid(),title:"What Is Generative AI?",issuer:"LinkedIn Learning",year:"2025",img:"media/home/cert-gen-ai.webp"}
   ];
-  function load(){try{var r=localStorage.getItem(CERT_KEY);if(r){var a=JSON.parse(r);if(Array.isArray(a))return a;}}catch(e){}return DEFAULTS.slice();}
-  var certs=load();
+  // Legacy migration: certs saved before the media/home/ move stored bare root paths
+  // ("cert-google-ux.webp"). Rewrite any non-data, non-"media/" img to media/home/<file>.
+  function fixCertPath(p){ if(typeof p!=="string"||!p) return p; if(p.indexOf("data:")===0||/^https?:\/\//i.test(p)||/^media\//i.test(p)) return p; return "media/home/"+p.replace(/^.*\//,""); }
+  function fixCerts(arr){ if(Array.isArray(arr)) arr.forEach(function(c){ if(c&&c.img) c.img=fixCertPath(c.img); }); return arr; }
+  function localCerts(){try{var r=localStorage.getItem(CERT_KEY);if(r){var a=JSON.parse(r);if(Array.isArray(a))return fixCerts(a);}}catch(e){}return null;}
+  var certs=localCerts()||DEFAULTS.slice();   // synchronous baseline (avoids flash of empty)
+  // No local edits on this device? Prefer the published certificates (what was last deployed).
+  if(!localCerts()){
+    (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
+      .then(function(pub){ if(pub&&pub.home&&Array.isArray(pub.home.certs)&&pub.home.certs.length){ certs=fixCerts(pub.home.certs.slice()); render(); } });
+  }
   function persist(){try{localStorage.setItem(CERT_KEY,JSON.stringify(certs));return true;}catch(e){alert("Storage is full — use a smaller image or remove a certificate.");return false;}}
 
   var track=document.getElementById("certTrack"),

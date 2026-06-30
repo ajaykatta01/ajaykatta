@@ -272,7 +272,7 @@
       background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);
       transition:transform .35s cubic-bezier(.2,.7,.3,1),opacity .35s}
     .ak-d-bar.ak-bar-hidden{transform:translateY(calc(-100% - 90px));opacity:0;pointer-events:none}
-    .ak-d-bar .inner{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 28px;max-width:1180px;margin:0 auto}
+    .ak-d-bar .inner{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;padding:8px 28px;max-width:1180px;margin:0 auto}
     .ak-d-bar .title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:1rem;color:var(--text)}
     .ak-d-bar .tabwrap{position:relative;display:flex;flex:1 1 auto;min-width:0;max-width:100%}
     .ak-d-bar .tabbar{display:flex;gap:5px;padding:5px;border:1px solid var(--line);border-radius:99px;background:color-mix(in srgb,var(--surface) 60%,transparent);backdrop-filter:blur(8px);max-width:100%;overflow-x:auto;scroll-behavior:smooth;cursor:grab;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 calc(22px*var(--l,0)),#000 calc(100% - 22px*var(--r,0)),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 calc(22px*var(--l,0)),#000 calc(100% - 22px*var(--r,0)),transparent 100%)}
@@ -288,7 +288,7 @@
     .ak-d-bar .tab{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.88rem;color:var(--muted);padding:7px 16px;border-radius:99px;border:none;background:none;cursor:pointer;transition:.3s;white-space:nowrap}
     .ak-d-bar .tab:hover{color:var(--text)}
     .ak-d-bar .tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2))}
-    .ak-d-bar .cs-back{display:inline-flex;align-items:center;gap:8px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.88rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 15px;cursor:pointer;transition:.25s;white-space:nowrap}
+    .ak-d-bar .cs-back{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.88rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 15px;cursor:pointer;transition:.25s;white-space:nowrap}
     .ak-d-bar .cs-back:hover{border-color:var(--accent);color:var(--accent)}
     .ak-d-bar .cs-back .arr{transition:transform .3s}
     .ak-d-bar .cs-back:hover .arr{transform:translateX(-4px)}
@@ -416,26 +416,38 @@
         else if (f.type === "select") input = h("select", {}, (f.options || []).map(function (o) { return h("option", { value: o.value }, [o.label]); }));
         else if (f.type === "file") {
           var label = h("div", { class: "ak-file" + (f.value ? " has" : "") }, [f.value ? "✓ file ready — click to replace" : (f.placeholder || "Click to choose a file")]);
-          var fi = h("input", { type: "file", accept: f.accept || "", style: "display:none" });
+          var fi = h("input", { type: "file", accept: f.accept || "", multiple: f.multiple ? "multiple" : null, style: "display:none" });
           var removeBtn = f.removable ? h("button", { type: "button", class: "ak-file-remove", style: f.value ? "" : "display:none" }, ["\u2715 Remove"]) : null;
           var cropper = f.crop ? makeCropper(f.cropAspect, function (d) { fieldEls[f.key]._data = d; }) : null;
           fi.addEventListener("change", function () {
-            var file = fi.files[0]; if (!file) return;
+            var files = Array.prototype.slice.call(fi.files); if (!files.length) return;
+            if (f.multiple && files.length > 1) {
+              label.textContent = "Loading " + files.length + " files…";
+              Promise.all(files.map(function (file) { return readFileAsDataURL(file).then(function (d) { return { data: d, name: file.name }; }); })).then(function (arr) {
+                var el = fieldEls[f.key];
+                el._files = arr; el._data = arr[0].data; el._name = arr[0].name;
+                label.classList.add("has"); label.textContent = "✓ " + arr.length + " files ready"; if (removeBtn) removeBtn.style.display = "";
+                if (cropper) cropper.load(arr[0].data);
+              });
+              return;
+            }
+            var file = files[0];
             label.textContent = "Loading " + file.name + "…";
             readFileAsDataURL(file).then(function (d) {
-              fieldEls[f.key]._data = d; fieldEls[f.key]._name = file.name;
+              var el = fieldEls[f.key];
+              el._data = d; el._name = file.name; el._files = [{ data: d, name: file.name }];
               label.classList.add("has"); label.textContent = "✓ " + file.name; if (removeBtn) removeBtn.style.display = "";
               if (cropper) cropper.load(d); // cropper overwrites _data with the cropped result
             });
           });
           if (removeBtn) removeBtn.addEventListener("click", function () {
-            fieldEls[f.key]._data = ""; fieldEls[f.key]._name = ""; try { fi.value = ""; } catch (e) {}
+            fieldEls[f.key]._data = ""; fieldEls[f.key]._name = ""; fieldEls[f.key]._files = []; try { fi.value = ""; } catch (e) {}
             label.classList.remove("has"); label.textContent = f.placeholder || "Click to choose a file";
             removeBtn.style.display = "none"; if (cropper) cropper.hide();
           });
           holder = h("div", {}, [label, fi, removeBtn, cropper ? cropper.el : null]);
           label.addEventListener("click", function () { fi.click(); });
-          input = { _holder: holder, _data: f.value || "", _name: f.name || "" };
+          input = { _holder: holder, _data: f.value || "", _name: f.name || "", _files: [] };
           fieldEls[f.key] = input;
           if (cropper && f.value) setTimeout(function () { cropper.load(f.value); }, 30);
           return h("div", { class: "ak-field" }, [h("label", {}, [f.label]), holder, f.hint ? h("div", { class: "ak-hint" }, [f.hint]) : null]);
@@ -451,7 +463,7 @@
         var out = {};
         (opts.fields || []).forEach(function (f) {
           var el = fieldEls[f.key];
-          if (f.type === "file") out[f.key] = el._data, out[f.key + "_name"] = el._name;
+          if (f.type === "file") { out[f.key] = el._data; out[f.key + "_name"] = el._name; out[f.key + "_files"] = (el._files && el._files.length) ? el._files : (el._data ? [{ data: el._data, name: el._name }] : []); }
           else out[f.key] = el.value.trim();
         });
         return out;
@@ -1498,27 +1510,27 @@
     var fields, title;
     if (type === "image") {
       title = "image"; fields = [
-        { key: "src", label: "Image file", type: "file", accept: "image/*", value: b ? b.src : "", hint: "PNG, JPG, GIF or WEBP." },
+        { key: "src", label: "Image file", type: "file", accept: "image/*", multiple: creating, value: b ? b.src : "", hint: "PNG, JPG, GIF or WEBP. You can select multiple files to add several images at once." },
         { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
       ];
     } else if (type === "pdf") {
       title = "PDF"; fields = [
-        { key: "src", label: "PDF file", type: "file", accept: "application/pdf", value: b ? b.src : "", hint: "Displayed in an embedded viewer." },
+        { key: "src", label: "PDF file", type: "file", accept: "application/pdf", multiple: creating, value: b ? b.src : "", hint: "Displayed in an embedded viewer. You can select multiple PDFs at once." },
         { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
       ];
     } else if (type === "prototype") {
       title = "prototype"; fields = [
-        { key: "raw", label: "Figma link or <iframe> embed code", type: "textarea", value: b ? b.raw : "", placeholder: "https://www.figma.com/proto/…  or  full <iframe …> code", hint: "Paste a Figma prototype share link, or any iframe embed code." },
+        { key: "raw", label: "Figma link or <iframe> embed code", type: "textarea", value: b ? b.raw : "", placeholder: "https://www.figma.com/proto/…  or  full <iframe …> code", hint: "Paste a Figma prototype share link, or any iframe embed code. To add several, put each link on its own line." },
         { key: "caption", label: "Title shown above the prototype (optional)", value: b ? b.caption : "", placeholder: "e.g. Try the FinTrack prototype", hint: "Shown as the heading on top of the prototype, on a black stage." }
       ];
     } else if (type === "media") {
       title = "video / audio"; fields = [
-        { key: "src", label: "Video or audio file", type: "file", accept: "video/*,audio/*", value: b ? b.src : "", hint: "MP4, WEBM, MOV, MP3, WAV…" },
+        { key: "src", label: "Video or audio file", type: "file", accept: "video/*,audio/*", multiple: creating, value: b ? b.src : "", hint: "MP4, WEBM, MOV, MP3, WAV… You can select multiple files at once." },
         { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
       ];
     } else if (type === "model") {
       title = "3D model"; fields = [
-        { key: "src", label: "3D model file", type: "file", accept: ".glb,.gltf,.obj,.fbx,model/gltf-binary,model/gltf+json", value: b ? b.src : "", hint: "GLB / GLTF render fully interactive. OBJ / FBX are supported too (GLB recommended for best results)." },
+        { key: "src", label: "3D model file", type: "file", accept: ".glb,.gltf,.obj,.fbx,model/gltf-binary,model/gltf+json", multiple: creating, value: b ? b.src : "", hint: "GLB / GLTF render fully interactive. OBJ / FBX are supported too (GLB recommended for best results). You can select multiple files at once." },
         { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
       ];
     } else if (type === "text") {
@@ -1536,6 +1548,27 @@
       }
     }).then(function (v) {
       if (!v) return;
+      var multiFiles = v.src_files || [];
+      if (creating && (type === "image" || type === "pdf" || type === "media" || type === "model") && multiFiles.length > 1) {
+        multiFiles.forEach(function (fobj) {
+          var nb = { id: uid(), type: type, src: fobj.data, caption: v.caption };
+          if (type === "media") nb.mime = (fobj.data.match(/^data:(.*?);/) || [])[1] || "";
+          if (type === "model") nb.format = modelFormat(fobj.name);
+          item.blocks.push(nb);
+        });
+        save().then(rerender);
+        return;
+      }
+      if (creating && type === "prototype") {
+        var protoLines = (v.raw || "").split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+        if (protoLines.length > 1) {
+          protoLines.forEach(function (line) {
+            item.blocks.push({ id: uid(), type: "prototype", raw: line, src: protoSrc(line), caption: v.caption });
+          });
+          save().then(rerender);
+          return;
+        }
+      }
       var block = b || { id: uid(), type: type };
       if (type === "image") { if (v.src) block.src = v.src; block.caption = v.caption; }
       else if (type === "pdf") { if (v.src) block.src = v.src; block.caption = v.caption; }
@@ -1549,9 +1582,29 @@
   }
   function protoSrc(raw) {
     raw = raw.trim();
-    var m = raw.match(/src="([^"]+)"/i); if (m) return m[1];
-    if (/figma\.com/i.test(raw)) { var u = "https://www.figma.com/embed?embed_host=share&url=" + encodeURIComponent(raw); return u; }
-    return raw;
+    var src = raw;
+    var m = raw.match(/src="([^"]+)"/i); if (m) src = m[1];
+    // unwrap legacy www.figma.com/embed?url=<encoded> wrapper
+    try {
+      var pu = new URL(src);
+      if (/figma\.com$/i.test(pu.hostname.replace(/^www\./, "")) && /\/embed\/?$/i.test(pu.pathname) && pu.searchParams.get("url")) {
+        src = pu.searchParams.get("url");
+      }
+    } catch (e) {}
+    return figmaEmbed(src) || src;
+  }
+  // Rewrite a Figma share link to the embed.figma.com host so public prototypes
+  // render directly without the "log in to Figma" interstitial.
+  function figmaEmbed(url) {
+    try {
+      var u = new URL(String(url).trim());
+      var host = u.hostname.replace(/^www\./, "");
+      if (host !== "figma.com" && host !== "embed.figma.com") return null;
+      u.protocol = "https:";
+      u.hostname = "embed.figma.com";
+      if (!u.searchParams.has("embed-host")) u.searchParams.set("embed-host", "share");
+      return u.toString();
+    } catch (e) { return null; }
   }
   function modelFormat(s) { var m = (s || "").toLowerCase().match(/\.(glb|gltf|obj|fbx)(\?|$|;)/); return m ? m[1] : "glb"; }
 
@@ -1674,55 +1727,108 @@
   function exportData() {
     save().then(function () {
       var keys = ["ui-ux", "gen-ai", "3d"];
-      Promise.all(keys.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
+      // Read BOTH this browser's local edits (IndexedDB) AND the currently-published JSON.
+      // A page only has a local copy if it was edited on THIS device; untouched pages must
+      // fall back to the published data, otherwise they'd be dropped from the export.
+      Promise.all([
+        fetch("portfolio-data.json", { cache: "no-store" })
+          .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      ].concat(keys.map(function (k) { return idbGet("data:" + k); }))).then(function (res) {
+        var pub = res[0] || {};
+        var vals = res.slice(1);
         var bundle = {};
-        keys.forEach(function (k, i) { if (vals[i]) bundle[k] = vals[i]; });
-        if (!bundle[CFG.page]) bundle[CFG.page] = DATA;
+        keys.forEach(function (k, i) {
+          var local = vals[i];
+          var localUsable = local && local.items && local.items.length > 0;
+          var hasLocalEdits = false; try { hasLocalEdits = !!localStorage.getItem("ak-local-edits:" + k); } catch (e) {}
+          if (hasLocalEdits && localUsable) { bundle[k] = local; }          // edited on this device — use working copy
+          else if (pub[k] && pub[k].items) { bundle[k] = pub[k]; }          // untouched — keep what's already published
+          else if (localUsable) { bundle[k] = local; }                      // no published copy yet — use local
+        });
+        if (!bundle[CFG.page]) bundle[CFG.page] = DATA;                      // safety net for the current page
+
+        // ---- HOME PAGE content (certificates + project cover photos) ----
+        // These live in localStorage on the home page, NOT in any project's IndexedDB.
+        // Same merge rule as projects: this device's local edits win, else keep what's published.
+        var home = {};
+        var lsCerts = null;
+        try { var rawC = localStorage.getItem("ak-certs"); if (rawC) { var arrC = JSON.parse(rawC); if (Array.isArray(arrC)) lsCerts = arrC; } } catch (e) {}
+        if (lsCerts) { home.certs = lsCerts; }
+        else if (pub.home && Array.isArray(pub.home.certs)) { home.certs = pub.home.certs; }
+        var covers = {};
+        keys.forEach(function (k) {
+          var lv = null; try { lv = localStorage.getItem("ak-cover-" + k); } catch (e) {}
+          if (lv) { covers[k] = lv; }
+          else if (pub.home && pub.home.covers && pub.home.covers[k]) { covers[k] = pub.home.covers[k]; }
+        });
+        if (Object.keys(covers).length) { home.covers = covers; }
+        if (home.certs || home.covers) { bundle.home = home; }
+
         bundle = JSON.parse(JSON.stringify(bundle)); // clone — never corrupt live data
 
         var files = [], used = {}, seen = {}, fetches = [];
-        // include a replaced résumé PDF (admin) at the exact path the pages reference
+        // include a replaced résumé PDF (admin) at media/home/ — the exact path the pages reference
         fetches.push(idbGet("ak-resume-pdf").then(function (d) {
-          if (d && d.indexOf("data:") === 0) { var got = _dataURLBytes(d); files.push({ name: "Ajay-Katta-uiux-product-designer-2026.pdf", bytes: got.bytes }); }
+          if (d && d.indexOf("data:") === 0) { var got = _dataURLBytes(d); files.push({ name: "media/home/Ajay-Katta-uiux-product-designer-2026.pdf", bytes: got.bytes }); }
         }).catch(function () {}));
-        function nameFor(base, ext) { base = base || "asset"; var nm = base + "." + ext, n = 2; while (used[nm]) nm = base + "-" + (n++) + "." + ext; used[nm] = 1; return nm; }
-        function stash(ref, hintBase, hintExt) {
+        // Each asset is filed under media/<folder>/ where <folder> is the project key
+        // (ui-ux | gen-ai | 3d | home). nameFor returns the path AFTER "media/".
+        function nameFor(folder, base, ext) {
+          base = base || "asset"; var dir = folder ? folder + "/" : "";
+          var nm = dir + base + "." + ext, n = 2;
+          while (used[nm]) nm = dir + base + "-" + (n++) + "." + ext;
+          used[nm] = 1; return nm;
+        }
+        function stash(ref, folder, hintBase, hintExt) {
           if (!ref || typeof ref !== "string") return ref;
-          if (ref.indexOf("data:") === 0) {
+          if (ref.indexOf("data:") === 0) {                 // freshly uploaded image (inline data URL)
             if (seen[ref]) return seen[ref];
             var got = _dataURLBytes(ref);
-            var path = "media/" + nameFor(_slug(hintBase), _extFor(got.mime, hintExt));
+            var path = "media/" + nameFor(folder, _slug(hintBase), _extFor(got.mime, hintExt));
             files.push({ name: path, bytes: got.bytes });
             seen[ref] = path; return path;
           }
-          if (/^media\//i.test(ref)) { // already-published file — re-bundle its bytes so re-exports stay complete
-            if (!seen[ref]) {
-              seen[ref] = ref; used[ref.replace(/^media\//, "")] = 1;
-              fetches.push(fetch(ref).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).then(function (buf) { if (buf) files.push({ name: ref, bytes: new Uint8Array(buf) }); }).catch(function () {}));
-            }
-            return ref;
+          if (/^media\//i.test(ref)) {                      // already-published file — re-bundle AND migrate it into media/<folder>/
+            if (seen[ref]) return seen[ref];
+            var basename = ref.replace(/^media\//, "").replace(/^.*\//, "");
+            var dot = basename.lastIndexOf("."), b = dot > 0 ? basename.slice(0, dot) : basename, e = dot > 0 ? basename.slice(dot + 1) : "bin";
+            var path = "media/" + nameFor(folder, b, e);
+            seen[ref] = path;
+            fetches.push(fetch(ref).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).then(function (buf) { if (buf) files.push({ name: path, bytes: new Uint8Array(buf) }); }).catch(function () {}));
+            return path;
           }
-          return ref; // external URL (figma / http) — leave untouched
+          return ref; // root-level file (e.g. cert-google-ux.webp) or external URL — leave untouched
         }
-        function walkBlocks(blocks, base) {
+        function walkBlocks(blocks, folder, base) {
           (blocks || []).forEach(function (b, i) {
             if (!b || b.type === "prototype") return; // prototype src is an embed URL
-            if (b.src) b.src = stash(b.src, base + "-" + (b.type || "asset") + "-" + (i + 1), b.format);
+            if (b.src) b.src = stash(b.src, folder, base + "-" + (b.type || "asset") + "-" + (i + 1), b.format);
           });
         }
         Object.keys(bundle).forEach(function (page) {
+          if (page === "home") return; // home images handled separately below
           var d = bundle[page] || {};
           (d.items || []).forEach(function (it, i) {
-            if (it.cover) it.cover = stash(it.cover, (_slug(it.title) || (page + "-item")) + "-cover");
-            walkBlocks(it.blocks, _slug(it.title) || (page + "-" + i));
+            if (it.cover) it.cover = stash(it.cover, page, (_slug(it.title) || (page + "-item")) + "-cover");
+            walkBlocks(it.blocks, page, _slug(it.title) || (page + "-" + i));
           });
           var cases = d.cases || {};
           Object.keys(cases).forEach(function (ck) {
             var c = cases[ck] || {};
-            if (c.info && c.info.cover) c.info.cover = stash(c.info.cover, ck + "-cover");
-            walkBlocks(c.blocks, ck);
+            if (c.info && c.info.cover) c.info.cover = stash(c.info.cover, page, ck + "-cover");
+            walkBlocks(c.blocks, page, ck);
           });
         });
+
+        // stash home-page images (certificate scans + project cover photos) under media/home/
+        if (bundle.home) {
+          (bundle.home.certs || []).forEach(function (c, i) {
+            if (c && c.img) c.img = stash(c.img, "home", "certificate-" + (_slug(c.title) || (i + 1)));
+          });
+          if (bundle.home.covers) Object.keys(bundle.home.covers).forEach(function (k) {
+            bundle.home.covers[k] = stash(bundle.home.covers[k], "home", k + "-cover");
+          });
+        }
 
         Promise.all(fetches).then(function () {
           var mediaCount = files.length; // media only — JSON not added yet
