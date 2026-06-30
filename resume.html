@@ -285,11 +285,8 @@ header{
 /* ============ theme toggle (shared ak-theme) ============ */
 const root=document.documentElement, knob=document.getElementById('knob');
 (function(){ try{ const saved=localStorage.getItem('ak-theme'); if(saved){ root.dataset.theme=saved; } }catch(e){} knob.textContent=root.dataset.theme==='light'?'☀️':'🌙'; })();
-document.getElementById('themeToggle').addEventListener('click',()=>{
-  const next=root.dataset.theme==='dark'?'light':'dark';
-  root.dataset.theme=next; knob.textContent=next==='dark'?'🌙':'☀️';
-  try{ localStorage.setItem('ak-theme',next); }catch(e){}
-});
+/* smooth water-ripple theme reveal is wired by the shared theme-ripple.js */
 </script>
+<script src="theme-ripple.js"></script>
 </body>
 </html>

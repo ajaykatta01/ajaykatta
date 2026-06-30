@@ -43,9 +43,14 @@ html{scroll-behavior:smooth}
 body{
   background:var(--bg); color:var(--text);
   font-family:'Inter',system-ui,sans-serif; line-height:1.6;
-  transition:background .5s ease,color .5s ease; overflow-x:hidden;
+  overflow-x:hidden;
+}
+/* Fallback crossfade only where the View Transitions circular reveal isn't supported */
+@supports not (view-transition-name: a){
+  body{transition:background .45s ease,color .45s ease}
 }
 ::selection{background:var(--accent);color:#fff}
+/* theme-toggle ripple reveal CSS is injected by theme-ripple.js */
 h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;line-height:1.1}
 .mono{font-family:'Space Mono',monospace;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
 .container{max-width:1180px;margin:0 auto;padding:0 28px}
@@ -757,7 +762,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 .scard:hover .ic{transform:scale(1.12)}
 .scard .ic svg{width:22px;height:22px}
 .foot-bottom{display:flex;justify-content:center;text-align:center;gap:16px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:26px;color:var(--muted);font-size:.8rem}
-@media(max-width:760px){.resume-btn{display:none}}
+@media(max-width:760px){.nav-actions .resume-btn{display:none}}
 /* ---------- mobile nav (hamburger) + responsive ---------- */
 .nav-toggle{display:none;width:40px;height:40px;align-items:center;justify-content:center;flex-direction:column;gap:5px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;padding:0}
 .nav-toggle span{display:block;width:18px;height:2px;border-radius:2px;background:var(--text);transition:transform .3s,opacity .3s}
@@ -1174,14 +1179,16 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 </footer>
 
 <script>
+/* ============ always land on the homepage (no browser scroll restore) ============ */
+(function(){
+  try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
+  // On a fresh load with no in-page anchor, force the top.
+  if(!location.hash){ window.scrollTo(0,0); window.addEventListener('load',()=>window.scrollTo(0,0)); }
+})();
 /* ============ theme toggle ============ */
 const root=document.documentElement, knob=document.getElementById('knob');
 (function(){ try{ const saved=localStorage.getItem('ak-theme'); if(saved){ root.dataset.theme=saved; } }catch(e){} knob.textContent=root.dataset.theme==='light'?'☀️':'🌙'; })();
-document.getElementById('themeToggle').addEventListener('click',()=>{
-  const next=root.dataset.theme==='dark'?'light':'dark';
-  root.dataset.theme=next; knob.textContent=next==='dark'?'🌙':'☀️';
-  try{ localStorage.setItem('ak-theme',next); }catch(e){}
-});
+/* smooth water-ripple theme reveal is wired by the shared theme-ripple.js */
 
 /* ============ mobile hamburger menu ============ */
 (function(){
@@ -1304,10 +1311,21 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
 /* ============ return directly to Projects — instant, no stutter ============ */
 if(location.hash==='#work'){
   const work=document.getElementById('work');
-  const pin=()=>{ if(work){ const y=work.getBoundingClientRect().top+window.pageYOffset-66; if(Math.abs(window.pageYOffset-y)>1) window.scrollTo(0,y); } };
+  const htmlEl=document.documentElement;
+  const prevBehavior=htmlEl.style.scrollBehavior;
+  // 1) Kill the browser's own fragment scroll — it lands at the section's true top, then
+  //    our header-offset correction would visibly hop it 66px. Removing the hash stops that.
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+  // 2) All corrections must be INSTANT, never smooth, or they animate against layout shifts.
+  htmlEl.style.scrollBehavior='auto';
+  const target=()=> work ? work.getBoundingClientRect().top+window.pageYOffset-66 : 0;
+  const pin=()=>{ const y=target(); if(Math.abs(window.pageYOffset-y)>1) window.scrollTo(0,y); };
   pin();
-  let f=0; const tick=()=>{ pin(); if(++f<8) requestAnimationFrame(tick); else document.documentElement.classList.remove('to-work'); };
-  requestAnimationFrame(tick);
+  // 3) Track the target with a tight instant loop for a short settle window. Once layout is
+  //    stable each correction is a no-op (guarded), so it sits perfectly still — no hops.
+  const t0=performance.now();
+  (function track(){ pin(); if(performance.now()-t0<700) requestAnimationFrame(track);
+    else htmlEl.style.scrollBehavior=prevBehavior||''; })();
   if(document.fonts) document.fonts.ready.then(pin);
 }
 
@@ -2042,5 +2060,6 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   syncMode();
 })();
 </script>
+<script src="theme-ripple.js"></script>
 </body>
 </html>

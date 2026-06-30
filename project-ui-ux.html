@@ -630,13 +630,10 @@ addEventListener('hashchange',()=>{const h=location.hash.replace('#','');if(TABS
 
 /* theme toggle (shared with portfolio via localStorage) */
 (function(){ try{ const saved=localStorage.getItem('ak-theme'); if(saved){ root.dataset.theme=saved; } }catch(e){} knob.textContent=root.dataset.theme==='light'?'☀️':'🌙'; })();
-document.getElementById('themeToggle').addEventListener('click',()=>{
-  const next=root.dataset.theme==='light'?'dark':'light';
-  root.dataset.theme=next; knob.textContent=next==='light'?'☀️':'🌙';
-  try{ localStorage.setItem('ak-theme',next); }catch(e){}
-});
+/* smooth water-ripple theme reveal is wired by the shared theme-ripple.js */
 </script>
 <script>window.AK_ADMIN={page:'ui-ux',noun:'case study',gridSelector:'.index-view .pgrid',tileTag:'article'};</script>
 <script src="admin.js?v=2"></script>
+<script src="theme-ripple.js"></script>
 </body>
 </html>
