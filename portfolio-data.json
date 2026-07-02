@@ -275,41 +275,71 @@
   "gen-ai": {
     "items": [
       {
-        "id": "seed-genai-brand",
-        "title": "Brand Concept Series",
-        "tag": "Diffusion",
-        "label": "Concept set · generated",
-        "desc": "AI-generated brand concept explorations.",
-        "cover": "",
-        "meta": {},
-        "blocks": [],
-        "seeded": true
+        "id": "mr3hgqg68c9mc",
+        "title": "Nike Vaporfly 4",
+        "tag": "AI Product Photography",
+        "desc": "Nike Vaporfly 4 Glam Women's Road Racing Shoes is a premium shoe brand",
+        "cover": "media/gen-ai/nike-vaporfly-4-cover.jpg",
+        "meta": {
+          "role": "AI Product Design",
+          "timeline": "2026",
+          "platform": "",
+          "focus": "",
+          "software": "Gemini . ChatGPT . Claude"
+        },
+        "blocks": [
+          {
+            "id": "mr3hgz7vtv855",
+            "type": "media",
+            "src": "media/gen-ai/nike-vaporfly-4-media-1.mp4",
+            "mime": "video/mp4",
+            "caption": ""
+          },
+          {
+            "id": "mr3hh6nk3yokv",
+            "type": "image",
+            "src": "media/gen-ai/nike-vaporfly-4-image-2.webp",
+            "caption": ""
+          }
+        ]
       },
       {
-        "id": "seed-genai-prodviz",
-        "title": "AI Product Visualization",
-        "tag": "Img2Img",
-        "label": "Product viz · render",
-        "desc": "AI-assisted product visualization renders.",
+        "id": "mr3hak7cd8rl9",
+        "title": "Coming Soon",
+        "tag": "",
+        "desc": "",
         "cover": "",
-        "meta": {},
-        "blocks": [],
-        "seeded": true
+        "meta": {
+          "role": "",
+          "timeline": "",
+          "platform": "",
+          "focus": "",
+          "software": ""
+        },
+        "blocks": []
       },
       {
-        "id": "seed-genai-pattern",
-        "title": "Generative Pattern System",
-        "tag": "ControlNet",
-        "label": "Pattern system · grid",
-        "desc": "Generative, tileable pattern system.",
+        "id": "mr3ha7qtxmw5c",
+        "title": "Coming soon",
+        "tag": "",
+        "desc": "",
         "cover": "",
-        "meta": {},
-        "blocks": [],
-        "seeded": true
+        "meta": {
+          "role": "",
+          "timeline": "",
+          "platform": "",
+          "focus": "",
+          "software": ""
+        },
+        "blocks": []
       }
     ],
     "cases": {},
-    "removedSeeds": [],
+    "removedSeeds": [
+      "seed-genai-prodviz",
+      "seed-genai-pattern",
+      "seed-genai-brand"
+    ],
     "removedCases": []
   },
   "3d": {
