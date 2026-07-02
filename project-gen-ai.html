@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){try{var t=localStorage.getItem('ak-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
 <title>Generative AI Designs — Ajay Katta</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,7 +21,7 @@
   --text:#F4F6FA; --muted:#B2BAC7; --accent:#C792EA; --accent-2:#B388FF; --glow:color-mix(in srgb, #C792EA 40%, transparent);
 }
 [data-theme="light"]{
-  --bg:#F7F8FA; --surface:#FFFFFF; --line:#E3E7ED;
+  --bg:#FFFFFF; --surface:#FFFFFF; --line:#DDE1E8;
   --text:#11141A; --muted:#49515F; --accent:#7C3AED; --accent-2:#9D5CF5; --glow:color-mix(in srgb, #7C3AED 24%, transparent);
 }
 /* theme toggle */
@@ -89,6 +90,11 @@ header.nav-hidden{transform:translateY(-100%)}
   .back .bk-rest{display:none}
   .nav-right{gap:12px}
 }
+[data-theme="light"] .ptile,
+[data-theme="light"] .ovcard,
+[data-theme="light"] .meta{box-shadow:0 14px 34px -18px rgba(17,20,26,.35),0 2px 6px rgba(17,20,26,.08)}
+[data-theme="light"] .ptile:hover,
+[data-theme="light"] .ovcard:hover{box-shadow:0 26px 60px -30px rgba(17,20,26,.35),0 22px 50px -26px var(--glow)}
 </style>
 </head>
 <body>
@@ -108,7 +114,7 @@ header.nav-hidden{transform:translateY(-100%)}
 <section class="container">
   <div class="pgrid">
 
-      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-brand","title":"Brand Concept Series","tag":"Diffusion","label":"Concept set · generated","desc":"AI-generated brand concept explorations."}' style="--d:0s">
+      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-brand","title":"Brand Concept Series","tag":"Diffusion","label":"Concept set · generated","desc":"AI-generated brand concept explorations."}' style="--d:0s;display:none">
         <div class="ptile-body">
           <span class="ptile-tag">Diffusion</span>
           <h3>Brand Concept Series</h3>
@@ -116,7 +122,7 @@ header.nav-hidden{transform:translateY(-100%)}
         </div>
       </article>
 
-      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-prodviz","title":"AI Product Visualization","tag":"Img2Img","label":"Product viz · render","desc":"AI-assisted product visualization renders."}' style="--d:0.08s">
+      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-prodviz","title":"AI Product Visualization","tag":"Img2Img","label":"Product viz · render","desc":"AI-assisted product visualization renders."}' style="--d:0.08s;display:none">
         <div class="ptile-body">
           <span class="ptile-tag">Img2Img</span>
           <h3>AI Product Visualization</h3>
@@ -124,7 +130,7 @@ header.nav-hidden{transform:translateY(-100%)}
         </div>
       </article>
 
-      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-pattern","title":"Generative Pattern System","tag":"ControlNet","label":"Pattern system · grid","desc":"Generative, tileable pattern system."}' style="--d:0.16s">
+      <article class="ptile reveal" data-ak-seed='{"id":"seed-genai-pattern","title":"Generative Pattern System","tag":"ControlNet","label":"Pattern system · grid","desc":"Generative, tileable pattern system."}' style="--d:0.16s;display:none">
         <div class="ptile-body">
           <span class="ptile-tag">ControlNet</span>
           <h3>Generative Pattern System</h3>

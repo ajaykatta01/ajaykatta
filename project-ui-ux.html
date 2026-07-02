@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){try{var t=localStorage.getItem('ak-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
 <title>UI/UX Case Studies — Ajay Katta</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,7 +22,7 @@
   --text:#F4F6FA; --muted:#B2BAC7; --accent:#FF6B5C; --accent-2:#FF8F82; --glow:color-mix(in srgb, #FF6B5C 40%, transparent);
 }
 [data-theme="light"]{
-  --bg:#F7F8FA; --surface:#FFFFFF; --line:#E3E7ED;
+  --bg:#FFFFFF; --surface:#FFFFFF; --line:#DDE1E8;
   --text:#11141A; --muted:#49515F; --accent:#FF6B5C; --accent-2:#E85949; --glow:color-mix(in srgb, #FF6B5C 24%, transparent);
 }
 .theme-toggle{width:54px;height:28px;border-radius:99px;border:1px solid var(--line);background:var(--surface);cursor:pointer;position:relative;transition:background .4s;flex:none}
@@ -113,6 +114,11 @@ body.detail .cs-detail{display:block}
 .hero::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
   background:radial-gradient(78% 80% at 50% 44%, color-mix(in srgb,var(--bg) 52%,transparent) 0%, color-mix(in srgb,var(--bg) 92%,transparent) 100%)}
 [data-theme="light"] .hero-cover.on{opacity:.1}
+[data-theme="light"] .ptile,
+[data-theme="light"] .ovcard,
+[data-theme="light"] .meta{box-shadow:0 14px 34px -18px rgba(17,20,26,.35),0 2px 6px rgba(17,20,26,.08)}
+[data-theme="light"] .ptile:hover,
+[data-theme="light"] .ovcard:hover{box-shadow:0 26px 60px -30px rgba(17,20,26,.35),0 22px 50px -26px var(--glow)}
 .hero-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
 .hero-grid{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.45;
   background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
@@ -262,7 +268,7 @@ body.detail .cs-detail{display:block}
 
   <section class="container">
     <div class="pgrid">
-<a class="ptile reveal" href="#checkout" data-case="checkout" style="--d:0.08s">
+<a class="ptile reveal" href="#checkout" data-case="checkout" style="--d:0.08s;display:none">
         <div class="ptile-img" role="img" aria-label="Checkout Flow Optimization cover"><span class="ph-label">Checkout flow · desktop</span></div>
         <div class="ptile-body">
           <span class="ptile-tag">E-commerce</span>
@@ -271,7 +277,7 @@ body.detail .cs-detail{display:block}
         </div>
       </a>
 
-      <a class="ptile reveal" href="#analytics" data-case="analytics" style="--d:0.16s">
+      <a class="ptile reveal" href="#analytics" data-case="analytics" style="--d:0.16s;display:none">
         <div class="ptile-img" role="img" aria-label="Analytics Dashboard & Design System cover"><span class="ph-label">Dashboard · design system</span></div>
         <div class="ptile-body">
           <span class="ptile-tag">SaaS</span>

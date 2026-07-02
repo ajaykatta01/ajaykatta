@@ -184,6 +184,12 @@
   /* ============================================================ STYLES */
   function injectCSS() {
     document.head.appendChild(h("style", { html: `
+    /* Hydration gate: keep the project tiles hidden until admin.js has reconciled
+       the built-in tiles against saved/published data, so deleted or default
+       projects never flash before the real, live list paints. */
+    ${CFG.gridSelector}{transition:opacity .3s ease}
+    body.ak-hydrating ${CFG.gridSelector}{opacity:0!important}
+    @media (prefers-reduced-motion: reduce){${CFG.gridSelector}{transition:none}}
     .ak-btn{display:inline-flex;align-items:center;gap:7px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.86rem;
       color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;border-radius:99px;padding:8px 15px;cursor:pointer;transition:.2s;white-space:nowrap}
     .ak-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
@@ -244,6 +250,16 @@
     .ak-acts{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
     .ak-hint{font-size:.78rem;color:var(--muted);margin-top:-8px;margin-bottom:14px;line-height:1.45}
     .ak-err{color:#f87171;font-size:.82rem;margin-top:8px;min-height:1em}
+    /* export summary modal */
+    .ak-xsec{font-family:'Space Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2);margin:16px 0 8px}
+    .ak-xrows{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+    .ak-xrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;font-size:.9rem;background:color-mix(in srgb,var(--bg) 55%,var(--surface))}
+    .ak-xrow + .ak-xrow{border-top:1px solid var(--line)}
+    .ak-xrow .k{color:var(--muted)}
+    .ak-xrow .v{font-family:'Space Grotesk',sans-serif;font-weight:600;color:var(--text)}
+    .ak-xwarn{margin-top:16px;border:1px solid color-mix(in srgb,#ef4444 45%,transparent);background:color-mix(in srgb,#ef4444 10%,transparent);border-radius:12px;padding:12px 14px;font-size:.84rem;color:#f87171;line-height:1.55}
+    .ak-xsteps{margin:8px 0 0;padding-left:18px;font-size:.87rem;color:var(--text);line-height:1.7}
+    .ak-xsteps li::marker{color:var(--accent);font-weight:700}
     /* cover crop editor */
     .ak-crop{margin-top:12px}
     .ak-crop-stage{position:relative;width:100%;border-radius:11px;overflow:hidden;background:#000;border:1px solid var(--line);cursor:grab;touch-action:none;user-select:none}
@@ -263,7 +279,9 @@
     .ak-crop-reset:hover{color:var(--accent)}
 
     /* detail overlay */
-    .ak-detail{position:relative;z-index:1;background:var(--bg);animation:akfade .25s ease}
+    .ak-detail{position:relative;z-index:1;background:var(--bg);animation:akdetail .34s cubic-bezier(.2,.7,.3,1) both;will-change:opacity,transform}
+    @keyframes akdetail{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-motion: reduce){.ak-detail{animation:none}}
     body.ak-item-detail .index-view,body.ak-item-detail .cs-detail{display:none!important}
     body.ak-item-detail .phead,body.ak-item-detail .phead ~ section:has(> .pgrid){display:none!important}
     body.ak-item-detail .nav-right .home,body.ak-item-detail .nav-right .ak-wrap,body.ak-item-detail .nav-right .theme-toggle{display:none}
@@ -1767,9 +1785,10 @@
         bundle = JSON.parse(JSON.stringify(bundle)); // clone — never corrupt live data
 
         var files = [], used = {}, seen = {}, fetches = [];
+        var resumeIncluded = false;
         // include a replaced résumé PDF (admin) at media/home/ — the exact path the pages reference
         fetches.push(idbGet("ak-resume-pdf").then(function (d) {
-          if (d && d.indexOf("data:") === 0) { var got = _dataURLBytes(d); files.push({ name: "media/home/Ajay-Katta-uiux-product-designer-2026.pdf", bytes: got.bytes }); }
+          if (d && d.indexOf("data:") === 0) { var got = _dataURLBytes(d); files.push({ name: "media/home/Ajay-Katta-uiux-product-designer-2026.pdf", bytes: got.bytes }); resumeIncluded = true; }
         }).catch(function () {}));
         // Each asset is filed under media/<folder>/ where <folder> is the project key
         // (ui-ux | gen-ai | 3d | home). nameFor returns the path AFTER "media/".
@@ -1840,28 +1859,72 @@
             var a = h("a", { href: URL.createObjectURL(zip), download: "portfolio-site-data.zip" });
             document.body.appendChild(a); a.click(); a.remove();
             setTimeout(function () {
-              alert("Exported portfolio-site-data.zip\n\nInside:\n  \u2022 portfolio-data.json  (your content \u2014 now tiny)\n  \u2022 media/  (" + mediaCount + " file" + (mediaCount === 1 ? "" : "s") + ")\n\nTo publish:\n1. Unzip it.\n2. Copy portfolio-data.json AND the media folder into your site repo, next to your HTML pages \u2014 replace the old ones.\n3. Push to GitHub. Vercel redeploys automatically.");
+              var ov2 = h("div", { class: "ak-ov" });
+              function close2() { ov2.remove(); }
+              ov2.appendChild(h("div", { class: "ak-modal", style: "width:min(480px,100%)" }, [
+                h("h3", {}, ["Export complete \u2713"]),
+                h("div", { class: "sub" }, ["portfolio-site-data.zip is downloading."]),
+                h("div", { class: "ak-xsec" }, ["Inside the ZIP"]),
+                h("div", { class: "ak-xrows" }, [
+                  h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["portfolio-data.json"]), h("span", { class: "v" }, ["your content"])]),
+                  h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["media/"]), h("span", { class: "v" }, [mediaCount + " file" + (mediaCount === 1 ? "" : "s")])])
+                ]),
+                h("div", { class: "ak-xsec" }, ["To publish"]),
+                h("ol", { class: "ak-xsteps" }, [
+                  h("li", {}, ["Unzip it."]),
+                  h("li", {}, ["Copy portfolio-data.json AND the media folder into your site repo, next to your HTML pages \u2014 replace the old ones."]),
+                  h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
+                ]),
+                h("div", { class: "ak-acts" }, [
+                  h("button", { class: "ak-btn", onclick: close2 }, ["Done"])
+                ])
+              ]));
+              ov2.addEventListener("click", function (e) { if (e.target === ov2) close2(); });
+              document.body.appendChild(ov2);
             }, 200);
           }
           // pre-flight: compare against the currently-published JSON so a partial export can't silently wipe projects
           fetch("portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (pub) {
-            var summary = "You're about to export:\n\n" +
-              "  \u2022 UI/UX: " + nowC["ui-ux"] + " project(s)\n" +
-              "  \u2022 Gen AI: " + nowC["gen-ai"] + " project(s)\n" +
-              "  \u2022 3D: " + nowC["3d"] + " project(s)\n" +
-              "  \u2022 Media files: " + mediaCount + "\n\n" +
-              "This ZIP REPLACES all project data on your live site.";
-            var warn = "";
+            var labels = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
+            var warn = [];
             if (pub) {
               var pubC = counts(pub);
-              keys.forEach(function (k) { if (nowC[k] < pubC[k]) warn += "  \u2022 " + k + ": live has " + pubC[k] + ", this export has only " + nowC[k] + "\n"; });
+              keys.forEach(function (k) { if (nowC[k] < pubC[k]) warn.push(labels[k] + ": live has " + pubC[k] + ", this export has only " + nowC[k]); });
             }
-            if (warn) {
-              if (!confirm("\u26A0\uFE0F WARNING \u2014 this export has FEWER projects than your live site:\n\n" + warn + "\nPublishing it will DELETE those missing projects from the live site.\n\n" + summary + "\n\nExport anyway?")) return;
-            } else if (!confirm(summary + "\n\nContinue?")) {
-              return;
-            }
-            proceed();
+            var homeCerts = (bundle.home && Array.isArray(bundle.home.certs)) ? bundle.home.certs.length : 0;
+            var homeCovers = (bundle.home && bundle.home.covers) ? Object.keys(bundle.home.covers).length : 0;
+            function row(k, v) { return h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, [k]), h("span", { class: "v" }, [String(v)])]); }
+            var ov = h("div", { class: "ak-ov" });
+            function close() { ov.remove(); }
+            ov.appendChild(h("div", { class: "ak-modal", style: "width:min(480px,100%)" }, [
+              h("h3", {}, ["Export site data"]),
+              h("div", { class: "sub" }, ["This ZIP replaces all content on your live site."]),
+              h("div", { class: "ak-xsec" }, ["Projects"]),
+              h("div", { class: "ak-xrows" }, [
+                row("UI / UX", nowC["ui-ux"] + " project" + (nowC["ui-ux"] === 1 ? "" : "s")),
+                row("Gen AI", nowC["gen-ai"] + " project" + (nowC["gen-ai"] === 1 ? "" : "s")),
+                row("3D", nowC["3d"] + " project" + (nowC["3d"] === 1 ? "" : "s"))
+              ]),
+              h("div", { class: "ak-xsec" }, ["Home page"]),
+              h("div", { class: "ak-xrows" }, [
+                row("Certifications", homeCerts),
+                row("Project covers", homeCovers),
+                row("R\u00e9sum\u00e9 PDF", resumeIncluded ? "Updated \u2014 in ZIP" : "Unchanged")
+              ]),
+              h("div", { class: "ak-xsec" }, ["Bundle"]),
+              h("div", { class: "ak-xrows" }, [row("Media files", mediaCount)]),
+              warn.length ? h("div", { class: "ak-xwarn" }, [
+                h("strong", {}, ["\u26A0 This export has FEWER projects than your live site."]),
+                h("div", { style: "margin-top:6px" }, warn.map(function (w) { return h("div", {}, ["\u2022 " + w]); })),
+                h("div", { style: "margin-top:6px" }, ["Publishing it will DELETE those missing projects."])
+              ]) : null,
+              h("div", { class: "ak-acts" }, [
+                h("button", { class: "ak-btn ghost", onclick: close }, ["Cancel"]),
+                h("button", { class: "ak-btn" + (warn.length ? " danger" : ""), onclick: function () { close(); proceed(); } }, [warn.length ? "Export anyway" : "Export ZIP"])
+              ])
+            ]));
+            ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
+            document.body.appendChild(ov);
           });
         });
       });
@@ -1890,7 +1953,17 @@
   }
 
   /* ============================================================ INIT */
+  var _revealed = false;
+  function revealTiles() {
+    if (_revealed) return; _revealed = true;
+    document.body.classList.remove("ak-hydrating");
+  }
   function init() {
+    // Hide the tile grid up front so built-in/default tiles can't flash before
+    // the saved project list is loaded and reconciled below.
+    document.body.classList.add("ak-hydrating");
+    // Safety net: never leave the grid hidden if loading hangs or errors.
+    setTimeout(revealTiles, 3000);
     injectCSS();
     buildHeaderButton();
     load().then(function () {
@@ -1903,7 +1976,8 @@
       syncMode();
       renderTiles();
       renderCases();
-    });
+      requestAnimationFrame(revealTiles);
+    }).catch(revealTiles);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
