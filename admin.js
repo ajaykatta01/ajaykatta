@@ -310,6 +310,17 @@
     .ak-d-bar .cs-back:hover{border-color:var(--accent);color:var(--accent)}
     .ak-d-bar .cs-back .arr{transition:transform .3s}
     .ak-d-bar .cs-back:hover .arr{transform:translateX(-4px)}
+    /* ---- sticky-tab cover preview (hover to peek on desktop, press-and-hold on touch) ---- */
+    .ak-tab-preview{position:fixed;z-index:130;pointer-events:none;width:248px;opacity:0;transform:translateY(-6px) scale(.97);transition:opacity .17s ease,transform .17s cubic-bezier(.2,.7,.3,1);will-change:opacity,transform;display:none}
+    .ak-tab-preview.show{opacity:1;transform:none}
+    .ak-tab-preview .ak-tp-arrow{position:absolute;top:-6px;width:12px;height:12px;transform:rotate(45deg);background:var(--surface);border-left:1px solid var(--line);border-top:1px solid var(--line);border-radius:3px 0 0 0}
+    .ak-tab-preview .ak-tp-card{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--surface);box-shadow:0 20px 46px -20px rgba(0,0,0,.62),0 3px 10px rgba(0,0,0,.16)}
+    .ak-tab-preview .ak-tp-img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+    .ak-tab-preview .ak-tp-empty{display:flex;align-items:center;justify-content:center;text-align:center;aspect-ratio:16/10;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:0 16px;background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--accent) 7%,transparent) 0 1.5px,transparent 1.5px 16px)}
+    .ak-tab-preview .ak-tp-meta{display:flex;flex-direction:column;gap:3px;padding:9px 13px 11px}
+    .ak-tab-preview .ak-tp-tag{font-family:'Space Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-tab-preview .ak-tp-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.9rem;line-height:1.25;color:var(--text)}
+    @media(max-width:640px){.ak-tab-preview{width:196px}.ak-tab-preview .ak-tp-title{font-size:.84rem}}
     .ak-d-hero{position:relative;padding:60px 28px;text-align:center;border-bottom:1px solid var(--line);overflow:hidden}
     .ak-d-foot{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:74px 24px 100px}
     .ak-d-foot .mono{display:block;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2)}
@@ -1067,6 +1078,79 @@
 
   /* ============================================================ DETAIL VIEW */
   var detailEl;
+  /* ---------- sticky tab cover preview: hover to peek (desktop) / press-and-hold (touch) ---------- */
+  var _tp = { el: null, hideT: 0, touchActive: false, suppressClick: false, holdT: 0, peeked: false, sx: 0, sy: 0 };
+  function tpEl() {
+    if (_tp.el && document.body.contains(_tp.el)) return _tp.el;
+    _tp.el = h("div", { class: "ak-tab-preview" }, [h("span", { class: "ak-tp-arrow" }), h("div", { class: "ak-tp-card" }, [])]);
+    document.body.appendChild(_tp.el);
+    addEventListener("resize", tpHide, { passive: true });
+    return _tp.el;
+  }
+  function tpFill(el, item) {
+    var card = el.querySelector(".ak-tp-card");
+    card.innerHTML = "";
+    var cover = item.cover ? dataURLtoBlobURL(item.cover) : "";
+    if (cover) card.appendChild(h("img", { class: "ak-tp-img", alt: "", src: cover }));
+    else card.appendChild(h("div", { class: "ak-tp-empty" }, ["Preview coming soon"]));
+    card.appendChild(h("div", { class: "ak-tp-meta" }, [
+      item.tag ? h("span", { class: "ak-tp-tag" }, [item.tag]) : null,
+      h("span", { class: "ak-tp-title" }, [item.title || "Untitled"])
+    ]));
+  }
+  function tpPosition(el, btn) {
+    var r = btn.getBoundingClientRect(), pw = el.offsetWidth || 248, m = 10, vw = window.innerWidth;
+    var left = Math.max(m, Math.min(r.left + r.width / 2 - pw / 2, vw - pw - m));
+    el.style.left = left + "px";
+    el.style.top = (r.bottom + 12) + "px";
+    var arrow = el.querySelector(".ak-tp-arrow");
+    if (arrow) arrow.style.left = (Math.max(16, Math.min(r.left + r.width / 2 - left, pw - 16)) - 6) + "px";
+  }
+  function tpShow(btn, item) {
+    clearTimeout(_tp.hideT);
+    var el = tpEl();
+    tpFill(el, item);
+    el.style.display = "block";
+    tpPosition(el, btn);
+    requestAnimationFrame(function () { if (_tp.el) _tp.el.classList.add("show"); });
+  }
+  function tpHide() {
+    if (!_tp.el) return;
+    _tp.el.classList.remove("show");
+    _tp.hideT = setTimeout(function () { if (_tp.el) _tp.el.style.display = "none"; }, 200);
+  }
+  function tpCancelPeek() {
+    clearTimeout(_tp.holdT);
+    if (_tp.peeked) { _tp.peeked = false; tpHide(); }
+    _tp.suppressClick = false;
+  }
+  function attachTabPreview(btn, item) {
+    btn.addEventListener("mouseenter", function () { if (!_tp.touchActive) tpShow(btn, item); });
+    btn.addEventListener("mouseleave", function () { if (!_tp.touchActive) tpHide(); });
+    btn.addEventListener("focus", function () { if (!_tp.touchActive) tpShow(btn, item); });
+    btn.addEventListener("blur", tpHide);
+    btn.addEventListener("pointerdown", function (e) {
+      if (e.pointerType !== "touch") return;
+      _tp.touchActive = true; _tp.peeked = false; _tp.sx = e.clientX; _tp.sy = e.clientY;
+      clearTimeout(_tp.holdT);
+      _tp.holdT = setTimeout(function () { _tp.peeked = true; _tp.suppressClick = true; tpShow(btn, item); }, 300);
+    });
+    function endTouch(e) {
+      if (e.pointerType && e.pointerType !== "touch") return;
+      clearTimeout(_tp.holdT);
+      if (_tp.peeked) tpHide();
+      _tp.peeked = false;
+      setTimeout(function () { _tp.touchActive = false; _tp.suppressClick = false; }, 450);
+    }
+    btn.addEventListener("pointerup", endTouch);
+    btn.addEventListener("pointercancel", endTouch);
+  }
+  function builtinCover(key) {
+    var el = document.querySelector('.ptile[data-case="' + key + '"] .ptile-img');
+    if (!el) return "";
+    var mm = (getComputedStyle(el).backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
+    return mm ? mm[1] : "";
+  }
   function openDetail(id) {
     openItemId = id;
     document.body.classList.add("ak-item-detail");
@@ -1083,6 +1167,7 @@
     function update() {
       var bar = document.querySelector(".ak-d-bar");
       var y = window.scrollY || document.documentElement.scrollTop;
+      tpHide();
       if (bar) {
         if (y > last && y > 120) bar.classList.add("ak-bar-hidden");
         else bar.classList.remove("ak-bar-hidden");
@@ -1096,6 +1181,7 @@
   }
   function closeDetail() {
     openItemId = null;
+    tpHide();
     document.body.classList.remove("ak-item-detail");
     clearItemActions();
     if (detailEl) { detailEl.remove(); detailEl = null; }
@@ -1169,11 +1255,20 @@
     var hdrEl = document.querySelector("header");
     // sticky case-study / project tab bar (all project pages), with this one active
     var strip = h("div", { class: "tabbar" }, []);
+    // cover-preview: swallow the navigation click that follows a touch long-press "peek"
+    strip.addEventListener("click", function (e) { if (_tp.suppressClick) { _tp.suppressClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    // cover-preview: cancel a pending peek once the strip is scrolled or dragged
+    strip.addEventListener("pointermove", function (e) { if (_tp.touchActive && (Math.abs(e.clientX - _tp.sx) > 8 || Math.abs(e.clientY - _tp.sy) > 8)) tpCancelPeek(); }, { passive: true });
+    strip.addEventListener("scroll", function () { if (_tp.touchActive) tpCancelPeek(); }, { passive: true });
     DATA.items.forEach(function (x) { // newest items first
-      strip.appendChild(h("button", { class: "tab" + (x.id === it.id ? " active" : ""), onclick: function () { if (x.id !== it.id) openDetail(x.id); } }, [x.title || "Untitled"]));
+      var tb = h("button", { class: "tab" + (x.id === it.id ? " active" : ""), onclick: function () { if (x.id !== it.id) openDetail(x.id); } }, [x.title || "Untitled"]);
+      if (!admin && x.id !== it.id) attachTabPreview(tb, { title: x.title, tag: x.tag, cover: x.cover });
+      strip.appendChild(tb);
     });
     builtinTabs().forEach(function (b) {
-      strip.appendChild(h("button", { class: "tab", onclick: function () { closeDetail(); if (window.openCase) window.openCase(b.key); } }, [b.label]));
+      var tb = h("button", { class: "tab", onclick: function () { closeDetail(); if (window.openCase) window.openCase(b.key); } }, [b.label]);
+      if (!admin) attachTabPreview(tb, { title: b.label, tag: "", cover: builtinCover(b.key) });
+      strip.appendChild(tb);
     });
     var plural = CFG.noun === "case study" ? "case studies" : CFG.noun + "s";
     var prevBtn = h("button", { class: "tabnav prev", "aria-label": "Scroll left", html: "\u2039" });
