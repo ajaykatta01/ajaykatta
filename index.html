@@ -388,22 +388,27 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
   .mob-hint .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:hintPulse 2.4s ease-in-out infinite}
   /* Option B — each project elevates as it scrolls into focus (transforms driven by JS, --m* vars) */
   .case-card{position:relative;left:auto;top:auto;margin-left:0;width:100%;max-width:440px;min-height:430px;
-    transform-origin:center center;
+    transform-origin:center center;will-change:transform;
     transform:translateY(var(--mty,0px)) translateZ(var(--mtz,0px)) scale(var(--msc,1)) rotateX(var(--mrx,0deg));
-    box-shadow:0 calc(22px + var(--mp,0)*40px) calc(44px + var(--mp,0)*52px) -30px rgba(var(--gr,255,107,92),calc(.12 + var(--mp,0)*.52));
-    transition:border-color .4s}
+    box-shadow:0 24px 48px -30px rgba(var(--gr,255,107,92),.30);
+    transition:border-color .4s,box-shadow .45s cubic-bezier(.2,.7,.3,1)}
   /* mobile project order: 1) UI/UX  2) AI designs  3) 3D */
   .case-card[data-cover="ui-ux"]{order:1}
   .case-card[data-cover="gen-ai"]{order:2}
   .case-card[data-cover="3d"]{order:3}
-  .case-card.is-focus{border-color:color-mix(in srgb,var(--c1) 64%,transparent)}
+  .case-card.is-focus{border-color:color-mix(in srgb,var(--c1) 64%,transparent);box-shadow:0 46px 82px -34px rgba(var(--gr,255,107,92),.6)}
   /* covers pushed forward: lighter scrim so the 3D scene reads, legibility gradient behind copy */
   .case-card .case-scrim{background:linear-gradient(transparent 52%,color-mix(in srgb,var(--bg) 22%,transparent) 74%,color-mix(in srgb,var(--bg) 55%,transparent))}
   .case-body{transform:translateY(var(--mby,0px))}
   .case-body::before{content:'';position:absolute;left:0;right:0;bottom:0;top:-46px;z-index:-1;
     background:linear-gradient(transparent,color-mix(in srgb,#000 60%,transparent) 46%,color-mix(in srgb,#000 80%,transparent))}
-  .case-card .cover-3d{transform:translateY(var(--mcovy,0px)) translateX(var(--mcovx,0px));filter:brightness(calc(1 + var(--mp,0)*.32))}
+  .case-card .cover-3d{transform:translateY(var(--mcovy,0px)) translateX(var(--mcovx,0px));transition:filter .4s}
+  .case-card.is-focus .cover-3d{filter:brightness(1.3)}
   .stack-hint{display:none}
+}
+/* phones: narrower project cards + lighter focus animation */
+@media(max-width:520px){
+  .case-card{max-width:min(330px,86vw);min-height:400px}
 }
 /* full-bleed background image — swap the --img url() per card to drop in a real screenshot */
 .case-bg{
@@ -554,14 +559,20 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 .tool-rows{display:flex;flex-direction:column;gap:38px}
 .tool-cat{display:flex;flex-direction:column;gap:16px}
 .tool-cat-label{align-self:center;font-family:'Space Mono';font-size:clamp(.9rem,1.2vw,1.02rem);letter-spacing:.22em;text-transform:uppercase;color:var(--accent-2);border:1px solid var(--line);border-radius:99px;padding:6px 16px}
-.tool-row{position:relative;overflow:hidden;padding:10px 0;width:100vw;margin-left:calc(50% - 50vw);-webkit-mask:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.tool-row{position:relative;overflow:hidden;padding:10px 0;width:100vw;margin-left:calc(50% - 50vw)}
+/* edge fades as cheap overlays (was a mask, which forced a full-width re-raster every frame) */
+.tool-row::before,.tool-row::after{content:"";position:absolute;top:0;bottom:0;width:10%;z-index:2;pointer-events:none}
+.tool-row::before{left:0;background:linear-gradient(90deg,var(--bg-soft) 32%,transparent)}
+.tool-row::after{right:0;background:linear-gradient(270deg,var(--bg-soft) 32%,transparent)}
 .tool-row-track{display:flex;align-items:center;width:max-content;will-change:transform}
 .tool-row.ltr .tool-row-track{animation:driftR 64s linear infinite}
 .tool-row.rtl .tool-row-track{animation:driftR 42s linear infinite}
 .tool-row:hover .tool-row-track{animation-play-state:paused}
 @keyframes driftL{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @keyframes driftR{from{transform:translateX(-50%)}to{transform:translateX(0)}}
-.tool-word{position:relative;display:inline-flex;align-items:center;white-space:nowrap;font-family:'Space Grotesk';font-weight:600;font-size:clamp(1.05rem,2vw,1.65rem);letter-spacing:-.01em;color:color-mix(in srgb,var(--text) 38%,var(--muted));padding:0 .42em;transition:color .3s,transform .3s,text-shadow .3s;animation:floatY 5s ease-in-out infinite}
+.tool-word{position:relative;display:inline-flex;align-items:center;white-space:nowrap;font-family:'Space Grotesk';font-weight:600;font-size:clamp(1.05rem,2vw,1.65rem);letter-spacing:-.01em;color:color-mix(in srgb,var(--text) 38%,var(--muted));padding:0 .42em;transition:color .3s,transform .3s,text-shadow .3s;animation:floatY 4.6s ease-in-out infinite;animation-play-state:paused}
+/* wave only animates while the section is on screen (toggled by IntersectionObserver) */
+.tools-wrap.live .tool-word{animation-play-state:running}
 .tool-word:hover{color:var(--accent);transform:scale(1.16);text-shadow:0 6px 22px var(--glow)}
 .tool-word.hi{color:var(--accent);font-weight:700;text-shadow:0 3px 16px var(--glow)}
 .tool-word.hi::after{content:"";position:absolute;left:.42em;right:.42em;bottom:-3px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--accent) 22%,var(--accent) 78%,transparent);opacity:.65}
@@ -1347,6 +1358,14 @@ const revealIO=new IntersectionObserver(es=>es.forEach(e=>{
 }),{threshold:.12});
 document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
 
+/* ============ tools marquee — only run the wave while it's on screen ============ */
+(function(){
+  const wrap=document.querySelector('.tools-wrap');
+  if(!wrap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  new IntersectionObserver(es=>{ wrap.classList.toggle('live', es[0].isIntersecting); },
+    {rootMargin:'140px 0px'}).observe(wrap);
+})();
+
 /* ============ mobile — scroll-reactive project cards (Option B) ============ */
 (function(){
   const cases=document.querySelector('#work .cases');
@@ -1361,12 +1380,18 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
   function update(){
     ticking=false;
     if(!mq.matches || reduceMotion) return;
-    const mid=window.innerHeight*0.5;
+    const mid=window.innerHeight*0.5, vh=window.innerHeight;
+    /* pass 1 — measure only (batched reads, no layout thrash) */
     let best=0,bd=1e9;
+    const dists=cards.map((c,i)=>{
+      const r=c.getBoundingClientRect(), cc=r.top+r.height/2, dist=(cc-mid)/vh;
+      const ad=Math.abs(dist); if(ad<bd){bd=ad;best=i;}
+      return dist;
+    });
+    /* pass 2 — write only (GPU-composited transform + opacity; shadow/brightness handled by .is-focus) */
     cards.forEach((c,i)=>{
-      const r=c.getBoundingClientRect(), cc=r.top+r.height/2, dist=(cc-mid)/window.innerHeight;
+      const dist=dists[i];
       const lin=clamp(1-Math.abs(dist)*1.35,0,1), p=lin*lin*(3-2*lin);   /* smoothstep -> punchy centre */
-      c.style.setProperty('--mp',p.toFixed(3));
       c.style.setProperty('--msc',(0.8+0.2*p).toFixed(3));       /* focused=full size; others shrink back */
       c.style.opacity=(0.62+0.38*p).toFixed(3);                  /* and soften so the focused one stands out */
       c.style.setProperty('--mtz',(p*34).toFixed(1)+'px');       /* gentle pop toward viewer */
@@ -1375,9 +1400,8 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
       c.style.setProperty('--mby',((1-p)*16).toFixed(1)+'px');   /* copy settles as it centres */
       const cov=c.querySelector('.cover-3d');
       if(cov){cov.style.setProperty('--mcovy',(dist*26).toFixed(1)+'px');cov.style.setProperty('--mcovx',clamp(dist*-14,-14,14).toFixed(1)+'px');}
-      const ad=Math.abs(dist); if(ad<bd){bd=ad;best=i;}
+      c.classList.toggle('is-focus',i===best);
     });
-    cards.forEach((c,i)=>c.classList.toggle('is-focus',i===best));
   }
   function onScroll(){ if(!ticking){ticking=true;requestAnimationFrame(update);} }
   function clearCard(c){
