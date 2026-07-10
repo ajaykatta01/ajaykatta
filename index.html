@@ -387,16 +387,22 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
     background:color-mix(in srgb,var(--surface) 80%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:99px;padding:7px 14px}
   .mob-hint .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:hintPulse 2.4s ease-in-out infinite}
   /* Option B — each project elevates as it scrolls into focus (transforms driven by JS, --m* vars) */
+  /* focus effect runs as a one-off CSS transition (compositor), NOT tied to scroll position.
+     Base = slightly small + dimmed; the centred card animates to .is-focus. Only transform/opacity
+     change per state, so there is nothing to repaint or lag while you scroll. */
   .case-card{position:relative;left:auto;top:auto;margin-left:0;width:100%;max-width:440px;min-height:430px;
-    transform-origin:center center;will-change:transform;
-    transform:translateY(var(--mty,0px)) translateZ(var(--mtz,0px)) scale(var(--msc,1)) rotateX(var(--mrx,0deg));
-    box-shadow:0 24px 48px -30px rgba(var(--gr,255,107,92),.30);
-    transition:border-color .4s,box-shadow .45s cubic-bezier(.2,.7,.3,1)}
+    transform-origin:center center;will-change:transform,opacity;backface-visibility:hidden;
+    -webkit-mask-image:none;mask-image:none;
+    transform:scale(.95);opacity:.58;
+    box-shadow:0 20px 44px -30px rgba(var(--gr,255,107,92),.28);
+    transition:transform .5s cubic-bezier(.22,.61,.36,1),opacity .5s ease,box-shadow .5s ease,border-color .4s}
+  /* while the finger is moving, freeze the decorative 3D scenes so nothing competes for the GPU */
+  body.cards-scrolling .case-card .cover-3d *{animation-play-state:paused}
   /* mobile project order: 1) UI/UX  2) AI designs  3) 3D */
   .case-card[data-cover="ui-ux"]{order:1}
   .case-card[data-cover="gen-ai"]{order:2}
   .case-card[data-cover="3d"]{order:3}
-  .case-card.is-focus{border-color:color-mix(in srgb,var(--c1) 64%,transparent);box-shadow:0 46px 82px -34px rgba(var(--gr,255,107,92),.6)}
+  .case-card.is-focus{transform:translateY(-6px) scale(1);opacity:1;border-color:color-mix(in srgb,var(--c1) 64%,transparent);box-shadow:0 32px 62px -32px rgba(var(--gr,255,107,92),.55)}
   /* covers pushed forward: lighter scrim so the 3D scene reads, legibility gradient behind copy */
   .case-card .case-scrim{background:linear-gradient(transparent 52%,color-mix(in srgb,var(--bg) 22%,transparent) 74%,color-mix(in srgb,var(--bg) 55%,transparent))}
   .case-body{transform:translateY(var(--mby,0px))}
@@ -409,6 +415,10 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 /* phones: narrower project cards + lighter focus animation */
 @media(max-width:520px){
   .case-card{max-width:min(330px,86vw);min-height:400px}
+}
+/* reduced-motion on mobile: no focus emphasis, show every card fully */
+@media (prefers-reduced-motion:reduce) and (max-width:1180px){
+  .case-card,.case-card.is-focus{transform:none!important;opacity:1!important}
 }
 /* full-bleed background image — swap the --img url() per card to drop in a real screenshot */
 .case-bg{
@@ -1366,80 +1376,54 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
     {rootMargin:'140px 0px'}).observe(wrap);
 })();
 
-/* ============ mobile — scroll-reactive project cards (Option B) ============ */
+/* ============ mobile — project cards focus as they reach centre (IntersectionObserver, not scroll-linked) ============ */
+/* No per-frame, scroll-position-driven transforms: on mobile those always trail the compositor's
+   scroll thread (worst on iOS) and read as jitter. Instead an IntersectionObserver flags the card
+   crossing the viewport's centre band, and a plain CSS transition animates it into focus on the
+   compositor — smooth on both iOS and Android at any scroll speed. */
 (function(){
   const cases=document.querySelector('#work .cases');
   if(!cases) return;
   const cards=[...cases.querySelectorAll('.case-card')];
   if(!cards.length) return;
   const mq=window.matchMedia('(max-width:1180px)');
-  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-  const lerp=(a,b,t)=>a+(b-a)*t;
   function hexToRgb(h){h=(h||'').trim().replace('#','');if(h.length===3)h=h.replace(/./g,'$&$&');const n=parseInt(h,16);if(h.length!==6||isNaN(n))return '255,107,92';return ((n>>16)&255)+','+((n>>8)&255)+','+(n&255);}
   cards.forEach(c=>c.style.setProperty('--gr',hexToRgb(getComputedStyle(c).getPropertyValue('--c1'))));
 
-  const covers=cards.map(c=>c.querySelector('.cover-3d'));
-  const bodies=cards.map(c=>c.querySelector('.case-body'));
-  /* live (rendered) + target values per card, eased live->target each frame */
-  const S=cards.map(()=>({sc:1,op:1,tz:0,ty:0,rx:0,by:0,cy:0,cx:0,t:null,set:false}));
+  let io=null, cur=null;
+  function focus(card){
+    if(card===cur) return;
+    if(cur) cur.classList.remove('is-focus');
+    cur=card; if(card) card.classList.add('is-focus');
+  }
+  function build(){
+    /* thin band across the vertical centre; a card is "in focus" while its box crosses it. We only
+       act on entries ENTERING the band and never unfocus on leave, so focus hands off cleanly from
+       one card to the next with no flicker in the gap between them. */
+    io=new IntersectionObserver(es=>{
+      let pick=null;
+      for(const e of es){ if(e.isIntersecting) pick=e.target; }
+      if(pick) focus(pick);
+    },{root:null,rootMargin:'-42% 0px -42% 0px',threshold:0});
+    cards.forEach(c=>io.observe(c));
+  }
+  function teardown(){ if(io){io.disconnect();io=null;} focus(null); }
 
-  /* Cache each card's document-space centre from LAYOUT (offsetTop chain), recomputed only
-     on resize/load. The old code read getBoundingClientRect() every frame, which returns the
-     POST-transform rect — so each frame's scale/rotate fed back into the next frame's distance
-     and made it oscillate (the jitter). offsetTop is the pre-transform layout box, so it's stable. */
-  let vh=window.innerHeight, centers=[];
-  function docTop(el){let y=0;for(let n=el;n;n=n.offsetParent)y+=n.offsetTop;return y;}
-  function measure(){ vh=window.innerHeight; centers=cards.map(c=>docTop(c)+c.offsetHeight/2); }
-
-  function targets(){
-    const mid=window.pageYOffset+vh*0.5;
-    let best=0,bd=1e9;
-    const d=cards.map((c,i)=>{ const dist=(centers[i]-mid)/vh, ad=Math.abs(dist); if(ad<bd){bd=ad;best=i;} return dist; });
-    for(let i=0;i<cards.length;i++){
-      const dist=d[i], lin=clamp(1-Math.abs(dist)*1.35,0,1), p=lin*lin*(3-2*lin);  /* smoothstep -> punchy centre */
-      S[i].t={sc:0.8+0.2*p, op:0.62+0.38*p, tz:p*34, ty:dist*-4-p*6,
-              rx:clamp(dist*-13,-13,13), by:(1-p)*16, cy:dist*26, cx:clamp(dist*-14,-14,14)};
-    }
-    return best;
+  /* pause the decorative 3D scenes only while the finger is moving — cheap insurance for low-end
+     GPUs; this handler does nothing but toggle a class (no layout reads, no transforms). */
+  let scrollT=0;
+  function onScroll(){
+    document.body.classList.add('cards-scrolling');
+    clearTimeout(scrollT);
+    scrollT=setTimeout(()=>document.body.classList.remove('cards-scrolling'),200);
   }
 
-  let raf=0;
-  function frame(){
-    raf=0;
-    if(!mq.matches || reduceMotion) return;
-    const best=targets();
-    let moving=false;
-    for(let i=0;i<cards.length;i++){
-      const s=S[i], t=s.t, k=s.set?0.2:1;  /* first paint snaps; afterwards eases toward the scroll target */
-      s.sc=lerp(s.sc,t.sc,k); s.op=lerp(s.op,t.op,k); s.tz=lerp(s.tz,t.tz,k); s.ty=lerp(s.ty,t.ty,k);
-      s.rx=lerp(s.rx,t.rx,k); s.by=lerp(s.by,t.by,k); s.cy=lerp(s.cy,t.cy,k); s.cx=lerp(s.cx,t.cx,k); s.set=true;
-      /* ONE compositor-friendly transform write per element (no per-frame CSS-var recalcs) */
-      cards[i].style.transform='translate3d(0,'+s.ty.toFixed(2)+'px,'+s.tz.toFixed(2)+'px) scale('+s.sc.toFixed(4)+') rotateX('+s.rx.toFixed(2)+'deg)';
-      cards[i].style.opacity=s.op.toFixed(3);
-      if(bodies[i]) bodies[i].style.transform='translate3d(0,'+s.by.toFixed(2)+'px,0)';
-      if(covers[i]) covers[i].style.transform='translate3d('+s.cx.toFixed(2)+'px,'+s.cy.toFixed(2)+'px,0)';
-      cards[i].classList.toggle('is-focus',i===best);
-      if(Math.abs(s.sc-t.sc)+Math.abs(s.ty-t.ty)+Math.abs(s.tz-t.tz)+Math.abs(s.rx-t.rx)+Math.abs(s.op-t.op)>0.002) moving=true;
-    }
-    if(moving) raf=requestAnimationFrame(frame);
-  }
-  function kick(){ if(!raf) raf=requestAnimationFrame(frame); }
-
-  function clearCard(c){
-    c.style.removeProperty('transform'); c.style.removeProperty('opacity');
-    const b=c.querySelector('.case-body'); if(b) b.style.removeProperty('transform');
-    const cov=c.querySelector('.cover-3d'); if(cov) cov.style.removeProperty('transform');
-    c.classList.remove('is-focus');
-  }
   let on=false;
   function sync(){
-    const want=mq.matches && !reduceMotion;
-    if(want && !on){ on=true; measure(); window.addEventListener('scroll',kick,{passive:true}); kick(); }
-    else if(!want && on){ on=false; window.removeEventListener('scroll',kick); if(raf){cancelAnimationFrame(raf);raf=0;} cards.forEach(clearCard); S.forEach(s=>s.set=false); }
+    const want=mq.matches;
+    if(want && !on){ on=true; build(); window.addEventListener('scroll',onScroll,{passive:true}); }
+    else if(!want && on){ on=false; teardown(); window.removeEventListener('scroll',onScroll); document.body.classList.remove('cards-scrolling'); }
   }
-  window.addEventListener('resize',()=>{ sync(); if(on){ measure(); kick(); } });
-  window.addEventListener('load',()=>{ if(on){ measure(); kick(); } });
-  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{ if(on){ measure(); kick(); } });
   (mq.addEventListener?mq.addEventListener('change',sync):mq.addListener(sync));
   sync();
 })();
