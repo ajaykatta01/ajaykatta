@@ -28,7 +28,7 @@
 </template>
 <style>
 :root{
-  --bg:#0B0D12; --bg-soft:#06080C; --surface:#14171E; --line:#2A313D;
+  --bg:#000000; --bg-soft:#08090B; --surface:#14171E; --line:#2A313D;
   --text:#F4F6FA; --muted:#B2BAC7; --accent:#FF6B5C; --accent-2:#FF8F82; --glow:rgba(255,107,92,.40);
   --card-grad:radial-gradient(120% 120% at 20% 0%, rgba(255,107,92,.12), transparent 60%);
   --header-bg:rgba(11,13,18,.6);
@@ -380,22 +380,21 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 .cases:hover .stack-hint,.cases:focus-within .stack-hint{opacity:0;transform:translateX(-50%) translateY(10px)}
 .mob-hint{display:none}
 @media(max-width:1180px){
-  .cases{height:auto;perspective:1000px;perspective-origin:center 46%;display:flex;flex-direction:column;align-items:center;gap:30px;margin-top:16px}
+  .cases{height:auto;perspective:none;display:flex;flex-direction:column;align-items:center;gap:30px;margin-top:16px}
   /* mobile-only discovery hint */
   .mob-hint{display:inline-flex;align-items:center;gap:8px;align-self:center;
     font-family:'Space Mono';font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2);
     background:color-mix(in srgb,var(--surface) 80%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:99px;padding:7px 14px}
   .mob-hint .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:hintPulse 2.4s ease-in-out infinite}
-  /* Option B — each project elevates as it scrolls into focus (transforms driven by JS, --m* vars) */
-  /* focus effect runs as a one-off CSS transition (compositor), NOT tied to scroll position.
-     Base = slightly small + dimmed; the centred card animates to .is-focus. Only transform/opacity
-     change per state, so there is nothing to repaint or lag while you scroll. */
+  /* Focus runs as a one-off CSS transition on the compositor, NOT tied to scroll position.
+     NO permanent will-change here: a persistent GPU layer gets a viewport-sized backing store and
+     the slice scrolling into view shows unpainted (the "cut" through the card). Leaving the card
+     un-promoted lets it paint with the page while scrolling; the transition promotes it only briefly. */
   .case-card{position:relative;left:auto;top:auto;margin-left:0;width:100%;max-width:440px;min-height:430px;
-    transform-origin:center center;will-change:transform,opacity;backface-visibility:hidden;
-    -webkit-mask-image:none;mask-image:none;
-    transform:scale(.95);opacity:.58;
+    transform-origin:center center;will-change:auto;-webkit-mask-image:none;mask-image:none;
+    transform:scale(.955);opacity:.62;
     box-shadow:0 20px 44px -30px rgba(var(--gr,255,107,92),.28);
-    transition:transform .5s cubic-bezier(.22,.61,.36,1),opacity .5s ease,box-shadow .5s ease,border-color .4s}
+    transition:transform .32s cubic-bezier(.2,.7,.3,1),opacity .3s ease,box-shadow .34s ease,border-color .3s}
   /* while the finger is moving, freeze the decorative 3D scenes so nothing competes for the GPU */
   body.cards-scrolling .case-card .cover-3d *{animation-play-state:paused}
   /* mobile project order: 1) UI/UX  2) AI designs  3) 3D */
@@ -405,10 +404,10 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
   .case-card.is-focus{transform:translateY(-6px) scale(1);opacity:1;border-color:color-mix(in srgb,var(--c1) 64%,transparent);box-shadow:0 32px 62px -32px rgba(var(--gr,255,107,92),.55)}
   /* covers pushed forward: lighter scrim so the 3D scene reads, legibility gradient behind copy */
   .case-card .case-scrim{background:linear-gradient(transparent 52%,color-mix(in srgb,var(--bg) 22%,transparent) 74%,color-mix(in srgb,var(--bg) 55%,transparent))}
-  .case-body{transform:translateY(var(--mby,0px))}
+  .case-body{position:relative}
   .case-body::before{content:'';position:absolute;left:0;right:0;bottom:0;top:-46px;z-index:-1;
     background:linear-gradient(transparent,color-mix(in srgb,#000 60%,transparent) 46%,color-mix(in srgb,#000 80%,transparent))}
-  .case-card .cover-3d{transform:translateY(var(--mcovy,0px)) translateX(var(--mcovx,0px));transition:filter .4s}
+  .case-card .cover-3d{transition:filter .4s}
   .case-card.is-focus .cover-3d{filter:brightness(1.3)}
   .stack-hint{display:none}
 }
@@ -1376,11 +1375,12 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
     {rootMargin:'140px 0px'}).observe(wrap);
 })();
 
-/* ============ mobile — project cards focus as they reach centre (IntersectionObserver, not scroll-linked) ============ */
-/* No per-frame, scroll-position-driven transforms: on mobile those always trail the compositor's
-   scroll thread (worst on iOS) and read as jitter. Instead an IntersectionObserver flags the card
-   crossing the viewport's centre band, and a plain CSS transition animates it into focus on the
-   compositor — smooth on both iOS and Android at any scroll speed. */
+/* ============ mobile — project cards focus as they reach centre (throttled scroll, class-only) ============ */
+/* Smoothness comes from the focus being a plain CSS transition on the compositor. The ONLY thing
+   the scroll handler does is pick which card is nearest the viewport centre (reading CACHED layout
+   positions — no getBoundingClientRect, no layout) and flip a single class on it. It never writes a
+   transform per frame — that is what used to trail the scroll thread and jitter on iOS/Android.
+   (A plain scroll listener is also reliable everywhere, unlike a viewport-root IntersectionObserver.) */
 (function(){
   const cases=document.querySelector('#work .cases');
   if(!cases) return;
@@ -1390,30 +1390,30 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
   function hexToRgb(h){h=(h||'').trim().replace('#','');if(h.length===3)h=h.replace(/./g,'$&$&');const n=parseInt(h,16);if(h.length!==6||isNaN(n))return '255,107,92';return ((n>>16)&255)+','+((n>>8)&255)+','+(n&255);}
   cards.forEach(c=>c.style.setProperty('--gr',hexToRgb(getComputedStyle(c).getPropertyValue('--c1'))));
 
-  let io=null, cur=null;
+  /* cache each card's document-space centre from LAYOUT (offsetTop chain) so the scroll handler
+     never forces a layout; recomputed only on resize / load / font swap. */
+  let centers=[];
+  function docTop(el){let y=0;for(let n=el;n;n=n.offsetParent)y+=n.offsetTop;return y;}
+  function measure(){ centers=cards.map(c=>docTop(c)+c.offsetHeight/2); }
+
+  let cur=null;
   function focus(card){
     if(card===cur) return;
     if(cur) cur.classList.remove('is-focus');
     cur=card; if(card) card.classList.add('is-focus');
   }
-  function build(){
-    /* thin band across the vertical centre; a card is "in focus" while its box crosses it. We only
-       act on entries ENTERING the band and never unfocus on leave, so focus hands off cleanly from
-       one card to the next with no flicker in the gap between them. */
-    io=new IntersectionObserver(es=>{
-      let pick=null;
-      for(const e of es){ if(e.isIntersecting) pick=e.target; }
-      if(pick) focus(pick);
-    },{root:null,rootMargin:'-42% 0px -42% 0px',threshold:0});
-    cards.forEach(c=>io.observe(c));
+  function pick(){
+    if(!centers.length) return;
+    const mid=window.pageYOffset+window.innerHeight*0.5;
+    let best=cards[0], bd=1e9;
+    for(let i=0;i<cards.length;i++){ const d=Math.abs(centers[i]-mid); if(d<bd){bd=d;best=cards[i];} }
+    focus(best);   /* nearest-to-centre card is always the focused one — flips only when it changes */
   }
-  function teardown(){ if(io){io.disconnect();io=null;} focus(null); }
 
-  /* pause the decorative 3D scenes only while the finger is moving — cheap insurance for low-end
-     GPUs; this handler does nothing but toggle a class (no layout reads, no transforms). */
-  let scrollT=0;
+  let raf=0, scrollT=0;
   function onScroll(){
-    document.body.classList.add('cards-scrolling');
+    if(!raf) raf=requestAnimationFrame(()=>{ raf=0; pick(); });   /* at most one class check per frame */
+    document.body.classList.add('cards-scrolling');               /* freeze decorative scenes while moving */
     clearTimeout(scrollT);
     scrollT=setTimeout(()=>document.body.classList.remove('cards-scrolling'),200);
   }
@@ -1421,9 +1421,12 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
   let on=false;
   function sync(){
     const want=mq.matches;
-    if(want && !on){ on=true; build(); window.addEventListener('scroll',onScroll,{passive:true}); }
-    else if(!want && on){ on=false; teardown(); window.removeEventListener('scroll',onScroll); document.body.classList.remove('cards-scrolling'); }
+    if(want && !on){ on=true; measure(); pick(); window.addEventListener('scroll',onScroll,{passive:true}); }
+    else if(!want && on){ on=false; window.removeEventListener('scroll',onScroll); if(raf){cancelAnimationFrame(raf);raf=0;} document.body.classList.remove('cards-scrolling'); focus(null); }
   }
+  window.addEventListener('resize',()=>{ sync(); if(on){ measure(); pick(); } });
+  window.addEventListener('load',()=>{ if(on){ measure(); pick(); } });
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{ if(on){ measure(); pick(); } });
   (mq.addEventListener?mq.addEventListener('change',sync):mq.addListener(sync));
   sync();
 })();
