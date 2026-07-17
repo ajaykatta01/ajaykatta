@@ -288,7 +288,7 @@
     .ak-item-actions{display:flex;align-items:center;gap:9px}
     .ak-d-bar{position:sticky;top:0;z-index:40;
       border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);
-      background:color-mix(in srgb,var(--bg) 60%,transparent);
+      background:var(--bg);
       -webkit-backdrop-filter:blur(22px) saturate(155%);backdrop-filter:blur(22px) saturate(155%);
       box-shadow:0 10px 28px -18px rgba(0,0,0,.5),inset 0 1px 0 color-mix(in srgb,#fff 9%,transparent);
       transition:transform .35s cubic-bezier(.2,.7,.3,1),opacity .35s}
