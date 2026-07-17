@@ -971,7 +971,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
     background:var(--accent);border-radius:12px;color:#fff;font-family:'Space Grotesk';font-weight:700;font-size:1rem;padding:15px}
   .mobile-menu .mm-resume:active{background:var(--accent-2)}
   section{padding:74px 0}
-  .hero-inner{padding-top:118px;padding-bottom:46px}
+  .hero-inner{padding-bottom:46px}/* padding-top is set by JS (fitHeroPad) so it always clears the ID card */
   .hero-stats{gap:26px;margin-top:28px}
   .stat .num{font-size:1.7rem}
   .container{padding:0 20px}
@@ -2477,6 +2477,27 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   let sparks  = [];
   function sizeBurst(){ if(!burst) return; const r = hero.getBoundingClientRect(); burst.width = Math.max(1, r.width*DPR); burst.height = Math.max(1, r.height*DPR); burst.style.width = r.width+'px'; burst.style.height = r.height+'px'; }
   if(burst){ sizeBurst(); window.addEventListener('resize', sizeBurst); }
+
+  /* keep the hero copy clear of the transform-scaled, absolutely-positioned ID card at every width
+     (fixes the mobile overlap: derive the pad from the card's real resting bottom, not magic numbers) */
+  const heroInner = hero && hero.querySelector('.hero-inner');
+  function fitHeroPad(){
+    if(!heroInner) return;
+    let el = card, off = 0; while(el && el !== lan){ off += el.offsetTop; el = el.offsetParent; }
+    const cardBottom = (off + card.offsetHeight) * scaleOf();   // card's resting bottom, px below hero top
+    const heroPad = parseFloat(getComputedStyle(hero).paddingTop) || 0;
+    const gap = window.innerWidth <= 560 ? 34 : 36;
+    heroInner.style.paddingTop = Math.max(0, Math.round(cardBottom + gap - heroPad)) + 'px';
+  }
+  fitHeroPad();
+  window.addEventListener('resize', fitHeroPad, {passive:true});
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(fitHeroPad);
+
+  /* run the pendulum loop only while the hero is on screen — no wasted frames behind the fold */
+  let heroVisible = true;
+  if(hero && 'IntersectionObserver' in window){
+    new IntersectionObserver(es=>{ heroVisible = es[0].isIntersecting; }, {rootMargin:'80px'}).observe(hero);
+  }
   function readRGB(name){ const s = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); const h = s.match(/^#?([0-9a-f]{6})$/i); if(h){ const n = parseInt(h[1],16); return [(n>>16)&255,(n>>8)&255,n&255]; } const c = s.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/); return c ? [+c[1],+c[2],+c[3]] : [229,120,58]; }
   function emit(hx, hy, n, power){
     if(!bctx || reduce) return;
@@ -2487,10 +2508,12 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
     }
   }
   function emitAtClip(n, power){ if(!burst) return; const r = lan.getBoundingClientRect(), hr = hero.getBoundingClientRect(); emit(r.left + r.width/2 - hr.left, r.top + 158 - hr.top + dropY + ext, n, power); }
+  let sparksCleared = true;                          // canvas already empty — skip the per-frame clear when idle
   function drawSparks(dt){
     if(!bctx) return;
+    if(!sparks.length){ if(!sparksCleared){ bctx.clearRect(0,0,burst.width,burst.height); sparksCleared = true; } return; }
+    sparksCleared = false;
     bctx.clearRect(0, 0, burst.width, burst.height);
-    if(!sparks.length) return;
     const dark = document.documentElement.getAttribute('data-theme') !== 'light';
     bctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
     for(let i=sparks.length-1;i>=0;i--){ const p = sparks[i];
@@ -2536,6 +2559,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   function frame(now){
     let dt = (now - prev) / 1000; prev = now;
     if(dt > 0.25) dt = 0.25;                     // clamp after a tab-switch to avoid a jump
+    if(!heroVisible){ requestAnimationFrame(frame); return; }   // sleep the loop while the hero is scrolled away
     if(!dropStarted && now - startT > delay) dropStarted = true;
     acc += dt;
     let guard = 0;
