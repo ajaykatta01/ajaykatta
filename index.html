@@ -151,8 +151,8 @@ header{
 #heroCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
 .hero-inner{position:relative;z-index:2;padding-top:380px;padding-bottom:60px;width:100%;text-align:center;display:flex;flex-direction:column;align-items:center}
 @media(max-width:820px){.hero-inner{padding-top:320px}}
-@media(max-width:560px){.hero-inner{padding-top:590px}}
-@media(max-width:380px){.hero-inner{padding-top:535px}}
+@media(max-width:560px){.hero-inner{padding-top:515px}}
+@media(max-width:380px){.hero-inner{padding-top:458px}}
 .hero-avatar{width:168px;height:168px;border-radius:50%;margin-bottom:40px;
   background-image:url(media/home/profile-photo.webp);
   background-size:cover;background-position:center 18%;background-repeat:no-repeat;
@@ -202,8 +202,8 @@ header{
 .id-quote::before{content:'';position:absolute;left:50%;top:-7px;transform:translateX(-50%);width:26px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .id-card.lift{transform:scale(1.03) translateZ(0);box-shadow:0 46px 86px -22px rgba(0,0,0,.82),0 20px 42px -18px rgba(0,0,0,.55)}
 @media(max-width:820px){.id-lanyard{top:16px;transform:scale(.88);transform-origin:top center}}
-@media(max-width:560px){.id-lanyard{top:16px;transform:scale(1.12);transform-origin:top center}}
-@media(max-width:380px){.id-lanyard{top:26px;transform:scale(.98);transform-origin:top center}}
+@media(max-width:560px){.id-lanyard{top:16px;transform:scale(1);transform-origin:top center}}
+@media(max-width:380px){.id-lanyard{top:26px;transform:scale(.9);transform-origin:top center}}
 @media(prefers-reduced-motion:reduce){.id-card{transition:none}}
 /* profile-photo admin control (sits on the ID card; only shown when the admin session is unlocked) */
 .pf-ctrl{position:absolute;top:20px;right:20px;z-index:8;display:none}
@@ -2500,11 +2500,16 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
     //      can't drift or "drop" on reload while the card swings in. The cue keeps its spot a
     //      gap below the copy; the hero only grows downward if a short screen would clip it. ----
     if(window.innerWidth <= 560){
-      const GAP = 38, CUEGAP = 34, BOTTOM = 34;
+      const CUEGAP = 34, BOTTOM = 34;
+      // The copy's top is owned by CSS (.hero-inner padding-top) so it is correct from the very first
+      // paint and can NEVER ride up over the ID card on open/reload. Clear any inline pad and leave it be.
+      heroInner.style.paddingTop = '';
       hero.style.minHeight = '';
       const baseH0 = hero.getBoundingClientRect().height;
-      heroInner.style.paddingTop = Math.max(0, Math.round(cardBottom + GAP - heroPad)) + 'px';
-      const cueTopWanted0 = Math.round(cardBottom + GAP + contentH + CUEGAP);
+      const hTop = hero.getBoundingClientRect().top;
+      let cBot = -Infinity;
+      [...heroInner.children].forEach(n => { if(n.offsetHeight > 0){ const r = n.getBoundingClientRect(); cBot = Math.max(cBot, r.bottom - hTop); } });
+      const cueTopWanted0 = Math.round((cBot > -Infinity ? cBot : cardBottom) + CUEGAP);
       const needH0 = Math.ceil(cueTopWanted0 + cueH + BOTTOM);
       hero.style.minHeight = needH0 > baseH0 ? needH0 + 'px' : '';
       if(cue){ cue.style.bottom = 'auto'; cue.style.top = cueTopWanted0 + 'px'; }
@@ -2573,6 +2578,8 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
 
   const STEP = 1/120;                          // fixed physics step (seconds)
   let prev = performance.now(), acc = 0, simT = 0, lastExtW = -1, lastTY = null, lastRot = null;
+  let running = true;                          // the rAF loop parks itself when the card is fully at rest
+  function wake(){ if(!running){ running = true; prev = performance.now(); acc = 0; requestAnimationFrame(frame); } }
 
   function physics(h){
     if(dropping && dropStarted){
@@ -2598,13 +2605,11 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   function frame(now){
     let dt = (now - prev) / 1000; prev = now;
     if(dt > 0.25) dt = 0.25;                     // clamp after a tab-switch to avoid a jump
-    if(!heroVisible){ requestAnimationFrame(frame); return; }   // sleep the loop while the hero is scrolled away
     if(!dropStarted && now - startT > delay) dropStarted = true;
     acc += dt;
     let guard = 0;
     while(acc >= STEP && guard++ < 500){ physics(STEP); acc -= STEP; }
-    // write the swing transform ONLY when the pose actually changes — at rest the card is
-    // perfectly still, so its heavy shadow + dotted deco stop re-rasterising every frame (kills the idle stutter)
+    // write the swing transform ONLY when the pose actually changes
     const ty = Math.round(dropY * 100) / 100, rot = Math.round(angle * 10000) / 10000;
     if(ty !== lastTY || rot !== lastRot){
       sw.style.transform = 'translateY(' + ty + 'px) rotate(' + rot + 'rad)';
@@ -2616,11 +2621,21 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
       lastExtW = ext;
     }
     drawSparks(dt);
+    // Fully settled → PARK the loop (no requestAnimationFrame). The card + its quote are then byte-for-byte
+    // static: no compositor churn, no sub-pixel drift = no idle jitter. wake() resumes on interaction/resize.
+    if(!dragging && !dropping && Math.abs(vel) < 1e-3 && Math.abs(angle) < 2e-4 && ext === 0 && extVel === 0 && !sparks.length){
+      if(angle !== 0 || vel !== 0){ angle = 0; vel = 0; }
+      if(lastTY !== 0 || lastRot !== 0){ sw.style.transform = 'translateY(0px) rotate(0rad)'; lastTY = 0; lastRot = 0; }
+      running = false;
+      return;
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  window.addEventListener('resize', wake);
 
   function onDown(e){
+    wake();
     dragging = true; moved = false;
     const pt = e.touches ? e.touches[0] : e;
     const p = pivot(), sc = scaleOf();
@@ -2667,7 +2682,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   }
 
   // hover: lift + a gentle sway toward the pointer
-  card.addEventListener('pointerenter', ()=>{ card.classList.add('lift'); if(!dragging) vel += (Math.random()<0.5?-1:1)*0.35; });
+  card.addEventListener('pointerenter', ()=>{ card.classList.add('lift'); if(!dragging) vel += (Math.random()<0.5?-1:1)*0.35; wake(); });
   card.addEventListener('pointerleave', ()=>{ if(!dragging) card.classList.remove('lift'); });
   card.addEventListener('pointerdown', onDown);
   if(strap) strap.addEventListener('pointerdown', onDown);
