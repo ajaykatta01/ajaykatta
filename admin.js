@@ -286,8 +286,11 @@
     body.ak-item-detail .phead,body.ak-item-detail .phead ~ section:has(> .pgrid){display:none!important}
     body.ak-item-detail .nav-right .home,body.ak-item-detail .nav-right .ak-wrap,body.ak-item-detail .nav-right .theme-toggle{display:none}
     .ak-item-actions{display:flex;align-items:center;gap:9px}
-    .ak-d-bar{position:sticky;top:0;z-index:40;border-bottom:1px solid var(--line);
-      background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);
+    .ak-d-bar{position:sticky;top:0;z-index:40;
+      border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);
+      background:color-mix(in srgb,var(--bg) 60%,transparent);
+      -webkit-backdrop-filter:blur(22px) saturate(155%);backdrop-filter:blur(22px) saturate(155%);
+      box-shadow:0 10px 28px -18px rgba(0,0,0,.5),inset 0 1px 0 color-mix(in srgb,#fff 9%,transparent);
       transition:transform .35s cubic-bezier(.2,.7,.3,1),opacity .35s}
     .ak-d-bar.ak-bar-hidden{transform:translateY(calc(-100% - 90px));opacity:0;pointer-events:none}
     .ak-d-bar .inner{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;padding:8px 28px;max-width:1180px;margin:0 auto}
@@ -330,7 +333,7 @@
     .ak-totop:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
     .ak-d-hero .cover{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.18;
       mask:radial-gradient(80% 80% at 50% 36%,#000,transparent 86%);-webkit-mask:radial-gradient(80% 80% at 50% 36%,#000,transparent 86%)}
-    .ak-d-hero .gr{position:absolute;inset:0;background:radial-gradient(60% 60% at 50% 0%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%)}
+    .ak-d-hero .gr{position:absolute;inset:0;background:radial-gradient(92% 58% at 50% -12%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 60%)}
     .ak-d-hero .inner{position:relative;max-width:760px;margin:0 auto}
     .ak-d-hero .tag{font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2)}
     .ak-d-hero h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(2rem,5vw,3.3rem);letter-spacing:-.03em;margin:14px 0 16px;color:var(--text);
@@ -1875,7 +1878,10 @@
           else if (pub.home && pub.home.covers && pub.home.covers[k]) { covers[k] = pub.home.covers[k]; }
         });
         if (Object.keys(covers).length) { home.covers = covers; }
-        if (home.certs || home.covers) { bundle.home = home; }
+        var lsProfile = null; try { lsProfile = localStorage.getItem("ak-profile-photo"); } catch (e) {}
+        if (lsProfile) { home.profile = lsProfile; }
+        else if (pub.home && pub.home.profile) { home.profile = pub.home.profile; }
+        if (home.certs || home.covers || home.profile) { bundle.home = home; }
 
         bundle = JSON.parse(JSON.stringify(bundle)); // clone — never corrupt live data
 
@@ -1942,6 +1948,7 @@
           if (bundle.home.covers) Object.keys(bundle.home.covers).forEach(function (k) {
             bundle.home.covers[k] = stash(bundle.home.covers[k], "home", k + "-cover");
           });
+          if (bundle.home.profile) bundle.home.profile = stash(bundle.home.profile, "home", "profile-photo");
         }
 
         Promise.all(fetches).then(function () {
@@ -1988,6 +1995,7 @@
             }
             var homeCerts = (bundle.home && Array.isArray(bundle.home.certs)) ? bundle.home.certs.length : 0;
             var homeCovers = (bundle.home && bundle.home.covers) ? Object.keys(bundle.home.covers).length : 0;
+            var homeProfile = !!(bundle.home && bundle.home.profile);
             function row(k, v) { return h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, [k]), h("span", { class: "v" }, [String(v)])]); }
             var ov = h("div", { class: "ak-ov" });
             function close() { ov.remove(); }
@@ -2004,6 +2012,7 @@
               h("div", { class: "ak-xrows" }, [
                 row("Certifications", homeCerts),
                 row("Project covers", homeCovers),
+                row("Profile photo", homeProfile ? "Included" : "Default"),
                 row("R\u00e9sum\u00e9 PDF", resumeIncluded ? "Updated \u2014 in ZIP" : "Unchanged")
               ]),
               h("div", { class: "ak-xsec" }, ["Bundle"]),
