@@ -3,8 +3,9 @@
 
    Self-contained: injects its own <style> + DOM, needs no markup changes.
    Loaded on every project page (project-ui-ux / project-gen-ai / project-3d)
-   so ALL current and future case studies/projects track scroll progress —
-   both the index grid and the admin-rendered detail views.
+   so ALL current and future case studies/projects track scroll progress.
+   Shown ONLY inside an individual project/case-study detail view
+   (body.ak-item-detail or body.detail) — hidden on the main project grid.
 
    • A thin gradient bar pinned to the very top of the viewport (the % fill).
    • A circular badge (bottom-LEFT, clear of the admin FAB at bottom-right)
@@ -40,11 +41,13 @@
     + '.ak-progress-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}'
     + '.ak-progress-ring .trk{fill:none;stroke:var(--line);stroke-width:3}'
     + '.ak-progress-ring .val{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset .12s linear}'
-    + '.ak-progress-ring .pct{font-family:\'Space Mono\',monospace;font-weight:700;font-size:.72rem;color:var(--text);position:relative;z-index:1;transition:opacity .22s}'
+    + '.ak-progress-ring .pct{font-family:\'Inter\',sans-serif;font-weight:700;font-size:.72rem;color:var(--text);position:relative;z-index:1;transition:opacity .22s}'
     + '.ak-progress-ring .up{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .22s;color:var(--accent);font-size:1.05rem;line-height:1}'
     + '.ak-progress-ring:hover .pct{opacity:0}'
     + '.ak-progress-ring:hover .up{opacity:1}'
     + '@media (max-width:760px){.ak-progress-ring{width:48px;height:48px;bottom:16px;left:16px}.ak-progress-ring .pct{font-size:.66rem}}'
+    // Only show inside an individual project/case-study detail view — never on the main project grid.
+    + 'body:not(.ak-item-detail):not(.detail) .ak-progress-bar,body:not(.ak-item-detail):not(.detail) .ak-progress-ring{display:none!important}'
     + '@media print{.ak-progress-bar,.ak-progress-ring{display:none!important}}';
 
   var st = document.createElement('style');

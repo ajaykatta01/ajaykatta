@@ -51,7 +51,7 @@
     function apply(next) {
       root.dataset.theme = next;
       knob.textContent = next === 'dark' ? '🌙' : '☀️';
-      try { localStorage.setItem('ak-theme', next); } catch (e) {}
+      if (!window.AK_THEME_NO_PERSIST) { try { localStorage.setItem('ak-theme', next); } catch (e) {} }
     }
 
     var busy = false;

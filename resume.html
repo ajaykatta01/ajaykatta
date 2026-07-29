@@ -5,9 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>(function(){try{var t=localStorage.getItem('ak-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
 <title>Ajay Katta — Resume</title>
+<meta name="description" content="Résumé of Ajay Katta — 3D, Product and UI/UX Designer based in Hyderabad, India. 5+ years across gaming, e-commerce, advertising and immersive media.">
+<meta name="author" content="Ajay Katta">
+<meta name="theme-color" content="#0B0D12" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23111318'/><text x='32' y='44' font-family='Helvetica,Arial,sans-serif' font-size='29' font-weight='700' fill='%23FF6B5C' text-anchor='middle'>AK</text></svg>">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ajay Katta">
+<meta property="og:title" content="Ajay Katta — Résumé">
+<meta property="og:description" content="Résumé of Ajay Katta — 3D, Product and UI/UX Designer based in Hyderabad, India. 5+ years across gaming, e-commerce, advertising and immersive media.">
+<meta property="og:image" content="media/home/profile-photo.webp">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ajay Katta — Résumé">
+<meta name="twitter:description" content="Résumé of Ajay Katta — 3D, Product and UI/UX Designer based in Hyderabad, India. 5+ years across gaming, e-commerce, advertising and immersive media.">
+<meta name="twitter:image" content="media/home/profile-photo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0B0D12; --bg-soft:#06080C; --surface:#14171E; --line:#2A313D;
@@ -17,7 +31,7 @@
 }
 [data-theme="light"]{
   --bg:#FFFFFF; --bg-soft:#F1F3F6; --surface:#FFFFFF; --line:#DDE1E8;
-  --text:#11141A; --muted:#49515F; --accent:#FF6B5C; --accent-2:#E85949; --glow:rgba(255,107,92,.24);
+  --text:#11141A; --muted:#49515F; --accent:#FF6B5C; --accent-2:#C2410C; --glow:rgba(255,107,92,.24);
   --card-grad:radial-gradient(120% 120% at 20% 0%, rgba(255,107,92,.08), transparent 60%);
   --header-bg:rgba(247,248,250,.7);
 }
@@ -29,8 +43,11 @@ body{
   transition:background .5s ease,color .5s ease; overflow-x:hidden;
 }
 ::selection{background:var(--accent);color:#fff}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent-2)}
+:where(a,button,input,select,textarea,[tabindex],summary):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 h1,h2,h3{font-family:'Space Grotesk',sans-serif;font-weight:600;line-height:1.1}
-.mono{font-family:'Space Mono',monospace;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+.mono{font-family:'Inter',sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
 
 /* ---------- header ---------- */
 header{
@@ -39,7 +56,7 @@ header{
   border-bottom:1px solid var(--line);
 }
 .nav{max-width:920px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{font-family:'Space Grotesk';font-weight:700;font-size:1.05rem;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:10px}
+.logo{font-family:'Space Grotesk';font-weight:700;font-size:1.05rem;letter-spacing:.08em;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:10px}
 .logo .orb{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--accent-2),var(--accent));box-shadow:0 0 14px var(--glow);animation:pulse 3s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
 .nav-right{display:flex;align-items:center;gap:20px}
@@ -55,7 +72,8 @@ header{
 .theme-toggle .knob{
   position:absolute;top:2.5px;left:3px;width:21px;height:21px;border-radius:50%;
   background:radial-gradient(circle at 35% 35%,var(--accent-2),var(--accent));
-  transition:transform .4s cubic-bezier(.6,.2,.1,1);
+  box-shadow:0 0 10px var(--glow);
+  transition:transform .35s cubic-bezier(.5,1.6,.4,1);
   display:flex;align-items:center;justify-content:center;font-size:11px;
 }
 [data-theme="light"] .theme-toggle .knob{transform:translateX(26px)}
@@ -66,7 +84,7 @@ header{
 
 .resume-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;flex-wrap:wrap;padding-bottom:30px;border-bottom:1px solid var(--line)}
 .resume-head h1{font-size:clamp(2.4rem,6vw,3.6rem);letter-spacing:-.02em}
-.resume-head .role{color:var(--accent-2);font-family:'Space Grotesk';font-weight:500;font-size:1.15rem;margin-top:8px}
+.resume-head .role{color:var(--accent-2);font-family:'Inter';font-weight:500;font-size:1.15rem;margin-top:8px}
 .contact-col{display:flex;flex-direction:column;gap:6px;font-size:.86rem;color:var(--muted)}
 .contact-col a{color:var(--muted);text-decoration:none}
 .contact-col .row{display:flex;align-items:center;gap:9px;justify-content:flex-end}
@@ -93,7 +111,7 @@ header{
 .job::before{content:"";position:absolute;left:-6px;top:4px;width:11px;height:11px;border-radius:3px;background:var(--accent);transform:rotate(45deg);box-shadow:0 0 12px var(--glow)}
 .job-top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
 .job-top h3{font-size:1.18rem}
-.job-top .when{font-family:'Space Mono',monospace;font-size:.74rem;color:var(--accent-2);letter-spacing:.04em;white-space:nowrap}
+.job-top .when{font-family:'Inter',sans-serif;font-size:.74rem;color:var(--accent-2);letter-spacing:.04em;white-space:nowrap}
 .job .sub{color:var(--muted);font-size:.86rem;margin:4px 0 14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .job ul{list-style:none;display:flex;flex-direction:column;gap:9px}
 .job li{position:relative;padding-left:18px;font-size:.93rem;color:var(--text);opacity:.9}
@@ -121,6 +139,8 @@ header{
 .foot a{color:var(--accent-2);text-decoration:none}
 
 @media(max-width:720px){
+  /* touch targets: header actions need ~44px of tappable height */
+  .nav-right a{padding-top:11px;padding-bottom:11px}
   .comp-grid,.cols{grid-template-columns:1fr}
   .metrics{grid-template-columns:repeat(2,1fr)}
   .contact-col .row{justify-content:flex-start}

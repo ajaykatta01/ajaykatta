@@ -40,6 +40,33 @@
     return e;
   }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  /* ---------- layout of the files INSIDE an open project: "canvas" (as designed) · "grid" (full-size vertical stack).
+     Separate from the project-cover wall on each page, which keeps its own "ak-cover-view" (compact cards). ---------- */
+  /* Canvas is the default for EVERY project. The toggle is session-only and scoped to the
+     open project — reopening it (or opening another) always starts in Canvas again. */
+  var sessionView = { id: null, v: "canvas" };
+  function bentoView(itemId) {
+    return (itemId != null && sessionView.id === itemId && sessionView.v === "grid") ? "grid" : "canvas";
+  }
+  function setBentoView(v, itemId) {
+    sessionView = { id: itemId != null ? itemId : sessionView.id, v: v === "grid" ? "grid" : "canvas" };
+    document.dispatchEvent(new CustomEvent("ak-view-change", { detail: sessionView.v }));
+  }
+  var I_VCANVAS = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="8" height="14" rx="1.6"/><rect x="10.6" y="1" width="4.4" height="6.4" rx="1.4"/><rect x="10.6" y="8.6" width="4.4" height="6.4" rx="1.4"/></svg>';
+  var I_VGRID = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="14" height="5" rx="1.5"/><rect x="1" y="7.4" width="14" height="3.4" rx="1.4"/><rect x="1" y="12.2" width="14" height="2.8" rx="1.3"/></svg>';
+  function buildViewSwitch(cur, onPick, wide) {
+    var sw = h("div", { class: "seg", role: "tablist", "aria-label": "Choose layout" });
+    [["canvas", "Canvas", I_VCANVAS, "Canvas \u2014 the bento layout as designed"],
+     ["grid", "Grid", I_VGRID, "Grid \u2014 every file full size, one per row"]].forEach(function (o) {
+      var b = h("button", { class: "seg-btn" + (o[0] === cur ? " active" : ""), type: "button", role: "tab", title: o[3],
+        "aria-selected": o[0] === cur ? "true" : "false",
+        html: o[2] + "<span>" + o[1] + "</span>", onclick: function () { onPick(o[0]); } });
+      b.setAttribute("data-view", o[0]);
+      sw.appendChild(b);
+    });
+    return h("div", { class: "view-bar" + (wide ? " wide" : "") }, [sw]);
+  }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function $(s, r) { return (r || document).querySelector(s); }
 
@@ -190,7 +217,7 @@
     ${CFG.gridSelector}{transition:opacity .3s ease}
     body.ak-hydrating ${CFG.gridSelector}{opacity:0!important}
     @media (prefers-reduced-motion: reduce){${CFG.gridSelector}{transition:none}}
-    .ak-btn{display:inline-flex;align-items:center;gap:7px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.86rem;
+    .ak-btn{display:inline-flex;align-items:center;gap:7px;font-family:'Inter',sans-serif;font-weight:600;font-size:.86rem;
       color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;border-radius:99px;padding:8px 15px;cursor:pointer;transition:.2s;white-space:nowrap}
     .ak-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
     .ak-btn.ghost{background:var(--surface);color:var(--text);border:1px solid var(--line)}
@@ -209,23 +236,57 @@
     body.ak-on .ak-btn.ak-admin-toggle:hover{filter:brightness(1.08)}
     body.ak-on .ak-admin-toggle .ak-dot{background:#36d399;opacity:1;transform:scale(1);box-shadow:0 0 8px #36d399}
     .ak-wrap{position:relative}
-    .ak-menu{position:fixed;right:20px;top:62px;min-width:230px;max-height:calc(100vh - 80px);overflow-y:auto;background:var(--surface);border:1px solid var(--line);
-      border-radius:14px;padding:6px;box-shadow:0 24px 60px -28px rgba(0,0,0,.6),0 0 0 1px color-mix(in srgb,var(--accent) 10%,transparent);
-      z-index:250;display:none;flex-direction:column;gap:1px}
+    /* left-nav Layout Studio entry (admin-only) */
+    .ak-ls-nav{display:none;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;
+      color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 15px;cursor:pointer;transition:.25s}
+    .ak-ls-nav:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+    .ak-ls-nav svg{width:15px;height:15px;flex:none}
+    body.ak-on .ak-ls-nav{display:inline-flex}
+    @media(max-width:560px){.ak-ls-nav span{display:none}.ak-ls-nav{padding:8px}}
+    /* whole-project freeform canvas body (replaces the block stack when item.studio is set) */
+    .ak-studio-body{max-width:1200px;margin:0 auto;padding:10px 20px 48px}
+    @media(max-width:640px){.ak-studio-body{padding:6px 10px 28px}}
+    /* ---- visitor layout switch inside an open project: reuses each page's own
+       .view-bar/.seg/.seg-btn component, so there is ONE control language and one key ---- */
+    .ak-detail .view-bar{max-width:1100px;margin:0 auto;padding:30px 24px 0;justify-content:flex-end}
+    .ak-detail .view-bar.wide{max-width:1200px;padding:26px 20px 0}
+    /* in the project home block: pinned bottom-right of the hero, compact so it costs no vertical space */
+    .ak-d-hero .view-bar{position:absolute;right:20px;bottom:16px;left:auto;z-index:3;max-width:none;width:auto;margin:0;padding:0;justify-content:flex-end}
+    .ak-d-hero .view-bar .seg{padding:3px;border-radius:10px;background:color-mix(in srgb,var(--surface) 84%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 8px 22px -16px rgba(0,0,0,.5)}
+    .ak-d-hero .view-bar .seg-btn{font-size:.74rem;padding:5px 10px;gap:6px;border-radius:8px}
+    .ak-d-hero .view-bar .seg-btn svg{width:13px;height:13px}
+    @media(max-width:640px){.ak-d-hero .view-bar{right:12px;bottom:10px}.ak-d-hero .view-bar .seg-btn{font-size:.7rem;padding:5px 8px}}
+    @media(max-width:640px){.ak-detail .view-bar{padding:18px 16px 0}.ak-detail .view-bar.wide{padding:16px 10px 0}}
+    /* GRID VIEW (classic block projects): one column, every file at full size */
+    .ak-blocks.ak-gridmode,.ak-case-blocks.ak-gridmode{grid-template-columns:1fr;gap:34px}
+    .ak-gridmode>.ak-block{grid-column:1/-1 !important}
+    .ak-gridmode .ak-secgroup{grid-template-columns:1fr}
+    .ak-gridmode .ak-secgroup>.ak-block{grid-column:1/-1 !important}
+    .ak-gridmode .ak-block[data-bento]{--bh:auto}
+    .ak-gridmode .ak-block[data-bento]>.ak-sec{min-height:0}
+    .ak-gridmode .ak-wide,.ak-gridmode .ak-imghold{width:100%;height:auto !important;margin-left:0;transform:none}
+    .ak-gridmode .ak-block img.media,.ak-gridmode .ak-block video.media{width:100% !important;height:auto !important;max-height:none !important;
+      object-fit:contain !important;object-position:50% 50% !important;transform:none !important}
+    .ak-gridmode .ak-block iframe.media,.ak-gridmode .ak-block[data-bento] .ak-wide iframe.media{height:min(84vh,880px) !important}
+    .ak-gridmode .ak-pdf,.ak-gridmode .ak-3d{height:min(84vh,880px) !important}
+    .ak-menu{position:fixed;right:20px;top:62px;min-width:196px;max-height:calc(100vh - 80px);overflow-y:auto;background:var(--surface);border:1px solid var(--line);
+      border-radius:12px;padding:4px;box-shadow:0 24px 60px -28px rgba(0,0,0,.6),0 0 0 1px color-mix(in srgb,var(--accent) 10%,transparent);
+      z-index:250;display:none;flex-direction:column;gap:0}
     .ak-menu.on{display:flex;animation:akpop .18s ease}
     @keyframes akpop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-    .ak-mi{display:flex;align-items:center;gap:9px;font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:.86rem;color:var(--text);
-      background:none;border:none;text-align:left;padding:6px 11px;border-radius:8px;cursor:pointer;transition:.15s;width:100%}
+    .ak-mi{display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:500;font-size:.8rem;line-height:1.15;color:var(--text);
+      background:none;border:none;text-align:left;padding:5px 9px;border-radius:7px;cursor:pointer;transition:.15s;width:100%}
     .ak-mi:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
-    .ak-mi .ico{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;
+    .ak-mi .ico{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:none;
       background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
-    .ak-mi .ico svg{width:13px;height:13px}
+    .ak-mi .ico svg{width:11px;height:11px}
     .ak-mi.warn:hover{background:color-mix(in srgb,#ef4444 14%,transparent);color:#ef4444}
     .ak-mi.warn .ico{background:color-mix(in srgb,#ef4444 14%,transparent);color:#ef4444}
-    .ak-sep{height:1px;background:var(--line);margin:3px 8px}
-    .ak-label{font-family:'Space Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:5px 11px 2px}
-    .ak-badge{font-family:'Space Mono',monospace;font-size:.5rem;letter-spacing:.14em;text-transform:uppercase;color:#fff;
-      background:linear-gradient(135deg,var(--accent),var(--accent-2));padding:3px 7px;border-radius:5px;margin-left:7px}
+    .ak-sep{height:1px;background:var(--line);margin:3px 6px}
+    .ak-label{font-family:'Inter',sans-serif;font-size:.54rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);padding:6px 9px 2px}
+    .ak-menu > .ak-label:first-child{padding-top:3px}
+    .ak-badge{font-family:'Inter',sans-serif;font-size:.46rem;letter-spacing:.13em;text-transform:uppercase;color:#fff;
+      background:linear-gradient(135deg,var(--accent),var(--accent-2));padding:2px 6px;border-radius:4px;margin-left:6px}
 
     /* modal */
     .ak-ov{position:fixed;inset:0;z-index:300;background:color-mix(in srgb,#05060a 72%,transparent);backdrop-filter:blur(7px);
@@ -233,30 +294,43 @@
     @keyframes akfade{from{opacity:0}to{opacity:1}}
     .ak-modal{width:min(560px,100%);max-height:88vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:18px;
       padding:26px;box-shadow:0 40px 100px -30px rgba(0,0,0,.7)}
-    .ak-modal h3{font-family:'Space Grotesk',sans-serif;font-size:1.3rem;margin:0 0 4px;color:var(--text)}
+    .ak-modal h3{font-family:'Inter',sans-serif;font-size:1.3rem;margin:0 0 4px;color:var(--text)}
     .ak-modal .sub{color:var(--muted);font-size:.9rem;margin-bottom:20px}
     .ak-field{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
-    .ak-field label{font-family:'Space Mono',monospace;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-field label{font-family:'Inter',sans-serif;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-2)}
     .ak-field input[type=text],.ak-field input[type=password],.ak-field input[type=url],.ak-field textarea,.ak-field select{
       font-family:'Inter',sans-serif;font-size:.95rem;color:var(--text);background:color-mix(in srgb,var(--bg) 60%,var(--surface));
       border:1px solid var(--line);border-radius:10px;padding:11px 13px;width:100%;transition:.2s}
     .ak-field textarea{min-height:84px;resize:vertical;line-height:1.5}
     .ak-field input:focus,.ak-field textarea:focus,.ak-field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
     .ak-file{border:1.5px dashed var(--line);border-radius:11px;padding:18px;text-align:center;cursor:pointer;transition:.2s;color:var(--muted);font-size:.88rem}
+    .ak-modal.compact .sub{margin-bottom:12px;font-size:.78rem}
+    .ak-modal.compact .ak-field{margin-bottom:10px;gap:5px}
+    .ak-modal.compact .ak-file{padding:9px 12px;font-size:.76rem}
+    .ak-modal.compact .ak-file-remove{margin-top:4px}
     .ak-file:hover{border-color:var(--accent);color:var(--text)}
     .ak-file.has{border-style:solid;border-color:var(--accent);color:var(--text)}
-    .ak-file-remove{margin-top:9px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.8rem;color:#f87171;background:none;border:none;cursor:pointer;padding:3px 2px;display:inline-flex;align-items:center;gap:6px}
+    .ak-file-remove{margin-top:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:.8rem;color:#f87171;background:none;border:none;cursor:pointer;padding:3px 2px;display:inline-flex;align-items:center;gap:6px}
     .ak-file-remove:hover{text-decoration:underline}
     .ak-acts{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
     .ak-hint{font-size:.78rem;color:var(--muted);margin-top:-8px;margin-bottom:14px;line-height:1.45}
     .ak-err{color:#f87171;font-size:.82rem;margin-top:8px;min-height:1em}
+    .ak-num input::-webkit-inner-spin-button,.ak-num input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+    .ak-num input[type=number]{-moz-appearance:textfield;appearance:textfield}
+    .ak-modal,.ak-modal textarea{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 40%,transparent) transparent}
+    .ak-modal::-webkit-scrollbar,.ak-modal textarea::-webkit-scrollbar{width:8px}
+    .ak-modal::-webkit-scrollbar-track,.ak-modal textarea::-webkit-scrollbar-track{background:transparent}
+    .ak-modal::-webkit-scrollbar-thumb,.ak-modal textarea::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 38%,transparent);border-radius:99px;border:2px solid transparent;background-clip:content-box}
+    .ak-modal::-webkit-scrollbar-thumb:hover,.ak-modal textarea::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 62%,transparent);border:2px solid transparent;background-clip:content-box}
+    .ak-modal::-webkit-scrollbar-button,.ak-modal textarea::-webkit-scrollbar-button{display:none;width:0;height:0}
+    .ak-modal textarea::-webkit-resizer{display:none}
     /* export summary modal */
-    .ak-xsec{font-family:'Space Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2);margin:16px 0 8px}
+    .ak-xsec{font-family:'Inter',sans-serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2);margin:16px 0 8px}
     .ak-xrows{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
     .ak-xrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;font-size:.9rem;background:color-mix(in srgb,var(--bg) 55%,var(--surface))}
     .ak-xrow + .ak-xrow{border-top:1px solid var(--line)}
     .ak-xrow .k{color:var(--muted)}
-    .ak-xrow .v{font-family:'Space Grotesk',sans-serif;font-weight:600;color:var(--text)}
+    .ak-xrow .v{font-family:'Inter',sans-serif;font-weight:600;color:var(--text)}
     .ak-xwarn{margin-top:16px;border:1px solid color-mix(in srgb,#ef4444 45%,transparent);background:color-mix(in srgb,#ef4444 10%,transparent);border-radius:12px;padding:12px 14px;font-size:.84rem;color:#f87171;line-height:1.55}
     .ak-xsteps{margin:8px 0 0;padding-left:18px;font-size:.87rem;color:var(--text);line-height:1.7}
     .ak-xsteps li::marker{color:var(--accent);font-weight:700}
@@ -275,7 +349,7 @@
     .ak-crop-zoom{flex:1 1 auto;-webkit-appearance:none;appearance:none;height:5px;border-radius:99px;background:var(--line);outline:none}
     .ak-crop-zoom::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.3)}
     .ak-crop-zoom::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--surface)}
-    .ak-crop-reset{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.78rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:3px 4px;white-space:nowrap}
+    .ak-crop-reset{font-family:'Inter',sans-serif;font-weight:600;font-size:.78rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:3px 4px;white-space:nowrap}
     .ak-crop-reset:hover{color:var(--accent)}
 
     /* detail overlay */
@@ -284,8 +358,13 @@
     @media (prefers-reduced-motion: reduce){.ak-detail{animation:none}}
     body.ak-item-detail .index-view,body.ak-item-detail .cs-detail{display:none!important}
     body.ak-item-detail .phead,body.ak-item-detail .phead ~ section:has(> .pgrid){display:none!important}
-    body.ak-item-detail .nav-right .home,body.ak-item-detail .nav-right .ak-wrap,body.ak-item-detail .nav-right .theme-toggle{display:none}
+    body.ak-item-detail .nav-right .home,body.ak-item-detail .nav-right .ak-wrap{display:none}
+    /* Inside an open project the top nav sits directly above the solid sticky bar. Make it
+       solid too (matching .ak-d-bar) so dark sections — prototype stage, dark covers, footer —
+       can't bleed grey through the translucent glass as the nav is revealed at the end. */
+    body.ak-item-detail header{background:var(--bg);-webkit-backdrop-filter:none;backdrop-filter:none}
     .ak-item-actions{display:flex;align-items:center;gap:9px}
+    @media(max-width:560px){.ak-tpl-btn span{display:none}.ak-tpl-btn{padding:8px 11px}}
     .ak-d-bar{position:sticky;top:0;z-index:40;
       border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);
       background:var(--bg);
@@ -294,22 +373,22 @@
       transition:transform .35s cubic-bezier(.2,.7,.3,1),opacity .35s}
     .ak-d-bar.ak-bar-hidden{transform:translateY(calc(-100% - 90px));opacity:0;pointer-events:none}
     .ak-d-bar .inner{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;padding:8px 28px;max-width:1180px;margin:0 auto}
-    .ak-d-bar .title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:1rem;color:var(--text)}
+    .ak-d-bar .title{font-family:'Inter',sans-serif;font-weight:600;font-size:1rem;color:var(--text)}
     .ak-d-bar .tabwrap{position:relative;display:flex;flex:1 1 auto;min-width:0;max-width:100%}
     .ak-d-bar .tabbar{display:flex;gap:5px;padding:5px;border:1px solid var(--line);border-radius:99px;background:color-mix(in srgb,var(--surface) 60%,transparent);backdrop-filter:blur(8px);max-width:100%;overflow-x:auto;scroll-behavior:smooth;cursor:grab;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 calc(22px*var(--l,0)),#000 calc(100% - 22px*var(--r,0)),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 calc(22px*var(--l,0)),#000 calc(100% - 22px*var(--r,0)),transparent 100%)}
     .ak-d-bar .tabbar::-webkit-scrollbar{display:none}
     .ak-d-bar .tabbar.is-dragging{cursor:grabbing;scroll-behavior:auto}
-    .ak-d-bar .tabnav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 90%,transparent);backdrop-filter:blur(8px);color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:1.15rem;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s,background .25s,color .25s,border-color .25s;box-shadow:0 8px 22px -10px rgba(0,0,0,.55)}
+    .ak-d-bar .tabnav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 90%,transparent);backdrop-filter:blur(8px);color:var(--text);font-family:'Inter',sans-serif;font-size:1.15rem;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s,background .25s,color .25s,border-color .25s;box-shadow:0 8px 22px -10px rgba(0,0,0,.55)}
     .ak-d-bar .tabnav.show{opacity:1;pointer-events:auto}
     .ak-d-bar .tabnav.prev{left:-7px}
     .ak-d-bar .tabnav.next{right:-7px}
     .ak-d-bar .tabnav:hover{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
     .ak-d-bar .tabnav.prev:hover{transform:translateY(-50%) translateX(-2px)}
     .ak-d-bar .tabnav.next:hover{transform:translateY(-50%) translateX(2px)}
-    .ak-d-bar .tab{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.88rem;color:var(--muted);padding:7px 16px;border-radius:99px;border:none;background:none;cursor:pointer;transition:.3s;white-space:nowrap}
+    .ak-d-bar .tab{font-family:'Inter',sans-serif;font-weight:600;font-size:.88rem;color:var(--muted);padding:7px 16px;border-radius:99px;border:none;background:none;cursor:pointer;transition:.3s;white-space:nowrap}
     .ak-d-bar .tab:hover{color:var(--text)}
     .ak-d-bar .tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2))}
-    .ak-d-bar .cs-back{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.88rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 15px;cursor:pointer;transition:.25s;white-space:nowrap}
+    .ak-d-bar .cs-back{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:.88rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 15px;cursor:pointer;transition:.25s;white-space:nowrap}
     .ak-d-bar .cs-back:hover{border-color:var(--accent);color:var(--accent)}
     .ak-d-bar .cs-back .arr{transition:transform .3s}
     .ak-d-bar .cs-back:hover .arr{transform:translateX(-4px)}
@@ -319,59 +398,149 @@
     .ak-tab-preview .ak-tp-arrow{position:absolute;top:-6px;width:12px;height:12px;transform:rotate(45deg);background:var(--surface);border-left:1px solid var(--line);border-top:1px solid var(--line);border-radius:3px 0 0 0}
     .ak-tab-preview .ak-tp-card{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--surface);box-shadow:0 20px 46px -20px rgba(0,0,0,.62),0 3px 10px rgba(0,0,0,.16)}
     .ak-tab-preview .ak-tp-img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
-    .ak-tab-preview .ak-tp-empty{display:flex;align-items:center;justify-content:center;text-align:center;aspect-ratio:16/10;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:0 16px;background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--accent) 7%,transparent) 0 1.5px,transparent 1.5px 16px)}
+    .ak-tab-preview .ak-tp-empty{display:flex;align-items:center;justify-content:center;text-align:center;aspect-ratio:16/10;font-family:'Inter',sans-serif;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:0 16px;background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--accent) 7%,transparent) 0 1.5px,transparent 1.5px 16px)}
     .ak-tab-preview .ak-tp-meta{display:flex;flex-direction:column;gap:3px;padding:9px 13px 11px}
-    .ak-tab-preview .ak-tp-tag{font-family:'Space Mono',monospace;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
-    .ak-tab-preview .ak-tp-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.9rem;line-height:1.25;color:var(--text)}
+    .ak-tab-preview .ak-tp-tag{font-family:'Inter',sans-serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-tab-preview .ak-tp-title{font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;line-height:1.25;color:var(--text)}
     @media(max-width:640px){.ak-tab-preview{width:196px}.ak-tab-preview .ak-tp-title{font-size:.84rem}}
     .ak-d-hero{position:relative;padding:60px 28px;text-align:center;border-bottom:1px solid var(--line);overflow:hidden}
-    .ak-d-foot{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:74px 24px 100px}
-    .ak-d-foot .mono{display:block;font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2)}
-    .ak-d-foot h2{font-family:'Space Grotesk',sans-serif;font-size:clamp(1.8rem,3.2vw,2.6rem);letter-spacing:-.02em;color:var(--text);margin:0}
+    /* hairline above the footer — separates the end of the project from the sign-off */
+    .ak-d-foot{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:74px 24px 100px;border-top:1px solid var(--line)}
+    .ak-d-foot .mono{display:block;font-family:'Inter',sans-serif;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-d-foot h2{font-family:'Inter',sans-serif;font-size:clamp(1.8rem,3.2vw,2.6rem);letter-spacing:-.02em;color:var(--text);margin:0}
     .ak-d-foot .credit{color:var(--muted);font-size:.88rem;margin:0}
-    .ak-totop{margin-top:18px;display:inline-flex;align-items:center;gap:9px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.9rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:11px 22px;cursor:pointer;transition:.25s}
+    .ak-totop{margin-top:18px;display:inline-flex;align-items:center;gap:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:11px 22px;cursor:pointer;transition:.25s}
     .ak-totop:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
+    /* floating back-to-top button (appears once the project detail is scrolled) */
+    .ak-fab-top{position:fixed;right:22px;bottom:22px;z-index:60;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:1.15rem;line-height:1;color:var(--text);background:var(--surface);border:1px solid var(--line);cursor:pointer;
+      box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;transform:translateY(14px);pointer-events:none;transition:opacity .25s ease,transform .25s ease,border-color .2s ease,color .2s ease}
+    .ak-fab-top.show{opacity:1;transform:translateY(0);pointer-events:auto}
+    .ak-fab-top:hover{border-color:var(--accent);color:var(--accent)}
+    @media(max-width:640px){.ak-fab-top{right:14px;bottom:14px;width:42px;height:42px}}
+    body:has(.ak-fab) .ak-fab-top{bottom:82px}
     .ak-d-hero .cover{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.18;
       mask:radial-gradient(80% 80% at 50% 36%,#000,transparent 86%);-webkit-mask:radial-gradient(80% 80% at 50% 36%,#000,transparent 86%)}
     .ak-d-hero .gr{position:absolute;inset:0;background:radial-gradient(92% 58% at 50% -12%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 60%)}
+    /* project-home background: looping video and/or giant text watermark behind the hero */
+    .ak-d-hero .bgv,.ak-d-hero .bgi{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;
+      mask:radial-gradient(88% 92% at 50% 40%,#000,transparent 94%);-webkit-mask:radial-gradient(88% 92% at 50% 40%,#000,transparent 94%)}
+    .ak-d-hero .bgt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none;user-select:none;
+      font-family:'Inter',sans-serif;font-weight:800;font-size:clamp(3.2rem,15vw,14rem);letter-spacing:.01em;line-height:1;
+      text-transform:uppercase;white-space:nowrap;color:color-mix(in srgb,var(--text) 36%,transparent)}
+    .ak-d-hero .scrim{position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(62% 58% at 50% 44%,color-mix(in srgb,var(--bg) 82%,transparent) 28%,color-mix(in srgb,var(--bg) 40%,transparent) 62%,transparent 82%)}
     .ak-d-hero .inner{position:relative;max-width:760px;margin:0 auto}
-    .ak-d-hero .tag{font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2)}
-    .ak-d-hero h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(2rem,5vw,3.3rem);letter-spacing:-.03em;margin:14px 0 16px;color:var(--text);
+    .ak-d-hero .tag{font-family:'Inter',sans-serif;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-d-hero h1{font-family:'Space Grotesk','Inter',sans-serif;font-size:clamp(2rem,5vw,3.3rem);letter-spacing:-.03em;margin:14px 0 16px;color:var(--text);
       background:linear-gradient(180deg,var(--text),color-mix(in srgb,var(--text) 55%,var(--accent)));-webkit-background-clip:text;background-clip:text;color:transparent}
     .ak-d-hero p{color:var(--muted);font-size:1.05rem;max-width:600px;margin:0 auto 26px}
     .ak-meta{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
     .ak-meta .m{display:flex;flex-direction:column;gap:4px;padding:12px 16px;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb,var(--surface) 55%,transparent);min-width:120px}
-    .ak-meta .mk{font-family:'Space Mono',monospace;font-size:.56rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
-    .ak-meta .mv{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.9rem;color:var(--text)}
-    .ak-blocks{max-width:1100px;margin:0 auto;padding:48px 24px 110px;display:flex;flex-direction:column;gap:30px}
+    .ak-meta .mk{font-family:'Inter',sans-serif;font-size:.56rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-meta .mv{font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;color:var(--text)}
+    .ak-blocks{max-width:1100px;margin:0 auto;padding:48px 24px 110px;display:grid;grid-template-columns:repeat(6,1fr);gap:18px;grid-auto-flow:dense;align-items:start}
+    .ak-blocks>.ak-secgroup,.ak-blocks>.ak-empty{grid-column:1/-1}
+    @media(max-width:640px){.ak-blocks,.ak-case-blocks{grid-template-columns:1fr}.ak-blocks>.ak-block,.ak-case-blocks>.ak-block{grid-column:1/-1 !important}}
+    /* horizontal media-preview slider under the project home/hero */
+    .ak-pstrip{max-width:1100px;margin:34px auto 0;padding:0 24px;position:relative}
+    .ak-pstrip .ps-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
+    .ak-pstrip .ps-eyebrow{display:inline-flex;align-items:center;gap:10px;font-family:'Inter',sans-serif;font-weight:700;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+    .ak-pstrip .ps-eyebrow::before{content:"";width:22px;height:2px;border-radius:2px;background:var(--accent);flex:0 0 auto}
+    .ak-pstrip .ps-cta{font-family:'Inter',sans-serif;font-weight:600;font-size:.78rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap;transition:border-color .18s ease,color .18s ease}
+    .ak-pstrip .ps-cta:hover{border-color:var(--accent);color:var(--accent)}
+    .ak-pstrip .ps-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 14px;cursor:grab;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--accent) 60%,transparent) color-mix(in srgb,var(--line) 55%,transparent)}
+    .ak-pstrip .ps-row.dragging{cursor:grabbing}
+    .ak-pstrip .ps-row::-webkit-scrollbar{height:6px}
+    .ak-pstrip .ps-row::-webkit-scrollbar-track{background:color-mix(in srgb,var(--line) 55%,transparent);border-radius:99px}
+    .ak-pstrip .ps-row::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--accent) 65%,transparent);border-radius:99px}
+    .ak-pstrip .ps-card{flex:0 0 auto;width:172px;border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden;text-align:left;padding:0;cursor:pointer;font:inherit;color:inherit;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;content-visibility:auto;contain-intrinsic-size:172px 178px}
+    .ak-pstrip .ps-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--accent) 55%,var(--line));box-shadow:0 10px 26px rgba(0,0,0,.16)}
+    .ak-pstrip .ps-thumb{position:relative;height:130px;background:color-mix(in srgb,var(--text) 4%,var(--bg));overflow:hidden}
+    .ak-pstrip .ps-thumb img,.ak-pstrip .ps-thumb video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+    .ak-pstrip .ps-fit{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none}
+    .ak-pstrip .ps-fit iframe{width:100%;height:100%;border:0;display:block;pointer-events:none;background:#fff}
+    .ak-pstrip .ps-3d{position:absolute;inset:0;pointer-events:none}
+    .ak-pstrip .ps-glyph{display:flex;align-items:center;justify-content:center;height:100%;font-size:1.9rem;color:var(--accent)}
+    .ak-pstrip .ps-badge{position:absolute;top:8px;left:8px;font-family:'Inter',sans-serif;font-weight:700;font-size:.54rem;letter-spacing:.14em;text-transform:uppercase;color:#fff;background:color-mix(in srgb,var(--accent-2) 88%,#000);padding:4px 8px;border-radius:99px;pointer-events:none}
+    .ak-pstrip .ps-cap{display:flex;flex-direction:column;gap:2px;padding:9px 11px 11px;border-top:1px solid var(--line)}
+    .ak-pstrip .ps-num{font-family:'Inter',sans-serif;font-weight:700;font-size:.54rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-pstrip .ps-name{font-family:'Inter',sans-serif;font-weight:600;font-size:.8rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ak-blocktarget{outline:2px solid var(--accent);outline-offset:8px;border-radius:10px;transition:outline-color .5s ease}
+    .ak-blocktarget.fade{outline-color:transparent}
     .ak-empty{text-align:center;color:var(--muted);padding:70px 20px;border:1.5px dashed var(--line);border-radius:18px;
       background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--accent) 5%,transparent) 0 1.5px,transparent 1.5px 16px)}
-    .ak-empty h4{font-family:'Space Grotesk',sans-serif;font-size:1.15rem;color:var(--text);margin:0 0 8px}
+    .ak-empty h4{font-family:'Inter',sans-serif;font-size:1.15rem;color:var(--text);margin:0 0 8px}
 
     /* blocks */
     .ak-block{position:relative;border:1px solid transparent;border-radius:14px;transition:.2s}
     .ak-block.admin{border-color:transparent;padding:0;background:none;outline:1px dashed color-mix(in srgb,var(--accent) 32%,transparent);outline-offset:-1px;border-radius:12px}
     .ak-block.admin.drag{opacity:.4}
     .ak-block.admin.over{outline-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
-    .ak-btoolbar{position:absolute;top:10px;right:10px;left:auto;z-index:6;display:none;align-items:center;gap:5px;margin:0;padding:5px;border-radius:11px;background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);box-shadow:0 8px 22px -10px rgba(0,0,0,.5);backdrop-filter:blur(7px)}
+    .ak-btoolbar{position:absolute;top:8px;right:8px;left:auto;z-index:6;display:none;align-items:center;gap:4px;margin:0;padding:3px;border-radius:9px;background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);box-shadow:0 8px 22px -10px rgba(0,0,0,.5);backdrop-filter:blur(7px)}
     .ak-block.admin .ak-btoolbar{display:flex}
-    .ak-btoolbar .grab{cursor:grab;color:var(--muted);display:flex;align-items:center;padding:3px 7px 3px 4px;margin:0;font-family:'Space Mono',monospace;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;gap:6px;border-right:1px solid var(--line)}
+    /* decoration overlay on a content block (shapes/colors/lines/strokes via Layout Studio) */
+    .ak-block-deco{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+    /* free drag-to-resize handle on a content block */
+    .ak-block-resize{position:absolute;right:7px;bottom:7px;z-index:7;width:23px;height:23px;border-radius:7px;cursor:nwse-resize;display:none;
+      align-items:center;justify-content:center;color:#fff;background:color-mix(in srgb,var(--accent) 86%,rgba(0,0,0,.4));border:1px solid rgba(255,255,255,.42);box-shadow:0 5px 14px -6px rgba(0,0,0,.55);touch-action:none}
+    .ak-block-resize svg{width:12px;height:12px}
+    .ak-block-resize:hover{background:var(--accent)}
+    .ak-block.admin .ak-block-resize{display:flex}
+    .ak-block.ak-block-resizing{outline:2px solid var(--accent)!important;outline-offset:-1px;z-index:40}
+    .ak-block.ak-block-resizing .media{transition:none}
+    @media(max-width:640px){.ak-block-resize{display:none!important}}
+    .ak-btoolbar .grab{cursor:grab;color:var(--muted);display:flex;align-items:center;padding:2px 6px 2px 3px;margin:0;font-family:'Inter',sans-serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;gap:6px;border-right:1px solid var(--line)}
     .ak-btoolbar .grab:active{cursor:grabbing}
-    .ak-tb{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer;
+    .ak-tb{width:24px;height:24px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer;
       display:flex;align-items:center;justify-content:center;transition:.15s}
     .ak-tb:hover{border-color:var(--accent);color:var(--accent)}
     .ak-tb.warn:hover{border-color:#ef4444;color:#ef4444}
-    .ak-tb svg{width:15px;height:15px}
+    .ak-tb svg{width:13px;height:13px}
     .ak-tb[disabled]{opacity:.35;cursor:default}
-    .ak-cap{font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:10px;text-align:center}
+    .ak-tb-w{width:auto;min-width:24px;padding:0 7px;font-family:'Inter',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:.04em}
+    .ak-tb-w span{line-height:1}
+    .ak-block[data-bento] .ak-wide,.ak-block[data-bento] .ak-imghold,.ak-block[data-bento] .ak-pdf,.ak-block[data-bento] .ak-3d{height:var(--bh)}
+    .ak-block[data-bento] .ak-wide{width:100%;margin-left:0;transform:none}
+    .ak-block[data-bento] .media,.ak-block[data-bento] img.media{width:100%;height:100%;object-fit:cover}
+    .ak-block[data-bento] .ak-wide iframe.media{height:var(--bh)}
+    .ak-wide.ak-haspos{overflow:hidden}
+    .ak-wide.ak-haspos .media{object-position:var(--mop,50% 50%);transform:var(--mtf,none);transform-origin:center;max-width:none}
+    .ak-wide.ak-haspos img.media,.ak-wide.ak-haspos video.media{object-fit:cover}
+    .ak-block.ak-adjusting{outline:2px solid var(--accent);outline-offset:2px;border-radius:14px}
+    .ak-adjust-shield{position:absolute;inset:0;z-index:7;cursor:grab;touch-action:none}
+    .ak-adjust-shield.drag{cursor:grabbing}
+    .ak-adjust-bar{position:absolute;left:10px;right:10px;bottom:10px;z-index:8;display:flex;align-items:center;gap:10px;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:11px;padding:7px 11px;backdrop-filter:blur(8px);box-shadow:0 10px 28px -14px rgba(0,0,0,.55)}
+    .ak-adjust-bar .ak-adj-ico svg{width:16px;height:16px;color:var(--muted);display:block}
+    .ak-adjust-bar input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:5px;border-radius:99px;background:var(--line);outline:none}
+    .ak-adjust-bar input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--surface)}
+    .ak-adjust-bar input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--surface)}
+    .ak-adjust-bar button{font:600 .74rem 'Inter',sans-serif;border-radius:7px;padding:5px 11px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--text)}
+    .ak-adjust-bar .ak-adj-done{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+    .ak-adjust-bar .ak-adj-reset{color:var(--muted)}
+    /* ---- project-cover move/scale (tiles): pan via background-position, zoom via --cz ---- */
+    .ptile-img{transform:scale(var(--cz,1))}
+    .ptile:hover .ptile-img{transform:scale(calc(var(--cz,1) * 1.06))}
+    .ptile.ak-adjusting{outline:2px solid var(--accent);outline-offset:2px;z-index:30}
+    .ptile.ak-adjusting .ptile-img{transition:none}
+    .ak-cap{font-family:'Inter',sans-serif;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:10px;text-align:center}
     .ak-block img.media{display:block;width:100%;height:auto;border-radius:12px;border:1px solid var(--line)}
+    .ak-imghold{position:relative;min-height:40vh;background:color-mix(in srgb,var(--text) 5%,var(--bg))}
+    .ak-imghold.loaded{min-height:0;background:none}
+    /* graceful placeholder shown when a block's media file can't be loaded (404 / moved) */
+    .ak-missing{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;text-align:center;padding:44px 24px;min-height:220px;color:var(--muted);border:1px dashed color-mix(in srgb,var(--line) 92%,transparent);border-radius:12px;background:color-mix(in srgb,var(--text) 4%,var(--bg))}
+    .ak-missing .ak-missing-ic{width:34px;height:34px;color:var(--accent);opacity:.85}
+    .ak-missing .ak-missing-ic svg{width:100%;height:100%}
+    .ak-missing p{margin:0;font-family:'Inter',sans-serif;font-size:.92rem;color:var(--text)}
+    .ak-missing small{font-family:'Inter',sans-serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
     .ak-block video.media,.ak-block iframe.media{display:block;width:100%;border-radius:12px;border:1px solid var(--line);background:#000}
     .ak-block iframe.media{height:min(78vh,760px)}
     .ak-block video.media{max-height:80vh}
     .ak-block audio.media{width:100%}
     .ak-pdf{height:min(82vh,860px);border-radius:12px;border:1px solid var(--line);overflow:hidden}
     .ak-pdf iframe{width:100%;height:100%;border:0}
-    .ak-text h2{font-family:'Space Grotesk',sans-serif;font-size:clamp(1.4rem,3vw,2rem);color:var(--text);margin:0 0 12px;letter-spacing:-.02em}
+    .ak-text h2{font-family:'Inter',sans-serif;font-size:clamp(1.4rem,3vw,2rem);color:var(--text);margin:0 0 12px;letter-spacing:-.02em}
+    .ak-text h3{font-family:'Inter',sans-serif;font-size:clamp(1.05rem,2vw,1.35rem);font-weight:600;color:var(--text);margin:0 0 10px;letter-spacing:-.01em}
     .ak-text p{color:var(--muted);font-size:1.05rem;line-height:1.7;white-space:pre-wrap;max-width:760px}
     .ak-3d{width:100%;height:min(82vh,820px);border-radius:12px;border:1px solid var(--line);background:
       radial-gradient(120% 120% at 50% 0%,color-mix(in srgb,var(--accent) 12%,var(--surface)),var(--surface));overflow:hidden;position:relative}
@@ -384,6 +553,10 @@
     .ak-grip{cursor:grab;touch-action:none}
     .ak-grip:active{cursor:grabbing}
     .ptile[data-ak-item]{cursor:pointer}
+    .ak-size-pop{position:fixed;z-index:130;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:7px;border-radius:12px;border:1px solid var(--line);background:var(--surface);box-shadow:0 20px 46px -18px rgba(0,0,0,.6)}
+    .ak-size-opt{font:600 .74rem 'Inter',sans-serif;color:var(--muted);background:color-mix(in srgb,var(--surface) 55%,transparent);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;white-space:nowrap;transition:color .2s,background .2s,border-color .2s}
+    .ak-size-opt:hover{color:var(--text);border-color:var(--accent)}
+    .ak-size-opt.on{color:#fff;background:var(--accent);border-color:transparent}
     .ak-fab{position:fixed;right:22px;bottom:22px;z-index:115}
     @media(max-width:640px){.ak-menu{position:fixed;left:12px;right:12px;top:64px;min-width:0}
       .ak-d-bar .inner{padding:8px 16px;gap:10px;flex-wrap:nowrap;justify-content:flex-start}
@@ -398,25 +571,38 @@
     .ak-wide iframe.media{height:min(80vh,820px)}
     /* prototype info header (admin-added prototypes) */
     .ak-proto-info{max-width:760px;margin:0 auto 26px;text-align:center}
-    .ak-proto-info .eyebrow{font-family:'Space Mono',monospace;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:12px}
-    .ak-proto-info h2{font-family:'Space Grotesk',sans-serif;font-size:clamp(1.5rem,3vw,2.2rem);letter-spacing:-.02em;color:var(--text);margin:0 0 12px}
+    .ak-proto-info .eyebrow{font-family:'Inter',sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:12px}
+    .ak-proto-info h2{font-family:'Inter',sans-serif;font-size:clamp(1.5rem,3vw,2.2rem);letter-spacing:-.02em;color:var(--text);margin:0 0 12px}
     .ak-proto-info p{color:var(--muted);font-size:1.05rem;line-height:1.6;margin:0 0 18px}
     .ak-proto-hint{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
-    .ak-proto-hint .chip{display:inline-flex;align-items:center;gap:8px;font-family:'Space Mono',monospace;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:7px 13px;background:color-mix(in srgb,var(--surface) 55%,transparent)}
+    .ak-proto-hint .chip{display:inline-flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:7px 13px;background:color-mix(in srgb,var(--surface) 55%,transparent)}
     .ak-proto-hint .chip .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
     /* admin prototype info stays dark-themed even in light mode */
     [data-theme="light"] .ak-proto-info{--bg:#1C1A14;--surface:#1D1C1A;--line:#373634;
       --text:#FFFFFF;--muted:#C9C8C6;--accent:#E5783A;--accent-2:#C2410C;
       background:#141209;border:1px solid #373634;border-radius:18px;padding:32px 30px}
     .ak-block.admin:has(.ak-wide){outline-color:transparent;background:none;padding:0}
+    .ak-block.admin:has(.ak-sec){outline-color:transparent;background:none;padding:0}
+    /* section container: a heading plus the media that follows it, grouped in one rounded box.
+       Media that flows under a section header is pulled inside the box; a section with no
+       files stays compact (just the heading). Grouping is derived from block order. */
+    .ak-secgroup{display:grid;grid-template-columns:repeat(6,1fr);gap:20px 18px;align-items:start;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.05);padding:24px 26px}
+    .ak-secgroup .ak-wide{width:100%;margin-left:0;transform:none}
+    .ak-secgroup .ak-wide iframe.media{height:min(70vh,680px)}
+    .ak-secgroup .ak-block{min-width:0}
+    /* standalone section header rendered as a direct grid cell: give it the surface-card look + honor resize height */
+    .ak-blocks>.ak-block>.ak-sec,.ak-case-blocks>.ak-block>.ak-sec{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:24px 26px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+    .ak-block[data-bento]>.ak-sec{min-height:var(--bh);box-sizing:border-box}
+    @media(max-width:640px){.ak-secgroup{grid-template-columns:1fr;padding:18px 16px;gap:16px}.ak-secgroup>.ak-block{grid-column:1/-1 !important}}
     /* inline "add content" for pre-existing case studies */
-    .ak-case-blocks{display:flex;flex-direction:column;gap:30px;padding:8px 0 30px}
+    .ak-case-blocks{display:grid;grid-template-columns:repeat(6,1fr);gap:18px;grid-auto-flow:dense;align-items:start;padding:8px 0 30px}
+    .ak-case-blocks>.ak-secgroup,.ak-case-blocks>.ak-empty{grid-column:1/-1}
     .ak-case-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:34px;padding:24px 0 4px;border-top:1px solid var(--line)}
     .ak-case-acts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .ak-cs-actions{display:flex;align-items:center;gap:9px}
     .nav-right .ak-cs-actions{display:none}
     body.detail .nav-right .ak-cs-actions{display:flex}
-    .ak-case-tag{font-family:'Space Mono',monospace;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-case-tag{font-family:'Inter',sans-serif;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
     body:not(.ak-on) .ak-case-head{display:none}
 
     /* undo toast */
@@ -425,8 +611,8 @@
       background:var(--surface);border:1px solid var(--line);box-shadow:0 24px 60px -22px rgba(0,0,0,.55);
       opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:min(92vw,460px)}
     .ak-toast.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
-    .ak-toast .msg{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:.9rem;color:var(--text);margin-right:auto}
-    .ak-toast .undo{display:inline-flex;align-items:center;gap:6px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:.85rem;
+    .ak-toast .msg{font-family:'Inter',sans-serif;font-weight:500;font-size:.9rem;color:var(--text);margin-right:auto}
+    .ak-toast .undo{display:inline-flex;align-items:center;gap:6px;font-family:'Inter',sans-serif;font-weight:600;font-size:.85rem;
       color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
       border-radius:99px;padding:7px 14px;cursor:pointer;transition:.18s;white-space:nowrap}
     .ak-toast .undo:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
@@ -470,12 +656,14 @@
               el._data = d; el._name = file.name; el._files = [{ data: d, name: file.name }];
               label.classList.add("has"); label.textContent = "✓ " + file.name; if (removeBtn) removeBtn.style.display = "";
               if (cropper) cropper.load(d); // cropper overwrites _data with the cropped result
+              if (f.onChange) f.onChange(d);
             });
           });
           if (removeBtn) removeBtn.addEventListener("click", function () {
             fieldEls[f.key]._data = ""; fieldEls[f.key]._name = ""; fieldEls[f.key]._files = []; try { fi.value = ""; } catch (e) {}
             label.classList.remove("has"); label.textContent = f.placeholder || "Click to choose a file";
             removeBtn.style.display = "none"; if (cropper) cropper.hide();
+            if (f.onChange) f.onChange("");
           });
           holder = h("div", {}, [label, fi, removeBtn, cropper ? cropper.el : null]);
           label.addEventListener("click", function () { fi.click(); });
@@ -483,7 +671,38 @@
           fieldEls[f.key] = input;
           if (cropper && f.value) setTimeout(function () { cropper.load(f.value); }, 30);
           return h("div", { class: "ak-field" }, [h("label", {}, [f.label]), holder, f.hint ? h("div", { class: "ak-hint" }, [f.hint]) : null]);
+        } else if (f.type === "range") {
+          var unit = f.unit || "px";
+          var startV = f.value != null && f.value !== "" ? f.value : (f.min || 0);
+          var rvLabel = h("span", { style: "font-family:'Inter',sans-serif;font-weight:600;color:var(--text)" }, [startV + unit]);
+          input = h("input", { type: "range", min: f.min != null ? f.min : 0, max: f.max != null ? f.max : 100, step: f.step || 1, style: "width:100%;accent-color:var(--accent);cursor:pointer" });
+          input.value = startV;
+          var rPrev = null, shPrevBox = null;
+          if (f.preview === "radius") rPrev = h("div", { style: "height:58px;margin-top:4px;border:1.5px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface));transition:border-radius .15s;border-radius:" + startV + "px" });
+          else if (f.preview === "shadow") {
+            shPrevBox = h("div", { style: "width:62%;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--surface);transition:box-shadow .18s" });
+            shPrevBox.style.boxShadow = shadowCss(startV) || "none";
+            rPrev = h("div", { style: "height:92px;margin-top:4px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 62%,var(--surface))" }, [shPrevBox]);
+          } else if (f.preview === "textshadow") {
+            shPrevBox = h("div", { style: "font-family:'Inter',sans-serif;font-weight:700;font-size:1.5rem;letter-spacing:-.01em;color:var(--text);transition:text-shadow .18s" }, ["Heading Aa"]);
+            shPrevBox.style.textShadow = textShadowCss(startV) || "none";
+            rPrev = h("div", { style: "height:76px;margin-top:4px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 62%,var(--surface))" }, [shPrevBox]);
+          }
+          input.addEventListener("input", function () {
+            rvLabel.textContent = input.value + unit;
+            if (rPrev && f.preview === "radius") rPrev.style.borderRadius = input.value + "px";
+            if (shPrevBox && f.preview === "shadow") shPrevBox.style.boxShadow = shadowCss(input.value) || "none";
+            if (shPrevBox && f.preview === "textshadow") shPrevBox.style.textShadow = textShadowCss(input.value) || "none";
+            if (f.onInput) f.onInput(input.value);
+          });
+          fieldEls[f.key] = input;
+          return h("div", { class: "ak-field" }, [
+            h("div", { style: "display:flex;justify-content:space-between;align-items:center" }, [h("label", {}, [f.label]), rvLabel]),
+            input, rPrev,
+            f.hint ? h("div", { class: "ak-hint" }, [f.hint]) : null
+          ]);
         } else input = h("input", { type: f.type || "text", placeholder: f.placeholder || "" });
+        if (f.type === "custom") { fieldEls[f.key] = { _get: f.get }; return h("div", { class: "ak-field" }, [f.label ? h("label", {}, [f.label]) : null, f.el, f.hint ? h("div", { class: "ak-hint" }, [f.hint]) : null]); }
         if (input.tagName) { if (f.value != null) input.value = f.value; fieldEls[f.key] = input; }
         return h("div", { class: "ak-field" }, [h("label", {}, [f.label]), input, f.hint ? h("div", { class: "ak-hint" }, [f.hint]) : null]);
       });
@@ -496,6 +715,7 @@
         (opts.fields || []).forEach(function (f) {
           var el = fieldEls[f.key];
           if (f.type === "file") { out[f.key] = el._data; out[f.key + "_name"] = el._name; out[f.key + "_files"] = (el._files && el._files.length) ? el._files : (el._data ? [{ data: el._data, name: el._name }] : []); }
+          else if (el._get) out[f.key] = el._get();
           else out[f.key] = el.value.trim();
         });
         return out;
@@ -506,7 +726,7 @@
         close(v);
       } }, [opts.submitLabel || "Save"]);
 
-      var m = h("div", { class: "ak-modal" }, [
+      var m = h("div", { class: "ak-modal" + (opts.compact ? " compact" : "") }, [
         h("h3", {}, [opts.title]),
         opts.sub ? h("div", { class: "sub" }, [opts.sub]) : null
       ].concat(body).concat([errEl, h("div", { class: "ak-acts" }, [
@@ -556,8 +776,218 @@
     ul: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 20V9m0 0L8 13m4-4l4 4M5 5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     spacing: '<svg viewBox="0 0 24 24" fill="none"><path d="M3 4h18M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 8v8M10 10l2-2 2 2M10 14l2 2 2-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    palette: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3s6 6.4 6 10.5a6 6 0 0 1-12 0C6 9.4 12 3 12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
+    palette: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3s6 6.4 6 10.5a6 6 0 0 1-12 0C6 9.4 12 3 12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+    shapes: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="2"/><circle cx="16.5" cy="16.5" r="4.5" stroke="currentColor" stroke-width="2"/><path d="M14 4.5l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    template: '<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" stroke="currentColor" stroke-width="2"/><path d="M3.5 9h17" stroke="currentColor" stroke-width="2"/><path d="M8 13h8M8 16.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
   };
+
+  /* ============================================================ SECTION TEMPLATES
+     One ready-made section skeleton per project type. The “Template” button (left of
+     “Add content”, inside an open project) APPENDS these styled section titles so every
+     project in a category reads with the same recruiter-friendly structure. You then drop
+     images / video / prototype / 3D under each. Uses the site's default text styling
+     (Inter heading in --text, muted body) — no gradients, matches the current vibe. */
+  var SECTION_TS = { align: "left" };
+  // Named bento sizes: width = grid column span (of 6), h = fixed card height (0 = natural).
+  var SIZE_DEF = {
+    full:   { span: 6, h: 0,   label: "Full",   short: "Full"   },
+    small:  { span: 2, h: 334, label: "Small",  short: "Small"  },
+    medium: { span: 3, h: 334, label: "Medium", short: "Medium" },
+    wide:   { span: 4, h: 334, label: "Wide",   short: "Wide"   },
+    tall:   { span: 2, h: 510, label: "Tall",   short: "Tall"   },
+    hero:   { span: 6, h: 510, label: "Hero",   short: "Hero"   }
+  };
+  var SIZE_LEGACY = { "two-thirds": "wide", half: "medium", third: "small" };
+  function sizeKey(v) { return SIZE_DEF[v] ? v : (SIZE_LEGACY[v] || "full"); }
+  function sizeSpan(v) { return SIZE_DEF[sizeKey(v)].span; }
+  function sizeH(v) { return SIZE_DEF[sizeKey(v)].h; }
+  var SIZE_CYCLE = ["full", "small", "medium", "wide", "tall", "hero"];
+  // A block is “in a section” (bento grid) if any earlier block is a section header.
+  function blockInSection(item, idx) {
+    for (var j = 0; j < idx; j++) { if (item.blocks[j] && item.blocks[j].type === "text" && item.blocks[j].section) return true; }
+    return false;
+  }
+  function cycleSize(item, b, rerender) {
+    var cur = SIZE_CYCLE.indexOf(sizeKey(b.size));
+    var next = SIZE_CYCLE[(cur + 1) % SIZE_CYCLE.length];
+    if (next === "full") delete b.size; else b.size = next;
+    save().then(function () { keepScroll(rerender || renderDetail)(); });
+  }
+  // ---- media position/scale. Images & video pan via object-position (moves the crop
+  // within the card) and zoom via scale; pdf/prototype/3D pan+zoom via transform. Stored as
+  // b.pos {x,y,s,mode}, applied through CSS vars on the .ak-wide host so it survives lazy
+  // image mounts and works at every bento size (cover crop).
+  function posMode(type) { return (type === "image" || type === "media") ? "op" : "tf"; }
+  function applyMediaPos(container, b) {
+    if (!b.pos) return; var host = container.querySelector(".ak-wide"); if (!host) return;
+    host.classList.add("ak-haspos"); host.style.overflow = "hidden"; var p = b.pos;
+    if (p.mode === "op") { host.style.setProperty("--mop", p.x + "% " + p.y + "%"); host.style.setProperty("--mtf", "scale(" + (p.s || 1) + ")"); }
+    else host.style.setProperty("--mtf", "translate(" + (p.x || 0) + "%," + (p.y || 0) + "%) scale(" + (p.s || 1) + ")");
+  }
+  function enterAdjust(block, b, rerender) {
+    var host = block.querySelector(".ak-wide"); if (!host) return;
+    document.querySelectorAll(".ak-adjust-bar,.ak-adjust-shield").forEach(function (n) { n.remove(); });
+    document.querySelectorAll(".ak-block.ak-adjusting").forEach(function (n) { n.classList.remove("ak-adjusting"); });
+    block.classList.add("ak-adjusting"); block.setAttribute("draggable", "false");
+    host.style.position = "relative"; host.style.overflow = "hidden"; host.classList.add("ak-haspos");
+    var mode = posMode(b.type);
+    var isOP = (mode === "op");
+    var def = isOP ? { x: 50, y: 50 } : { x: 0, y: 0 };
+    var p = (b.pos && b.pos.mode === mode) ? { x: b.pos.x, y: b.pos.y, s: b.pos.s || 1 } : { x: def.x, y: def.y, s: 1 };
+    var apply;
+    if (isOP) {
+      // images / video: pan the cover crop via object-position — works at any zoom, including 1×
+      var clampOP = function () { p.x = Math.max(0, Math.min(100, p.x)); p.y = Math.max(0, Math.min(100, p.y)); };
+      apply = function () { clampOP(); host.style.setProperty("--mop", p.x + "% " + p.y + "%"); host.style.setProperty("--mtf", "scale(" + p.s + ")"); };
+    } else {
+      // pdf / prototype / 3D: pan via translate, clamped to the overflow the zoom exposes
+      var clampPan = function () { var lim = Math.max(0, (p.s - 1) * 50); p.x = Math.max(-lim, Math.min(lim, p.x)); p.y = Math.max(-lim, Math.min(lim, p.y)); };
+      apply = function () { clampPan(); host.style.setProperty("--mtf", "translate(" + p.x + "%," + p.y + "%) scale(" + p.s + ")"); };
+    }
+    apply();
+    var shield = h("div", { class: "ak-adjust-shield" }); host.appendChild(shield);
+    var drag = null;
+    shield.addEventListener("pointerdown", function (e) { drag = { x: e.clientX, y: e.clientY, px: p.x, py: p.y }; try { shield.setPointerCapture(e.pointerId); } catch (_) {} shield.classList.add("drag"); });
+    shield.addEventListener("pointermove", function (e) {
+      if (!drag) return; var r = host.getBoundingClientRect();
+      var dx = (e.clientX - drag.x) / r.width * 100, dy = (e.clientY - drag.y) / r.height * 100;
+      if (isOP) { p.x = drag.px - dx; p.y = drag.py - dy; } // drag right reveals the right side of the image
+      else { p.x = drag.px + dx; p.y = drag.py + dy; }
+      apply();
+    });
+    var end = function () { if (drag) { drag = null; shield.classList.remove("drag"); } };
+    shield.addEventListener("pointerup", end); shield.addEventListener("pointercancel", end);
+    var zoomIco = '<svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4M8 11h6M11 8v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    var zoom = h("input", { type: "range", min: "1", max: "3.5", step: "0.01" }); zoom.value = String(p.s);
+    zoom.addEventListener("input", function () { p.s = parseFloat(zoom.value); apply(); });
+    zoom.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+    var reset = h("button", { class: "ak-adj-reset", type: "button" }, ["Reset"]);
+    reset.addEventListener("click", function (e) { e.stopPropagation(); p.x = def.x; p.y = def.y; p.s = 1; zoom.value = "1"; apply(); });
+    var done = h("button", { class: "ak-adj-done", type: "button" }, ["Done"]);
+    done.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var isDef = (p.x === def.x && p.y === def.y && p.s === 1);
+      if (isDef) delete b.pos; else b.pos = { x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, s: Math.round(p.s * 100) / 100, mode: mode };
+      save().then(function () { keepScroll(rerender || renderDetail)(); });
+    });
+    var bar = h("div", { class: "ak-adjust-bar" }, [h("span", { class: "ak-adj-ico", html: zoomIco }), zoom, reset, done]);
+    bar.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+    host.appendChild(bar);
+  }
+  // ---- cover move/scale for a project tile. Covers are background images on .ptile-img,
+  // so pan = background-position (%) and zoom = element scale (via --cz / inline transform).
+  // Stored on the item as coverPos {x,y,s} and re-applied in renderTiles for every visitor.
+  function enterCoverAdjust(tile, holder, rerender) {
+    var img = tile.querySelector(".ptile-img"); if (!img) return;
+    document.querySelectorAll(".ak-adjust-bar,.ak-adjust-shield").forEach(function (n) { n.remove(); });
+    document.querySelectorAll(".ak-adjusting").forEach(function (n) { n.classList.remove("ak-adjusting"); });
+    tile.classList.add("ak-adjusting"); tile.setAttribute("draggable", "false");
+    var def = { x: 50, y: 50 };
+    var cp = holder.coverPos;
+    var p = cp ? { x: cp.x, y: cp.y, s: cp.s || 1 } : { x: def.x, y: def.y, s: 1 };
+    var apply = function () { img.style.backgroundPosition = p.x + "% " + p.y + "%"; img.style.transform = "scale(" + p.s + ")"; };
+    apply();
+    var stop = function (e) { e.stopPropagation(); };
+    var shield = h("div", { class: "ak-adjust-shield" }); tile.appendChild(shield);
+    shield.addEventListener("click", stop);
+    var drag = null;
+    shield.addEventListener("pointerdown", function (e) { e.stopPropagation(); drag = { x: e.clientX, y: e.clientY, px: p.x, py: p.y }; try { shield.setPointerCapture(e.pointerId); } catch (_) {} shield.classList.add("drag"); });
+    shield.addEventListener("pointermove", function (e) {
+      if (!drag) return; var r = tile.getBoundingClientRect();
+      p.x = Math.max(0, Math.min(100, drag.px - (e.clientX - drag.x) / r.width * 100));
+      p.y = Math.max(0, Math.min(100, drag.py - (e.clientY - drag.y) / r.height * 100));
+      apply();
+    });
+    var end = function () { if (drag) { drag = null; shield.classList.remove("drag"); } };
+    shield.addEventListener("pointerup", end); shield.addEventListener("pointercancel", end);
+    var zoomIco = '<svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4M8 11h6M11 8v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    var zoom = h("input", { type: "range", min: "1", max: "3.5", step: "0.01" }); zoom.value = String(p.s);
+    zoom.addEventListener("input", function () { p.s = parseFloat(zoom.value); apply(); });
+    zoom.addEventListener("pointerdown", stop);
+    var reset = h("button", { class: "ak-adj-reset", type: "button" }, ["Reset"]);
+    reset.addEventListener("click", function (e) { e.stopPropagation(); p.x = def.x; p.y = def.y; p.s = 1; zoom.value = "1"; apply(); });
+    var done = h("button", { class: "ak-adj-done", type: "button" }, ["Done"]);
+    done.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var isDef = (p.x === def.x && p.y === def.y && p.s === 1);
+      if (isDef) delete holder.coverPos; else holder.coverPos = { x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, s: Math.round(p.s * 100) / 100 };
+      save().then(function () { keepScroll(rerender || renderTiles)(); });
+    });
+    var bar = h("div", { class: "ak-adjust-bar" }, [h("span", { class: "ak-adj-ico", html: zoomIco }), zoom, reset, done]);
+    bar.addEventListener("pointerdown", stop); bar.addEventListener("click", stop);
+    tile.appendChild(bar);
+  }
+  // Compact bento-size menu opened from the block toolbar (reuses .ak-size-pop chrome).
+  function openBlockSizePop(item, b, btn, rerender) {
+    wireSizePop();
+    var open = document.querySelector(".ak-size-pop");
+    document.querySelectorAll(".ak-size-pop").forEach(function (n) { n.remove(); });
+    if (open && open.getAttribute("data-for") === b.id) return; // toggle off
+    var cur = sizeKey(b.size);
+    var pop = h("div", { class: "ak-size-pop", "data-for": b.id }, SIZE_CYCLE.map(function (k) {
+      return h("button", { class: "ak-size-opt" + (k === cur ? " on" : ""), onclick: function (e) {
+        e.stopPropagation(); e.preventDefault();
+        if (k === "full") delete b.size; else b.size = k;
+        delete b.span; delete b.customH;
+        document.querySelectorAll(".ak-size-pop").forEach(function (n) { n.remove(); });
+        save().then(function () { keepScroll(rerender || renderDetail)(); });
+      } }, [SIZE_DEF[k].label]);
+    }));
+    document.body.appendChild(pop);
+    var r = btn.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+    var top = r.bottom + 6; if (top + ph > innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+    var left = Math.min(r.right - pw, innerWidth - pw - 8); if (left < 8) left = 8;
+    pop.style.top = top + "px"; pop.style.left = left + "px";
+  }
+  var TEMPLATE_LABEL = { "gen-ai": "AI", "ui-ux": "UI/UX", "3d": "3D" };
+  var TEMPLATES = {
+    "gen-ai": [
+      { heading: "Overview" },
+      { heading: "Concept & Brief" },
+      { heading: "Prompt & Process" },
+      { heading: "Hero Shot" },
+      { heading: "Before \u2192 After" },
+      { heading: "Output Gallery" },
+      { heading: "Variations" },
+      { heading: "Final Showcase" }
+    ],
+    "ui-ux": [
+      { heading: "Overview", body: "Introduce the product in a line or two \u2014 what it is, who it's for, and your role, timeline and tools." },
+      { heading: "Problem", body: "What user or business problem existed, and why did it matter?" },
+      { heading: "Research", body: "What did you learn? Insights, interviews, competitor scans and the key findings that shaped the work." },
+      { heading: "Solution", body: "How you solved it \u2014 your process, flows, key features and the decisions behind them." },
+      { heading: "Impact", body: "What changed? Metrics or qualitative outcomes." },
+      { heading: "Reflection", body: "What you learned, and what you'd improve next time." }
+    ],
+    "3d": [
+      { heading: "Overview" },
+      { heading: "Hero Render" },
+      { heading: "Detail Renders" },
+      { heading: "Wireframe & Breakdown" },
+      { heading: "3D Model" },
+      { heading: "Final Shots" }
+    ]
+  };
+  function hasTemplate() { return !!(TEMPLATES[CFG.page] && TEMPLATES[CFG.page].length); }
+  function applyTemplate(store, rerender) {
+    var secs = TEMPLATES[CFG.page];
+    if (!store || !secs || !secs.length) return;
+    var lbl = TEMPLATE_LABEL[CFG.page] || "";
+    confirmModal("Add the " + lbl + " template?",
+      "Appends " + secs.length + " styled section titles to the end of this " + CFG.noun + ". Drop your images, video, prototype or 3D under each — nothing existing is changed.", false)
+      .then(function (ok) {
+        if (!ok) return;
+        var start = store.blocks.length;
+        secs.forEach(function (s) {
+          store.blocks.push({ id: uid(), type: "text", section: true, heading: s.heading, body: s.body || "", tstyle: Object.assign({}, SECTION_TS) });
+        });
+        save().then(function () { (rerender || renderDetail)(); });
+        showUndoToast("Added the " + lbl + " template", function () {
+          store.blocks = store.blocks.slice(0, start);
+          save().then(function () { (rerender || renderDetail)(); });
+        });
+      });
+  }
 
   /* ============================================================ AUTH */
   function isUnlocked() { return UNLOCKED || sessionStorage.getItem(SESSION_KEY) === "1"; }
@@ -613,7 +1043,7 @@
     var ov = h("div", { class: "ak-ov" });
     function close() { ov.remove(); document.removeEventListener("keydown", onKey); }
     function onKey(e) { if (e.key === "Escape") close(); }
-    var code = h("textarea", { readonly: "", style: "width:100%;min-height:70px;resize:none;font-family:'Space Mono',monospace;font-size:.78rem;line-height:1.5;color:var(--text);background:color-mix(in srgb,var(--bg) 60%,var(--surface));border:1px solid var(--line);border-radius:10px;padding:11px 13px" });
+    var code = h("textarea", { readonly: "", style: "width:100%;min-height:70px;resize:none;font-family:'Inter',sans-serif;font-size:.78rem;line-height:1.5;color:var(--text);background:color-mix(in srgb,var(--bg) 60%,var(--surface));border:1px solid var(--line);border-radius:10px;padding:11px 13px" });
     code.value = line;
     var copyBtn = h("button", { class: "ak-btn ghost", html: I.dl + "<span>Copy code line</span>", onclick: function () {
       code.select(); try { document.execCommand("copy"); } catch (e) {}
@@ -658,6 +1088,22 @@
       navRight.insertBefore(wrap, toggle || null);
     } else document.body.appendChild(h("div", { class: "ak-fab" }, [wrap]));
 
+    // Left-nav "Layout Studio" entry (admin-only; project pages in STUDIO_PAGES).
+    // Opens the currently-open project in the whole-project Studio; on the grid it
+    // starts a new project from the category template.
+    if (studioEnabled()) {
+      var navBar = navRight || $(".nav");
+      if (navBar) {
+        var lsBtn = h("button", { class: "ak-ls-nav", title: "Open in Layout Studio", html: I.shapes + "<span>Layout Studio</span>",
+          onclick: function (e) {
+            e.preventDefault(); e.stopPropagation();
+            if (openItemId) { var it = DATA.items.find(function (x) { return x.id === openItemId; }); if (it) return openProjectStudio(it); }
+            newProjectStudio();
+          } });
+        navBar.insertBefore(lsBtn, navBar.firstChild);
+      }
+    }
+
     btnEl.addEventListener("click", function (e) {
       e.stopPropagation();
       openCaseKey = null;
@@ -684,6 +1130,9 @@
       menuEl.appendChild(mi(I.cube, "Add 3D model", function () { addBlock("model"); }));
       menuEl.appendChild(mi(I.text, "Add text block", function () { addBlock("text"); }));
       menuEl.appendChild(h("div", { class: "ak-sep" }));
+      menuEl.appendChild(h("div", { class: "ak-label" }, ["Layout Studio"]));
+      menuEl.appendChild(mi(I.shapes, "Open Layout Studio", function () { openStudio(currentCtx().obj, null, currentCtx().rerender); }));
+      menuEl.appendChild(h("div", { class: "ak-sep" }));
       menuEl.appendChild(h("div", { class: "ak-label" }, ["Appearance"]));
       menuEl.appendChild(mi(I.spacing, "Content spacing", function () { editSpacing(); }));
       menuEl.appendChild(mi(I.palette, "Background color", function () { editBackground(); }));
@@ -700,15 +1149,25 @@
       menuEl.appendChild(mi(I.cube, "Add 3D model", function () { addBlock("model"); }));
       menuEl.appendChild(mi(I.text, "Add text block", function () { addBlock("text"); }));
       menuEl.appendChild(h("div", { class: "ak-sep" }));
+      menuEl.appendChild(h("div", { class: "ak-label" }, ["Layout Studio"]));
+      if (studioEnabled()) {
+        menuEl.appendChild(mi(I.shapes, "Open project in Layout Studio", function () { openProjectStudio(it); }));
+        if (it.studio && it.studio.els && it.studio.els.length) menuEl.appendChild(mi(I.template, "Reset Studio layout \u2014 back to project media", function () { resetProjectStudio(it); }));
+      } else {
+        menuEl.appendChild(mi(I.shapes, "Open Layout Studio", function () { openStudio(currentCtx().obj, null, currentCtx().rerender); }));
+      }
+      menuEl.appendChild(h("div", { class: "ak-sep" }));
       menuEl.appendChild(h("div", { class: "ak-label" }, ["Appearance"]));
       menuEl.appendChild(mi(I.spacing, "Content spacing", function () { editSpacing(); }));
       menuEl.appendChild(mi(I.palette, "Background color", function () { editBackground(); }));
+      menuEl.appendChild(mi(I.media, "Home background (text / video)", function () { editHomeBg(); }));
       menuEl.appendChild(h("div", { class: "ak-sep" }));
       menuEl.appendChild(mi(I.edit, "Edit " + CFG.noun + " details", function () { editItem(it); }));
       menuEl.appendChild(mi(I.trash, "Delete this " + CFG.noun, function () { deleteItem(it); }, true));
     } else {
       menuEl.appendChild(h("div", { class: "ak-label" }, [CFG.noun + "s"]));
       menuEl.appendChild(mi(I.plus, "Add " + CFG.noun, function () { editItem(null); }));
+      menuEl.appendChild(mi(I.shapes, "New " + CFG.noun + " — Layout Studio", function () { editItem(null, studioEnabled() ? "project" : true); }));
     }
     menuEl.appendChild(h("div", { class: "ak-sep" }));
     menuEl.appendChild(h("div", { class: "ak-label" }, ["Publish & account"]));
@@ -787,33 +1246,98 @@
 
   /* ============================================================ TILES (index) */
   function tileGrid() { return $(CFG.gridSelector); }
+  /* ---- per-card bento size control ---- */
+  var TILE_SIZES = [["s", "Small"], ["m", "Medium"], ["l", "Large"], ["t", "Tall"], ["w", "Wide"], ["hero", "Hero"]];
+  var I_SIZE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+  function tileSize(it) { return it.size || (it.featured ? "hero" : (it.cover ? "m" : "s")); }
+  var _sizePopWired = false;
+  function wireSizePop() {
+    if (_sizePopWired) return; _sizePopWired = true;
+    document.addEventListener("click", function (e) {
+      if (e.target.closest(".ak-size-pop") || e.target.closest("[data-ak-size-btn]")) return;
+      document.querySelectorAll(".ak-size-pop").forEach(function (n) { n.remove(); });
+    });
+    addEventListener("scroll", function () { document.querySelectorAll(".ak-size-pop").forEach(function (n) { n.remove(); }); }, { passive: true });
+  }
+  function openSizePop(it, btn) {
+    wireSizePop();
+    var open = document.querySelector(".ak-size-pop");
+    document.querySelectorAll(".ak-size-pop").forEach(function (n) { n.remove(); });
+    if (open && open.getAttribute("data-for") === it.id) return; // toggle off
+    var cur = tileSize(it);
+    var tileEl = btn.closest(".ptile");
+    if (tileEl) { var mm = tileEl.className.match(/ptile-(s|m|l|t|w|hero)\b/); if (mm) cur = mm[1]; }
+    var pop = h("div", { class: "ak-size-pop", "data-for": it.id }, TILE_SIZES.map(function (s) {
+      return h("button", { class: "ak-size-opt" + (s[0] === cur ? " on" : ""), onclick: function (e) {
+        e.stopPropagation(); e.preventDefault();
+        it.size = s[0]; it.featured = (s[0] === "hero");
+        save().then(function () { renderTiles(); });
+      } }, [s[1]]);
+    }));
+    document.body.appendChild(pop);
+    var r = btn.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+    var top = r.bottom + 6; if (top + ph > innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+    var left = Math.min(r.right - pw, innerWidth - pw - 8); if (left < 8) left = 8;
+    pop.style.top = top + "px"; pop.style.left = left + "px";
+  }
   function renderTiles() {
     var grid = tileGrid(); if (!grid) return;
     grid.querySelectorAll("[data-ak-item]").forEach(function (n) { n.remove(); });
     var tileAnchor = grid.querySelector(".ptile[data-case]"); // newest items render before any built-in case tiles
     DATA.items.forEach(function (it) {
+      var cp = it.coverPos;
+      var cpos = cp ? (cp.x + "% " + cp.y + "%") : "center";
+      var czoom = cp ? (cp.s || 1) : 1;
       var coverStyle = it.cover
-        ? "background:url('" + dataURLtoBlobURL(it.cover) + "') center/cover no-repeat"
+        ? "background:url('" + dataURLtoBlobURL(it.cover) + "') " + cpos + "/cover no-repeat;--cz:" + czoom
         : "";
       var grip = isUnlocked() ? h("button", { class: "ak-tb ak-grip", title: "Drag to reorder", html: I.dots, onclick: function (e) { e.stopPropagation(); e.preventDefault(); } }) : null;
+      var curSz = tileSize(it);
+      var sizeBtn = h("button", { class: "ak-tb", "data-ak-size-btn": "1", title: "Card size (" + curSz + ")", "aria-label": "Card size", html: I_SIZE, onclick: function (e) { e.stopPropagation(); e.preventDefault(); openSizePop(it, e.currentTarget); } });
+      var adjustBtn = it.cover ? h("button", { class: "ak-tb", title: "Move / scale cover \u2014 drag to reposition, slider to zoom", html: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>', onclick: function (e) { e.stopPropagation(); e.preventDefault(); enterCoverAdjust(tile, it, function () { renderTiles(); }); } }) : null;
       var ctl = h("div", { class: "ak-tile-ctl" }, [
         grip,
+        sizeBtn,
+        adjustBtn,
         h("button", { class: "ak-tb", title: "Edit", html: I.edit, onclick: function (e) { e.stopPropagation(); editItem(it); } }),
         h("button", { class: "ak-tb warn", title: "Delete", html: I.trash, onclick: function (e) { e.stopPropagation(); deleteItem(it); } })
       ]);
-      var tile = h(CFG.tileTag, { class: "ptile", "data-ak-item": it.id, style: "opacity:1;transform:none" }, [
+      var tile = h(CFG.tileTag, { class: "ptile ptile-" + curSz + (it.cover ? "" : " ptile-empty"), "data-ak-item": it.id, tabindex: "0", role: "button", "aria-label": "Open " + (it.title || CFG.noun || "project"), style: "opacity:1;transform:none" }, [
         ctl,
         h("div", { class: "ptile-img", role: "img", style: coverStyle }, it.label ? [h("span", { class: "ph-label" }, [it.label])] : []),
         h("div", { class: "ptile-body" }, [
-          h("span", { class: "ptile-tag" }, [it.tag || "Project"]),
           h("h3", {}, [it.title || "Untitled"]),
-          h("span", { class: "ptile-link" }, ["Open project ", h("span", { class: "arr" }, ["\u2192"])])
+          h("span", { class: "ptile-tag" }, [it.tag || "Project"])
+        ]),
+        h("span", { class: "ptile-go", "aria-hidden": "true", title: "Open project" }, [
+          h("span", { class: "arr" }, ["\u2192"])
         ])
       ]);
       tile.addEventListener("click", function () { openDetail(it.id); });
+      tile.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); openDetail(it.id); } });
+      // a cover whose file is missing would render as a blank tile — degrade to the placeholder look
+      if (it.cover && String(it.cover).slice(0, 5) !== "data:") {
+        (function (t) {
+          var probe = new Image();
+          probe.onerror = function () {
+            t.classList.add("ptile-empty");
+            var im = t.querySelector(".ptile-img");
+            if (im) im.style.background = "";
+          };
+          probe.src = it.cover;
+        })(tile);
+      }
       if (isUnlocked()) makeDraggable(tile, it.id, grip);
       grid.insertBefore(tile, tileAnchor);
     });
+    // Bento fallback: if no card has an explicit size/feature, promote the first real
+    // tile to hero size so the layout always reads intentionally (no empty grid cells).
+    if (!DATA.items.some(function (x) { return x.size || x.featured; })) {
+      var firstReal = grid.querySelector(".ptile[data-ak-item]:not(.ptile-empty)") || grid.querySelector(".ptile[data-ak-item]");
+      if (firstReal) { firstReal.classList.remove("ptile-s", "ptile-m", "ptile-l", "ptile-t", "ptile-w"); firstReal.classList.add("ptile-hero"); }
+    }
+    /* let the page's Canvas/Grid toggle re-measure the new tiles (grid view sizes each to its file) */
+    document.dispatchEvent(new CustomEvent("ak-tiles-rendered"));
     renderItemTabs();
   }
 
@@ -892,6 +1416,8 @@
       var wrap = h("div", { class: "ak-case-blocks" });
       if (store.spacing != null) wrap.style.gap = store.spacing + "px";
       store.blocks.forEach(function (b, i) { wrap.appendChild(renderBlock(store, b, i, admin, renderCases)); });
+      var cstrip = buildMediaStrip(store, wrap);
+      if (cstrip) m.appendChild(cstrip);
       m.appendChild(wrap);
     });
   }
@@ -941,8 +1467,6 @@
     var group;
     if (isUnlocked()) {
       group = h("div", { class: "ak-cs-actions" }, [
-        h("button", { class: "ak-btn ghost", "data-ak-trigger": "1", html: I.edit + "<span>Edit details</span>",
-          onclick: function (e) { e.stopPropagation(); var k = activeCaseKey(); if (k) editCase(k); } }),
         h("button", { class: "ak-btn", "data-ak-trigger": "1", html: I.plus + "<span>Add content</span>",
           onclick: function (e) { e.stopPropagation(); var k = activeCaseKey(); if (!k) return; openItemId = null; openCaseKey = k; openMenu(); } })
       ]);
@@ -1010,11 +1534,13 @@
   }
 
   /* ============================================================ ITEM add/edit/delete */
-  function editItem(it) {
+  function editItem(it, studio) {
     var creating = !it;
     modal({
-      title: creating ? "Add " + CFG.noun : "Edit " + CFG.noun,
-      sub: creating ? "Create a new entry. You can add images, PDFs, prototypes and more once it's open." : "",
+      title: creating ? (studio ? "New " + CFG.noun + " — Layout Studio" : "Add " + CFG.noun) : "Edit " + CFG.noun,
+      sub: creating ? (studio
+        ? "Create the entry, then design its themed layout — shapes, text and media on a freeform canvas. Save it as your theme to reuse the same look on every " + CFG.noun + "."
+        : "Create a new entry. You can add images, PDFs, prototypes and more once it's open.") : "",
       fields: [
         { key: "title", label: "Title", value: it ? it.title : "", placeholder: "e.g. FinTrack — Personal Finance App" },
         { key: "tag", label: "Tag / category", value: it ? it.tag : "", placeholder: "e.g. Fintech" },
@@ -1034,7 +1560,11 @@
       if (creating) {
         var item = { id: uid(), title: v.title, tag: v.tag, desc: v.desc, cover: v.cover || "", meta: meta, blocks: [] };
         DATA.items.unshift(item); // newest project/case study first
-        save().then(function () { renderTiles(); openDetail(item.id); });
+        save().then(function () {
+          renderTiles(); openDetail(item.id);
+          if (studio === "project") openProjectStudio(item);
+          else if (studio) openStudio(item, null, renderDetail);
+        });
       } else {
         it.title = v.title; it.tag = v.tag; it.desc = v.desc; it.meta = meta;
         it.cover = v.cover || "";
@@ -1154,9 +1684,30 @@
     var mm = (getComputedStyle(el).backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
     return mm ? mm[1] : "";
   }
+  /* Inside an open project the page defaults to LIGHT mode. The visitor can still
+     toggle (header switch) while inside — that choice is session-only (no localStorage
+     write, via AK_THEME_NO_PERSIST) so the rest of the site keeps its dark default.
+     On close the previous theme is restored. */
+  function enterDetailTheme() {
+    var r = document.documentElement;
+    if (window.__akPrevTheme == null) {
+      window.__akPrevTheme = r.dataset.theme || "dark";
+      r.dataset.theme = "light";
+      var k = document.getElementById("knob"); if (k) k.textContent = "\u2600\uFE0F";
+    }
+    window.AK_THEME_NO_PERSIST = true;
+  }
+  function exitDetailTheme() {
+    var r = document.documentElement;
+    if (window.__akPrevTheme != null) { r.dataset.theme = window.__akPrevTheme; window.__akPrevTheme = null; }
+    window.AK_THEME_NO_PERSIST = false;
+    var k = document.getElementById("knob"); if (k) k.textContent = r.dataset.theme === "light" ? "\u2600\uFE0F" : "\uD83C\uDF19";
+  }
   function openDetail(id) {
+    sessionView = { id: null, v: "canvas" }; /* every fresh open starts in Canvas */
     openItemId = id;
     document.body.classList.add("ak-item-detail");
+    enterDetailTheme();
     renderDetail();
     window.scrollTo(0, 0);
     initBarHide();
@@ -1168,26 +1719,34 @@
     barHideInit = true;
     var last = window.scrollY || document.documentElement.scrollTop, ticking = false;
     function update() {
-      var bar = document.querySelector(".ak-d-bar");
       var y = window.scrollY || document.documentElement.scrollTop;
+      var prev = last; last = y; ticking = false;
+      if (!document.body.classList.contains("ak-item-detail")) return; // grid owns its own header
       tpHide();
-      if (bar) {
-        if (y > last && y > 120) bar.classList.add("ak-bar-hidden");
-        else bar.classList.remove("ak-bar-hidden");
-      }
-      last = y;
-      ticking = false;
+      var bar = document.querySelector(".ak-d-bar");
+      var head = document.querySelector("header");
+      var foot = document.querySelector(".ak-d-foot");
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var atEnd = foot ? foot.getBoundingClientRect().top < vh - 40 : false; // thank-you note in view
+      var hide = !atEnd && y > prev && y > 120;
+      // top nav + sticky bar move together (both revealed at the end)
+      if (bar) bar.classList.toggle("ak-bar-hidden", hide);
+      if (head) head.classList.toggle("nav-hidden", hide);
     }
     addEventListener("scroll", function () {
       if (!ticking) { requestAnimationFrame(update); ticking = true; }
     }, { passive: true });
   }
   function closeDetail() {
+    sessionView = { id: null, v: "canvas" };
     openItemId = null;
     tpHide();
     document.body.classList.remove("ak-item-detail");
+    var _h = document.querySelector("header"); if (_h) _h.classList.remove("nav-hidden");
+    exitDetailTheme();
     clearItemActions();
     if (detailEl) { detailEl.remove(); detailEl = null; }
+    document.querySelectorAll(".ak-fab-top").forEach(function (n) { n.remove(); });
     window.scrollTo(0, 0);
   }
   // Put Edit details / Add content in the top-right nav bar (consistent with case studies),
@@ -1199,8 +1758,6 @@
       var group;
       if (admin) {
         group = h("div", { class: "ak-item-actions" }, [
-          h("button", { class: "ak-btn ghost", "data-ak-trigger": "1", html: I.edit + "<span>Edit details</span>",
-            onclick: function (e) { e.stopPropagation(); editItem(it); } }),
           h("button", { class: "ak-btn", "data-ak-trigger": "1", html: I.plus + "<span>Add content</span>",
             onclick: function (e) { e.stopPropagation(); openItemId = it.id; openCaseKey = null; openMenu(); } })
         ]);
@@ -1235,9 +1792,144 @@
       hb.removeAttribute("data-ak-orig-href");
     }
   }
+  /* defer heavy embeds (iframes, 3D, video) until near the viewport — keeps project open snappy */
+  function lazyMount(el, fn, margin) {
+    if (!window.IntersectionObserver) { setTimeout(fn, 50); return; }
+    var io = new IntersectionObserver(function (ents) {
+      ents.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        io.disconnect();
+        if (window.requestIdleCallback) requestIdleCallback(fn, { timeout: 900 }); else setTimeout(fn, 80);
+      });
+    }, { rootMargin: (margin || 400) + "px" });
+    io.observe(el);
+  }
+  var _psFrameCache = {};
+  function videoFrameThumb(src, thumb) {
+    if (_psFrameCache[src]) { thumb.insertBefore(h("img", { src: _psFrameCache[src], alt: "", decoding: "async" }), thumb.firstChild); return; }
+    var v = h("video", { preload: "metadata", playsinline: "", muted: "" });
+    v.muted = true;
+    v.addEventListener("loadeddata", function onld() {
+      v.removeEventListener("loadeddata", onld);
+      try {
+        var c = document.createElement("canvas"), k = Math.min(1, 344 / (v.videoWidth || 344));
+        c.width = Math.max(2, Math.round((v.videoWidth || 344) * k)); c.height = Math.max(2, Math.round((v.videoHeight || 260) * k));
+        c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+        var d = c.toDataURL("image/jpeg", 0.72);
+        _psFrameCache[src] = d;
+        thumb.insertBefore(h("img", { src: d, alt: "", decoding: "async" }), thumb.firstChild);
+      } catch (e) {}
+      v.removeAttribute("src"); v.load();
+    });
+    v.src = src;
+  }
+  /* horizontal preview slider of every media block (images, video, pdf, prototypes, 3D), shown under the project home content */
+  function buildMediaStrip(store, blocksWrap) {
+    if (CFG.page === "ui-ux") return null; // UI/UX project: media/image preview strip disabled (current + new items)
+    var MT = { image: 1, media: 1, pdf: 1, prototype: 1, model: 1 };
+    var items = [];
+    /* Canvas / bento projects hold their media as layout elements rather than blocks.
+       The strip must read in the same order the visitor sees on the canvas — top to
+       bottom, then left to right — NOT blocks-first, which put the newest additions
+       (appended at the bottom of the canvas) at the front of the preview. */
+    var cards = ((store.studio && store.studio.els) || []).filter(function (el) {
+      return el && !el.hidden && el.content && MT[el.content.type];
+    }).slice().sort(function (a, b) {
+      return (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0);
+    });
+    cards.forEach(function (el) {
+      var c = el.content;
+      items.push({ idx: -1, elId: el.id, b: { type: c.type, src: c.src, mime: c.mime, caption: (el.detail && el.detail.title) || c.caption || "" } });
+    });
+    (store.blocks || []).forEach(function (b, i) {
+      if (!b || !MT[b.type]) return;
+      var onCanvas = cards.some(function (el) { return el.sb === b.id || (b.src && el.content.src === b.src); });
+      if (!onCanvas) items.push({ b: b, idx: i });
+    });
+    if (!items.length) return null;
+    /* In Canvas (studio) mode there is no block stack to jump to — resolve the card's target
+       inside the rendered canvas instead: match the media by src, else fall back to order. */
+    function targetFor(b, blockIdx, ord, elId) {
+      if (elId) { var e = document.querySelector('.ak-studio-body [data-el-id="' + elId + '"]'); if (e) return e; }
+      if (blocksWrap && blocksWrap.isConnected && blocksWrap.children[blockIdx]) return blocksWrap.children[blockIdx];
+      var body = document.querySelector(".ak-studio-body"); if (!body) return null;
+      var media = [].slice.call(body.querySelectorAll("img,video,iframe,model-viewer"));
+      var hit = null;
+      if (b.src) {
+        var url = dataURLtoBlobURL(b.src);
+        media.forEach(function (m) { if (!hit && (m.src === url || m.getAttribute("src") === url)) hit = m; });
+      }
+      if (!hit) hit = media[ord] || null;
+      return hit ? (hit.closest(".akls-el,.akls-gcard") || hit) : null;
+    }
+    var row = h("div", { class: "ps-row" });
+    var drag = { down: false, moved: false, sx: 0, sl: 0 };
+    items.forEach(function (en, n) {
+      var b = en.b, badge = null;
+      var thumb = h("div", { class: "ps-thumb" });
+      if (b.type === "image") {
+        thumb.appendChild(h("img", { src: dataURLtoBlobURL(b.src), alt: b.caption || "", loading: "lazy", decoding: "async" }));
+      } else if (b.type === "media") {
+        if ((b.mime || "").indexOf("audio") === 0) { thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u266B"])); badge = "Audio"; }
+        else {
+          badge = "Video";
+          thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u25B8"]));
+          lazyMount(thumb, function () { videoFrameThumb(dataURLtoBlobURL(b.src), thumb); }, 120);
+        }
+      } else if (b.type === "pdf") {
+        badge = "PDF";
+        thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u25A4"]));
+      } else if (b.type === "prototype") {
+        badge = "Live";
+        thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u2196"]));
+      } else if (b.type === "model") {
+        badge = "3D";
+        thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u25C8"]));
+      }
+      if (badge) thumb.appendChild(h("span", { class: "ps-badge" }, [badge]));
+      var cap = h("div", { class: "ps-cap" }, [
+        h("span", { class: "ps-num" }, ["Ref " + ("0" + (n + 1)).slice(-2)]),
+        h("span", { class: "ps-name" }, [b.caption || typeLabel(b.type)])
+      ]);
+      var card = h("button", { class: "ps-card", type: "button", title: "Jump to " + (b.caption || typeLabel(b.type)), onclick: function () {
+        if (drag.moved) return;
+        var t = targetFor(b, en.idx, n, en.elId); if (!t) return;
+        var top = t.getBoundingClientRect().top + (window.scrollY || document.documentElement.scrollTop) - 120;
+        window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+        t.classList.add("ak-blocktarget");
+        setTimeout(function () { t.classList.add("fade"); }, 1200);
+        setTimeout(function () { t.classList.remove("ak-blocktarget", "fade"); }, 2000);
+      } }, [thumb, cap]);
+      row.appendChild(card);
+    });
+    // drag to scroll (suppress the click that ends a drag)
+    row.addEventListener("pointerdown", function (e) { if (e.button != null && e.button > 0) return; drag.down = true; drag.moved = false; drag.sx = e.clientX; drag.sl = row.scrollLeft; });
+    row.addEventListener("pointermove", function (e) { if (!drag.down) return; var dx = e.clientX - drag.sx; if (!drag.moved && Math.abs(dx) > 6) { drag.moved = true; row.classList.add("dragging"); } if (drag.moved) row.scrollLeft = drag.sl - dx; });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) { row.addEventListener(ev, function () { drag.down = false; row.classList.remove("dragging"); setTimeout(function () { drag.moved = false; }, 0); }); });
+    var cta = h("button", { class: "ps-cta", type: "button", onclick: function () {
+      var max = row.scrollWidth - row.clientWidth;
+      if (row.scrollLeft >= max - 8) row.scrollTo({ left: 0, behavior: "smooth" });
+      else row.scrollBy({ left: Math.max(240, row.clientWidth * 0.8), behavior: "smooth" });
+    } }, ["Scroll to explore \u2192"]);
+    function ctaVis() { if (!row.isConnected) return; cta.style.display = row.scrollWidth - row.clientWidth > 8 ? "" : "none"; }
+    var ro = new ResizeObserver(function () { if (!row.isConnected) { ro.disconnect(); return; } ctaVis(); });
+    ro.observe(row);
+    setTimeout(ctaVis, 60);
+    var noun = (CFG.noun || "project");
+    var head = h("div", { class: "ps-head" }, [
+      h("span", { class: "ps-eyebrow" }, ["Inside this " + noun + " \u2014 " + items.length + (items.length === 1 ? " preview" : " previews")]),
+      cta
+    ]);
+    return h("section", { class: "ak-pstrip" }, [head, row]);
+  }
   function renderDetail() {
     var it = DATA.items.find(function (x) { return x.id === openItemId; });
     if (!it) { closeDetail(); return; }
+    /* Content added while the project is in Studio (canvas) mode lands on the canvas
+       first — otherwise the new block is saved but invisible. */
+    if (pendingStudioBlocks(it).length) {
+      syncStudioBlocks(it).then(function (ok) { if (ok) keepScroll(renderDetail)(); });
+    }
     if (detailEl) detailEl.remove();
     var admin = isUnlocked();
     var meta = it.meta || {};
@@ -1252,7 +1944,26 @@
         h("p", { style: "color:var(--muted);margin:0" }, [admin ? "Use the Admin menu to add images, PDFs, prototypes, video, 3D models or text." : "This project is being prepared."])
       ]));
     } else {
-      it.blocks.forEach(function (b, i) { blocksWrap.appendChild(renderBlock(it, b, i, admin, renderDetail)); });
+      var _i = 0;
+      while (_i < it.blocks.length) {
+        var _b = it.blocks[_i];
+        if (_b.type === "text" && _b.section) {
+          var _els = [renderBlock(it, _b, _i, admin, renderDetail)];
+          var _k = _i + 1;
+          while (_k < it.blocks.length && !(it.blocks[_k].type === "text" && it.blocks[_k].section)) {
+            _els.push(renderBlock(it, it.blocks[_k], _k, admin, renderDetail)); _k++;
+          }
+          if (_els.length > 1) {
+            var _srad = (_b.radius != null ? _b.radius : 18);
+            blocksWrap.appendChild(h("div", { class: "ak-secgroup has", style: "border-radius:" + _srad + "px" }, _els));
+          } else {
+            blocksWrap.appendChild(_els[0]); // standalone section header -> direct grid cell (sizable + resizable)
+          }
+          _i = _k;
+        } else {
+          blocksWrap.appendChild(renderBlock(it, it.blocks[_i], _i, admin, renderDetail)); _i++;
+        }
+      }
     }
 
     var hdrEl = document.querySelector("header");
@@ -1265,12 +1976,12 @@
     strip.addEventListener("scroll", function () { if (_tp.touchActive) tpCancelPeek(); }, { passive: true });
     DATA.items.forEach(function (x) { // newest items first
       var tb = h("button", { class: "tab" + (x.id === it.id ? " active" : ""), onclick: function () { if (x.id !== it.id) openDetail(x.id); } }, [x.title || "Untitled"]);
-      if (!admin && x.id !== it.id) attachTabPreview(tb, { title: x.title, tag: x.tag, cover: x.cover });
+      if (x.id !== it.id) attachTabPreview(tb, { title: x.title, tag: x.tag, cover: x.cover });
       strip.appendChild(tb);
     });
     builtinTabs().forEach(function (b) {
       var tb = h("button", { class: "tab", onclick: function () { closeDetail(); if (window.openCase) window.openCase(b.key); } }, [b.label]);
-      if (!admin) attachTabPreview(tb, { title: b.label, tag: "", cover: builtinCover(b.key) });
+      attachTabPreview(tb, { title: b.label, tag: "", cover: builtinCover(b.key) });
       strip.appendChild(tb);
     });
     var plural = CFG.noun === "case study" ? "case studies" : CFG.noun + "s";
@@ -1284,8 +1995,20 @@
     bar.style.top = (hdrEl ? hdrEl.offsetHeight : 0) + "px";
     renderItemActions(it, admin);
 
+    var hb = it.homeBg || {};
+    var hbOp = String((hb.opacity != null ? hb.opacity : 22) / 100);
+    var hbMedia = "opacity:" + hbOp + ";transform:translate(" + (hb.x || 0) + "%," + (hb.y || 0) + "%) scale(" + ((hb.scale != null ? hb.scale : 100) / 100) + ")";
+    var bgv = null;
+    if (hb.video) {
+      bgv = h("video", { class: "bgv", style: hbMedia, src: dataURLtoBlobURL(hb.video), playsinline: "", "aria-hidden": "true" });
+      bgv.muted = true; bgv.loop = true; bgv.autoplay = true;
+      setTimeout(function () { try { var p = bgv.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }, 0);
+    }
     var hero = h("div", { class: "ak-d-hero" }, [
-      null,
+      hb.image ? h("img", { class: "bgi", style: hbMedia, src: dataURLtoBlobURL(hb.image), alt: "", decoding: "async", "aria-hidden": "true" }) : null,
+      bgv,
+      hb.text ? h("div", { class: "bgt", style: "opacity:" + hbOp, "aria-hidden": "true" }, [hb.text]) : null,
+      (hb.image || hb.video || hb.text) ? h("div", { class: "scrim", "aria-hidden": "true" }) : null,
       h("div", { class: "gr" }),
       h("div", { class: "inner" }, [
         it.tag ? h("div", { class: "tag" }, [it.tag]) : null,
@@ -1303,7 +2026,38 @@
       h("button", { class: "ak-totop", onclick: function () { (detailEl || document.scrollingElement || document.documentElement).scrollTo({ top: 0, behavior: "smooth" }); window.scrollTo({ top: 0, behavior: "smooth" }); }, html: 'Back to top <span aria-hidden="true">&uarr;</span>' })
     ]);
 
-    detailEl = h("div", { class: "ak-detail" }, [bar, hero, blocksWrap, foot]);
+    var studioMode = !!(it.studio && it.studio.els && it.studio.els.length);
+    var studioBody, bsaveT;
+    var viewMode = bentoView(it.id);
+    function paintStudioBody() {
+      ensureStudio().then(function () {
+        if (!window.AKLayout || !window.AKLayout.render) return;
+        window.AKLayout.render(studioBody, Object.assign({}, it.studio, { layout: viewMode }), {
+          editable: isUnlocked(),
+          onChange: function () { clearTimeout(bsaveT); bsaveT = setTimeout(function () { save(); }, 600); }
+        });
+      });
+    }
+    function applyView(mode) {
+      viewMode = mode === "grid" ? "grid" : "canvas";
+      setBentoView(viewMode, it.id);
+      if (viewBar) viewBar.querySelectorAll("button").forEach(function (b) {
+        var on = b.getAttribute("data-view") === viewMode;
+        b.classList.toggle("active", on); b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      if (studioMode) paintStudioBody();
+      else blocksWrap.classList.toggle("ak-gridmode", viewMode === "grid");
+    }
+    var showSwitch = studioMode || (it.blocks && it.blocks.length > 1);
+    var viewBar = showSwitch ? buildViewSwitch(viewMode, applyView, studioMode) : null;
+    /* the layout switch lives in the project's home/hero block — highest visibility, seen before scrolling */
+    if (viewBar) { viewBar.classList.add("in-hero"); hero.appendChild(viewBar); }
+    if (studioMode) { studioBody = h("div", { class: "ak-studio-body" }); paintStudioBody(); }
+    else if (viewMode === "grid" && showSwitch) blocksWrap.classList.add("ak-gridmode");
+    detailEl = h("div", { class: "ak-detail" }, [bar, hero,
+      buildMediaStrip(it, studioMode ? null : blocksWrap),
+      studioMode ? studioBody : blocksWrap,
+      foot]);
     if (it.bg) {
       detailEl.style.background = it.bg;
       hero.style.background = "var(--bg)";
@@ -1311,6 +2065,12 @@
     }
     if (it.spacing != null) blocksWrap.style.gap = it.spacing + "px";
     document.body.appendChild(detailEl);
+    document.querySelectorAll(".ak-fab-top").forEach(function (n) { n.remove(); });
+    var fab = h("button", { class: "ak-fab-top", "aria-label": "Back to top", title: "Back to top", html: "\u2191", onclick: function () { window.scrollTo({ top: 0, behavior: "smooth" }); } });
+    document.body.appendChild(fab); // on body: .ak-detail's will-change/transform would trap position:fixed
+    function fabVis() { if (!fab.isConnected) { window.removeEventListener("scroll", fabVis); return; } fab.classList.toggle("show", (window.scrollY || document.documentElement.scrollTop) > 300); }
+    window.addEventListener("scroll", fabVis, { passive: true });
+    fabVis();
     detailEl.scrollTop = 0;
     wireTabScroller(strip, prevBtn, nextBtn);
   }
@@ -1362,13 +2122,462 @@
   }
 
   /* ---------- block rendering ---------- */
+  var AK_FONTS = [["", "Theme (Inter)"], ["'Inter',sans-serif", "Inter"], ["Georgia,serif", "Georgia"], ["'Times New Roman',serif", "Times New Roman"], ["Arial,Helvetica,sans-serif", "Arial / Helvetica"], ["'Courier New',monospace", "Courier New"]];
+  /* compact Figma-style type controls used by the Edit text dialog */
+  function textStylePanel(init, shadowInit, headingInit, bodyInit, heading2Init) {
+    var ts = Object.assign({ font: "", align: "left", hFont: "", hSize: "", hWeight: "", hColor: "", hBold: false, hI: false, hU: false, h2Font: "", h2Size: "", h2Weight: "", h2Color: "", h2Bold: false, h2I: false, h2U: false, bFont: "", bSize: "", bColor: "", bBold: false, bI: false, bU: false, lh: "", ls: "", italic: false, upper: false }, init || {});
+    ts.shadow = shadowInit || 0;
+    ts.heading = headingInit || ""; ts.body = bodyInit || ""; ts.heading2 = heading2Init || "";
+    if (ts.font && !ts.hFont && !ts.h2Font && !ts.bFont) { ts.hFont = ts.font; ts.h2Font = ts.font; ts.bFont = ts.font; }
+    ts.font = "";
+    if (ts.italic) { ts.hI = true; ts.h2I = true; ts.bI = true; ts.italic = false; }
+    var boxS = "display:flex;align-items:center;height:30px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--bg) 60%,var(--surface));overflow:hidden;min-width:0;transition:border-color .15s";
+    var rawS = "flex:1;min-width:0;height:100%;border:none;background:none;color:var(--text);font-family:'Inter',sans-serif;font-size:.78rem;padding:0 7px 0 5px;outline:none";
+    var hIn = h("input", { type: "text", placeholder: "Heading (optional)" });
+    hIn.value = ts.heading || "";
+    hIn.addEventListener("input", function () { ts.heading = hIn.value; });
+    var hIn2 = h("input", { type: "text", placeholder: "Subheading (optional)" });
+    hIn2.value = ts.heading2 || "";
+    hIn2.addEventListener("input", function () { ts.heading2 = hIn2.value; });
+    var bIn = h("textarea", { placeholder: "Write a paragraph\u2026", rows: "3" });
+    bIn.value = ts.body || "";
+    var bGrow = function () { bIn.style.height = "auto"; bIn.style.height = Math.min(Math.max(bIn.scrollHeight, 56), 180) + "px"; };
+    bIn.addEventListener("input", function () { ts.body = bIn.value; bGrow(); });
+    function paint() {
+      var tsh = textShadowCss(ts.shadow) || "none";
+      var al = ts.align || "left";
+      var base = "width:100%;box-sizing:border-box;border:none;background:none;outline:none;padding:0;text-align:" + al + ";letter-spacing:" + (ts.ls || 0) + "px;text-shadow:" + tsh + ";";
+      hIn.style.cssText = base + "font-family:" + (ts.hFont || "'Inter',sans-serif") + ";font-weight:" + (ts.hWeight || (ts.hBold ? 800 : 700)) + ";color:" + (ts.hColor || "var(--text)") + ";font-size:" + Math.min(ts.hSize || 19, 26) + "px" + (ts.hI ? ";font-style:italic" : "") + (ts.hU ? ";text-decoration:underline;text-underline-offset:3px" : "") + (ts.upper ? ";text-transform:uppercase" : "");
+      hIn2.style.cssText = base + "font-family:" + (ts.h2Font || "'Inter',sans-serif") + ";font-weight:" + (ts.h2Weight || (ts.h2Bold ? 800 : 600)) + ";color:" + (ts.h2Color || "var(--text)") + ";font-size:" + Math.min(ts.h2Size || 15, 22) + "px" + (ts.h2I ? ";font-style:italic" : "") + (ts.h2U ? ";text-decoration:underline;text-underline-offset:3px" : "") + (ts.upper ? ";text-transform:uppercase" : "");
+      bIn.style.cssText = base + "resize:none;min-height:56px;max-height:180px;overflow-y:auto;font-family:" + (ts.bFont || "'Inter',sans-serif") + ";font-weight:" + (ts.bBold ? 700 : 400) + ";color:" + (ts.bColor || "var(--muted)") + ";font-size:" + Math.min(ts.bSize || 13, 18) + "px;line-height:" + (ts.lh || 1.6) + (ts.bI ? ";font-style:italic" : "") + (ts.bU ? ";text-decoration:underline;text-underline-offset:3px" : "");
+      bGrow();
+    }
+    function micro(t) { return h("div", { style: "font-family:'Inter',sans-serif;font-size:.55rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:11px 0 5px" }, [t]); }
+    function focusable(box, input) {
+      input.addEventListener("focus", function () { box.style.borderColor = "var(--accent)"; });
+      input.addEventListener("blur", function () { box.style.borderColor = "var(--line)"; });
+    }
+    function pIn(pfx, input, tip) {
+      input.style.cssText = rawS;
+      var box = h("div", { class: "ak-num", title: tip || "", style: boxS }, [pfx ? h("span", { style: "flex:none;padding-left:8px;font-family:'Inter',sans-serif;font-size:.58rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)" }, [pfx]) : null, input]);
+      if (input.type === "number") {
+        function stepBtn(dir) {
+          var b = h("button", { type: "button", tabindex: "-1", html: '<svg viewBox="0 0 8 8" width="7" height="7" fill="none"><path d="' + (dir > 0 ? "M1.5 5.2L4 2.8 6.5 5.2" : "M1.5 2.8L4 5.2 6.5 2.8") + '" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>', style: "flex:1;border:none;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center;padding:0;transition:.12s" });
+          b.addEventListener("mouseenter", function () { b.style.color = "var(--accent)"; b.style.background = "color-mix(in srgb,var(--accent) 12%,transparent)"; });
+          b.addEventListener("mouseleave", function () { b.style.color = "var(--muted)"; b.style.background = "none"; });
+          b.addEventListener("click", function () {
+            var st = parseFloat(input.step) || 1, v = parseFloat(input.value);
+            if (isNaN(v)) v = parseFloat(input.placeholder);
+            if (isNaN(v)) v = 0;
+            v = Math.round((v + dir * st) * 100) / 100;
+            var mn = input.getAttribute("min"), mx = input.getAttribute("max");
+            if (mn !== null && mn !== "" && v < parseFloat(mn)) v = parseFloat(mn);
+            if (mx !== null && mx !== "" && v > parseFloat(mx)) v = parseFloat(mx);
+            input.value = v;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          });
+          return b;
+        }
+        box.appendChild(h("div", { style: "flex:none;display:flex;flex-direction:column;align-self:stretch;width:17px;border-left:1px solid color-mix(in srgb,var(--line) 70%,transparent)" }, [stepBtn(1), stepBtn(-1)]));
+      }
+      focusable(box, input);
+      return box;
+    }
+    function num(key, ph, step, min) {
+      var i = h("input", { type: "number", placeholder: ph, step: step || 1 });
+      if (min != null) i.setAttribute("min", min);
+      if (ts[key] !== "" && ts[key] != null) i.value = ts[key];
+      i.addEventListener("input", function () { var v = parseFloat(i.value); ts[key] = isNaN(v) ? "" : v; paint(); });
+      return i;
+    }
+    function sel(key, opts, isInt) {
+      var s = h("select", {}, opts.map(function (o) {
+        var op = h("option", { value: String(o[0]) }, [o[1]]);
+        if (String(ts[key] == null ? "" : ts[key]) === String(o[0])) op.setAttribute("selected", "");
+        return op;
+      }));
+      s.addEventListener("change", function () { ts[key] = isInt ? (s.value ? parseInt(s.value, 10) : "") : s.value; paint(); });
+      s.style.cssText = rawS + ";cursor:pointer;padding-left:8px";
+      var box = h("div", { style: boxS }, [s]);
+      focusable(box, s);
+      return box;
+    }
+    function colorIn(key, tip) {
+      var sw = h("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(ts[key] || "") ? ts[key] : "#c9c8c6", style: "flex:none;width:20px;height:20px;margin-left:5px;padding:0;border:none;border-radius:5px;background:none;cursor:pointer" });
+      var tx = h("input", { type: "text", placeholder: "auto", value: ts[key] || "" });
+      sw.addEventListener("input", function () { ts[key] = sw.value; tx.value = sw.value; paint(); });
+      tx.addEventListener("input", function () { var v = tx.value.trim(); ts[key] = v; if (/^#[0-9a-f]{6}$/i.test(v)) sw.value = v; paint(); });
+      tx.style.cssText = rawS;
+      var box = h("div", { title: tip || "", style: boxS }, [sw, tx]);
+      focusable(box, tx);
+      return box;
+    }
+    var ALN = {
+      left: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none"><path d="M2 3.5h12M2 8h8M2 12.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+      center: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none"><path d="M2 3.5h12M4 8h8M3 12.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+      right: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none"><path d="M2 3.5h12M6 8h8M4 12.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
+    };
+    function alignSeg() {
+      var wrap = h("div", { style: "flex:none;display:flex;gap:2px;border:1px solid var(--line);border-radius:8px;padding:2px;background:color-mix(in srgb,var(--bg) 60%,var(--surface));height:30px;box-sizing:border-box" });
+      function paintSeg() {
+        Array.prototype.forEach.call(wrap.children, function (x) {
+          var on = (ts.align || "left") === x.getAttribute("data-v");
+          x.style.background = on ? "color-mix(in srgb,var(--accent) 20%,transparent)" : "none";
+          x.style.color = on ? "var(--accent)" : "var(--muted)";
+        });
+      }
+      ["left", "center", "right"].forEach(function (a) {
+        var b = h("button", { type: "button", title: "Align " + a, "data-v": a, html: ALN[a], style: "width:30px;border:none;border-radius:6px;cursor:pointer;display:grid;place-items:center;padding:0;transition:.15s;background:none;color:var(--muted)" });
+        b.addEventListener("click", function () { ts.align = a; paintSeg(); paint(); });
+        wrap.appendChild(b);
+      });
+      paintSeg();
+      return wrap;
+    }
+    function tog(key, htmlLbl, tip, w) {
+      var b = h("button", { type: "button", title: tip, html: htmlLbl, style: "flex:none;width:" + (w || 34) + "px;height:30px;border:1px solid var(--line);border-radius:8px;cursor:pointer;display:grid;place-items:center;transition:.15s;padding:0" });
+      function pb() {
+        b.style.background = ts[key] ? "color-mix(in srgb,var(--accent) 16%,transparent)" : "color-mix(in srgb,var(--bg) 60%,var(--surface))";
+        b.style.color = ts[key] ? "var(--accent)" : "var(--muted)";
+        b.style.borderColor = ts[key] ? "var(--accent)" : "var(--line)";
+      }
+      b.addEventListener("click", function () { ts[key] = !ts[key]; pb(); paint(); });
+      pb();
+      return b;
+    }
+    var shNum = h("input", { type: "number", min: 0, max: 100, step: 5 }); shNum.value = ts.shadow || 0;
+    var shRange = h("input", { type: "range", min: 0, max: 100, step: 5, value: ts.shadow || 0, style: "flex:1;accent-color:var(--accent);cursor:pointer;min-width:0" });
+    shRange.addEventListener("input", function () { ts.shadow = parseInt(shRange.value, 10) || 0; shNum.value = shRange.value; paint(); });
+    shNum.addEventListener("input", function () { var v = parseInt(shNum.value, 10); ts.shadow = isNaN(v) ? 0 : Math.max(0, Math.min(100, v)); shRange.value = ts.shadow; paint(); });
+    var shBox = pIn("%", shNum, "Shadow intensity");
+    shBox.style.flex = "none"; shBox.style.width = "84px";
+    var lsBox = pIn("LS", num("ls", "0", 0.5), "Letter spacing (px)");
+    lsBox.style.flex = "none"; lsBox.style.width = "86px";
+    var g3 = "display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px";
+    function mini(key, htmlLbl, tip) {
+      var b = h("button", { type: "button", title: tip, html: htmlLbl, style: "width:24px;height:22px;border:1px solid var(--line);border-radius:6px;cursor:pointer;display:grid;place-items:center;padding:0;transition:.12s;background:none" });
+      function pb() {
+        b.style.background = ts[key] ? "color-mix(in srgb,var(--accent) 16%,transparent)" : "none";
+        b.style.color = ts[key] ? "var(--accent)" : "var(--muted)";
+        b.style.borderColor = ts[key] ? "var(--accent)" : "var(--line)";
+      }
+      b.addEventListener("click", function () { ts[key] = !ts[key]; pb(); paint(); });
+      pb();
+      return b;
+    }
+    function biu(bk, ik, uk) {
+      return h("div", { style: "margin-left:auto;display:flex;gap:3px" }, [
+        mini(bk, '<span style="font-family:\'Inter\',sans-serif;font-weight:800;font-size:.7rem">B</span>', "Bold"),
+        mini(ik, '<span style="font-style:italic;font-family:Georgia,serif;font-size:.8rem;font-weight:600">I</span>', "Italic"),
+        mini(uk, '<span style="font-family:\'Inter\',sans-serif;font-size:.7rem;font-weight:600;text-decoration:underline;text-underline-offset:2px">U</span>', "Underline")
+      ]);
+    }
+    function card(tag, lbl, inputEl, ctlRow, focusEl, extras) {
+      var c = h("div", { style: "border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--bg) 55%,var(--surface));transition:border-color .15s" }, [
+        h("div", { style: "display:flex;align-items:center;gap:7px;padding:9px 11px 0" }, [
+          h("span", { style: "font-family:'Inter',sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.08em;padding:2px 6px;border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)" }, [tag]),
+          h("span", { style: "font-family:'Inter',sans-serif;font-size:.55rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)" }, [lbl]),
+          extras || null
+        ]),
+        h("div", { style: "padding:8px 11px 10px" }, [inputEl]),
+        h("div", { style: "padding:8px 9px 9px;border-top:1px dashed color-mix(in srgb,var(--line) 75%,transparent)" }, [ctlRow])
+      ]);
+      focusable(c, focusEl);
+      return c;
+    }
+    var g4 = "display:grid;grid-template-columns:1.3fr .8fr .9fr 1fr;gap:5px";
+    var WGT = [["", "Auto"], [300, "300"], [400, "400"], [500, "500"], [600, "600"], [700, "700"], [800, "800"]];
+    var wrap = h("div", { style: "display:flex;flex-direction:column;gap:10px" }, [
+      card("H1", "Heading", hIn, h("div", { style: g4 }, [
+        sel("hFont", AK_FONTS),
+        pIn("px", num("hSize", "auto", 1, 6), "Heading size"),
+        sel("hWeight", WGT, true),
+        colorIn("hColor", "Heading color")
+      ]), hIn, biu("hBold", "hI", "hU")),
+      card("H2", "Subheading", hIn2, h("div", { style: g4 }, [
+        sel("h2Font", AK_FONTS),
+        pIn("px", num("h2Size", "auto", 1, 6), "Subheading size"),
+        sel("h2Weight", WGT, true),
+        colorIn("h2Color", "Subheading color")
+      ]), hIn2, biu("h2Bold", "h2I", "h2U")),
+      card("P", "Body text", bIn, h("div", { style: g4 }, [
+        sel("bFont", AK_FONTS),
+        pIn("px", num("bSize", "auto", 1, 6), "Body size"),
+        pIn("LH", num("lh", "1.7", 0.05, 0.8), "Line height"),
+        colorIn("bColor", "Body color")
+      ]), bIn, biu("bBold", "bI", "bU")),
+      h("div", {}, [
+        micro("Align \u00b7 case \u00b7 letter spacing \u00b7 drop shadow"),
+        h("div", { style: "display:flex;gap:6px;align-items:center" }, [
+          alignSeg(),
+          tog("upper", '<span style="font-family:\'Inter\',sans-serif;font-size:.58rem;font-weight:700;letter-spacing:.06em">AA</span>', "Uppercase headings", 38),
+          lsBox,
+          shRange,
+          shBox
+        ])
+      ])
+    ]);
+    paint();
+    setTimeout(bGrow, 50);
+    return { el: wrap, get: function () { return Object.assign({}, ts); } };
+  }
+  function cleanTstyle(t) {
+    if (!t) return null;
+    var o = {};
+    if (t.font) o.font = t.font;
+    if (t.hFont) o.hFont = t.hFont;
+    if (t.h2Font) o.h2Font = t.h2Font;
+    if (t.bFont) o.bFont = t.bFont;
+    if (t.hBold) o.hBold = true;
+    if (t.hI) o.hI = true;
+    if (t.hU) o.hU = true;
+    if (t.h2Bold) o.h2Bold = true;
+    if (t.h2I) o.h2I = true;
+    if (t.h2U) o.h2U = true;
+    if (t.bBold) o.bBold = true;
+    if (t.bI) o.bI = true;
+    if (t.bU) o.bU = true;
+    if (t.align && t.align !== "left") o.align = t.align;
+    if (t.hSize) o.hSize = t.hSize;
+    if (t.hWeight) o.hWeight = t.hWeight;
+    if (t.hColor) o.hColor = t.hColor;
+    if (t.h2Size) o.h2Size = t.h2Size;
+    if (t.h2Weight) o.h2Weight = t.h2Weight;
+    if (t.h2Color) o.h2Color = t.h2Color;
+    if (t.bSize) o.bSize = t.bSize;
+    if (t.bColor) o.bColor = t.bColor;
+    if (t.lh) o.lh = t.lh;
+    if (t.ls) o.ls = t.ls;
+    if (t.italic) o.italic = true;
+    if (t.upper) o.upper = true;
+    return Object.keys(o).length ? o : null;
+  }
+  /* Figma-style tabbed editor for a TEXT block: Text · Fill & Stroke · Shapes.
+     Returns {el,get}; get() merges the typography (from textStylePanel) with the
+     box design (fill/stroke/radius/box-shadow) and any drawn shapes (deco). */
+  function textDesignPanel(b) {
+    b = b || {};
+    var tsp = textStylePanel(b.tstyle || null, b.shadow != null ? b.shadow : 0, b.heading || "", b.body || "", b.heading2 || "");
+    var box = { fill: b.fill || "", strokeColor: b.strokeColor || "", strokeWidth: (b.strokeWidth != null ? b.strokeWidth : 0), radius: (b.radius != null ? b.radius : 16), boxShadow: (b.boxShadow != null ? b.boxShadow : 0) };
+    var deco = (b.deco && b.deco.els) ? JSON.parse(JSON.stringify(b.deco)) : null;
+    var boxS = "display:flex;align-items:center;height:30px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--bg) 60%,var(--surface));overflow:hidden;min-width:0";
+    var rawS = "flex:1;min-width:0;height:100%;border:none;background:none;color:var(--text);font-family:'Inter',sans-serif;font-size:.78rem;padding:0 7px;outline:none";
+    function micro(t) { return h("div", { style: "font-family:'Inter',sans-serif;font-size:.55rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:13px 0 6px" }, [t]); }
+    // live preview of the styled box
+    var prev = h("div", {}, [
+      h("div", { style: "font-family:'Inter',sans-serif;font-weight:700;font-size:1rem;color:var(--text)" }, ["Section heading"]),
+      h("div", { style: "font-family:'Inter',sans-serif;font-size:.8rem;color:var(--muted);margin-top:3px" }, ["A line of body text inside the block."])
+    ]);
+    function paintPrev() {
+      var s = "display:flex;flex-direction:column;justify-content:center;min-height:74px;padding:18px 20px;transition:.15s;";
+      s += "background:" + (box.fill || "transparent") + ";";
+      if (box.strokeWidth && box.strokeColor) s += "border:" + box.strokeWidth + "px solid " + box.strokeColor + ";";
+      s += "border-radius:" + (box.radius || 0) + "px;";
+      var sh = shadowCss(box.boxShadow); if (sh) s += "box-shadow:" + sh + ";";
+      prev.setAttribute("style", s);
+    }
+    var prevStage = h("div", { style: "border:1px dashed color-mix(in srgb,var(--line) 80%,transparent);border-radius:12px;padding:14px;background:color-mix(in srgb,var(--bg) 62%,var(--surface))" }, [prev]);
+    // reusable swatch + hex + native-picker color control
+    function colorControl(getV, setV, swatches, onSet) {
+      var sw = h("input", { type: "color", value: /^#[0-9a-f]{6}$/i.test(getV()) ? getV() : "#e5783a", style: "flex:none;width:22px;height:22px;margin:0 5px;padding:0;border:none;border-radius:6px;background:none;cursor:pointer" });
+      var tx = h("input", { type: "text", placeholder: "none", value: getV() || "" }); tx.style.cssText = rawS;
+      var chips = h("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px" });
+      function refresh() { Array.prototype.forEach.call(chips.children, function (c) { c.style.outline = (c.getAttribute("data-v") === (getV() || "")) ? "2px solid var(--accent)" : "none"; }); }
+      function commit(v) { setV(v); if (onSet) onSet(v); refresh(); paintPrev(); }
+      (swatches || []).forEach(function (s) {
+        var val = s[0], css = val || "transparent";
+        var c = h("button", { type: "button", title: s[1] || "", "data-v": val, style: "width:27px;height:27px;border-radius:7px;cursor:pointer;border:1px solid var(--line);outline-offset:2px;background:" + (val ? css : "repeating-conic-gradient(#c9c8c6 0 25%,#fff 0 50%) 50%/9px 9px") });
+        c.addEventListener("click", function () { tx.value = val; if (/^#[0-9a-f]{6}$/i.test(val)) sw.value = val; commit(val); });
+        chips.appendChild(c);
+      });
+      sw.addEventListener("input", function () { tx.value = sw.value; commit(sw.value); });
+      tx.addEventListener("input", function () { var v = tx.value.trim(); if (/^#[0-9a-f]{6}$/i.test(v)) sw.value = v; commit(v); });
+      refresh();
+      return h("div", {}, [chips, h("div", { style: boxS }, [sw, tx])]);
+    }
+    function rangeRow(label, get, set, min, max, step, unit) {
+      var val = h("span", { style: "font-family:'Inter',sans-serif;font-weight:600;font-size:.78rem;color:var(--text)" }, [get() + (unit || "px")]);
+      var r = h("input", { type: "range", min: min, max: max, step: step || 1, value: get(), style: "width:100%;accent-color:var(--accent);cursor:pointer" });
+      r.addEventListener("input", function () { set(parseFloat(r.value)); val.textContent = r.value + (unit || "px"); paintPrev(); });
+      return h("div", {}, [h("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:5px" }, [h("label", { style: "font-family:'Inter',sans-serif;font-size:.72rem;color:var(--muted)" }, [label]), val]), r]);
+    }
+    var FILL_SW = [["", "No fill"], ["var(--surface)", "Surface"], ["color-mix(in srgb,var(--accent) 14%,var(--surface))", "Accent tint"], ["var(--accent)", "Accent"], ["#141209", "Dark"], ["#ffffff", "White"]];
+    var STROKE_SW = [["", "No stroke"], ["var(--line)", "Line"], ["var(--accent)", "Accent"], ["var(--text)", "Text"], ["#ffffff", "White"]];
+    var swLbl = h("span", { style: "font-family:'Inter',sans-serif;font-weight:600;font-size:.78rem;color:var(--text)" }, [box.strokeWidth + "px"]);
+    var swRange = h("input", { type: "range", min: 0, max: 12, step: 1, value: box.strokeWidth, style: "width:100%;accent-color:var(--accent);cursor:pointer" });
+    swRange.addEventListener("input", function () { box.strokeWidth = parseFloat(swRange.value); swLbl.textContent = swRange.value + "px"; paintPrev(); });
+    var swWrap = h("div", { style: "margin-top:9px" }, [h("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:5px" }, [h("label", { style: "font-family:'Inter',sans-serif;font-size:.72rem;color:var(--muted)" }, ["Stroke width"]), swLbl]), swRange]);
+    function setSW(n) { box.strokeWidth = n; swRange.value = n; swLbl.textContent = n + "px"; }
+    var fillPane = h("div", { style: "display:flex;flex-direction:column" }, [
+      prevStage,
+      micro("Fill"),
+      colorControl(function () { return box.fill; }, function (v) { box.fill = v; }, FILL_SW),
+      micro("Stroke"),
+      colorControl(function () { return box.strokeColor; }, function (v) { box.strokeColor = v; }, STROKE_SW, function (v) { if (v && !box.strokeWidth) setSW(2); else if (!v) setSW(0); }),
+      swWrap,
+      micro("Corner radius"),
+      rangeRow("Radius", function () { return box.radius; }, function (v) { box.radius = v; }, 0, 40, 1),
+      micro("Box shadow"),
+      rangeRow("Shadow", function () { return box.boxShadow; }, function (v) { box.boxShadow = v; }, 0, 100, 5, "%")
+    ]);
+    // Shapes pane -> launches Layout Studio (shapes, lines, arrows, fills & strokes)
+    var shapeStat = h("div", { style: "font-family:'Inter',sans-serif;font-size:.8rem;color:var(--muted)" }, []);
+    function paintShapeStat() { shapeStat.textContent = (deco && deco.els && deco.els.length) ? (deco.els.length + " shape" + (deco.els.length > 1 ? "s" : "") + " on this block — reopen to edit.") : "No shapes yet."; }
+    paintShapeStat();
+    var openShapes = h("button", { type: "button", class: "ak-btn", html: I.shapes + "<span>Open shape &amp; line editor</span>", style: "align-self:flex-start" });
+    openShapes.addEventListener("click", function () {
+      ensureStudio().then(function () {
+        window.AKLayout.openEditor({
+          design: (deco && deco.els) ? JSON.parse(JSON.stringify(deco)) : { h: 480, bg: "transparent", els: [] },
+          onSave: function (d) { deco = (d && d.els && d.els.length) ? d : null; paintShapeStat(); },
+          themes: DATA.canvasThemes || [],
+          onThemesChange: function (l) { DATA.canvasThemes = l; save(); }
+        });
+      }).catch(function () { alert("Couldn't load the shape editor (layout-studio.js missing next to this page)."); });
+    });
+    var clearShapes = h("button", { type: "button", class: "ak-btn ghost", html: "Clear shapes", style: "align-self:flex-start" });
+    clearShapes.addEventListener("click", function () { deco = null; paintShapeStat(); });
+    var shapesPane = h("div", { style: "display:flex;flex-direction:column;gap:12px" }, [
+      h("div", { style: "font-family:'Inter',sans-serif;font-size:.82rem;color:var(--muted);line-height:1.65" }, ["Draw rectangles, ellipses, lines, arrows and color fills on top of this block — with full fill & stroke control, like a design tool."]),
+      openShapes, shapeStat, clearShapes
+    ]);
+    // tab shell
+    var host = h("div", { style: "margin-top:13px" });
+    var panes = { text: tsp.el, fill: fillPane, shapes: shapesPane };
+    var tabBtns = {};
+    var bar = h("div", { style: "display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:11px;background:color-mix(in srgb,var(--bg) 60%,var(--surface))" });
+    function show(name) {
+      host.innerHTML = ""; host.appendChild(panes[name]);
+      Object.keys(tabBtns).forEach(function (k) { var on = k === name, t = tabBtns[k]; t.style.background = on ? "linear-gradient(135deg,var(--accent),var(--accent-2))" : "none"; t.style.color = on ? "#fff" : "var(--muted)"; });
+      if (name === "fill") paintPrev();
+    }
+    [["text", "Text"], ["fill", "Fill & Stroke"], ["shapes", "Shapes"]].forEach(function (d) {
+      var t = h("button", { type: "button", style: "font-family:'Inter',sans-serif;font-weight:600;font-size:.8rem;border:none;border-radius:8px;padding:7px 15px;cursor:pointer;transition:.2s;color:var(--muted);background:none" }, [d[1]]);
+      t.addEventListener("click", function () { show(d[0]); });
+      tabBtns[d[0]] = t; bar.appendChild(t);
+    });
+    paintPrev();
+    var wrap = h("div", {}, [bar, host]);
+    show("text");
+    return { el: wrap, get: function () { return Object.assign({}, tsp.get(), { fill: box.fill, strokeColor: box.strokeColor, strokeWidth: box.strokeWidth, radius: box.radius, boxShadow: box.boxShadow, deco: deco }); } };
+  }
+  /* box CSS (fill/stroke/radius/box-shadow) for a styled TEXT block; isSection keeps the card look */
+  function textBoxCss(b, isSection) {
+    var hasStroke = !!(b.strokeWidth && b.strokeColor);
+    var hasBox = !!(b.fill || hasStroke || isSection);
+    var s = "";
+    if (b.fill) s += "background:" + b.fill + ";";
+    if (hasStroke) s += "border:" + b.strokeWidth + "px solid " + b.strokeColor + ";";
+    if (hasBox && b.radius != null) s += "border-radius:" + b.radius + "px;";
+    var sh = shadowCss(b.boxShadow); if (hasBox && sh) s += "box-shadow:" + sh + ";";
+    if (!isSection && (b.fill || hasStroke)) s += "padding:20px 22px;box-sizing:border-box;";
+    return s;
+  }
+  /* drop-shadow CSS from a 0–100 intensity — shared by block render + editor previews */
+  function shadowCss(v) {
+    v = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+    if (!v) return "";
+    var t = v / 100;
+    return "0 " + Math.round(6 + 26 * t) + "px " + Math.round(16 + 46 * t) + "px " + Math.round(-6 - 10 * t) + "px rgba(0,0,0," + (0.2 + 0.42 * t).toFixed(2) + "),0 " + Math.round(2 + 6 * t) + "px " + Math.round(8 + 14 * t) + "px rgba(0,0,0," + (0.12 + 0.24 * t).toFixed(2) + ")";
+  }
+  function textShadowCss(v) {
+    v = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+    if (!v) return "";
+    var t = v / 100;
+    return "0 " + Math.round(1 + 5 * t) + "px " + Math.round(3 + 17 * t) + "px rgba(0,0,0," + (0.22 + 0.4 * t).toFixed(2) + ")";
+  }
+  /* tasteful stand-in when a media file 404s, so a missing asset never shows a broken element */
+  function mediaMissing(icon, label, rad) {
+    return h("div", { class: "ak-missing", style: rad || "" }, [
+      h("div", { class: "ak-missing-ic", html: icon || I.img }),
+      h("p", {}, [label || "Media unavailable"]),
+      h("small", {}, ["File not found"])
+    ]);
+  }
+  var I_REPLACE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14l-3.5-3.5M21 16H7l3.5 3.5"/></svg>';
+  var I_BRESIZE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 21H3v-7M21 10V3h-7M3 21l7-7M21 3l-7 7"/></svg>';
+  /* ---- one-click Replace: swap the file behind an image/video/PDF/3D block ---- */
+  function replaceBlockFile(item, b, rerender) {
+    var accept = { image: "image/*", pdf: "application/pdf", media: "video/*,audio/*", model: ".glb,.gltf,.obj,.fbx,model/gltf-binary,model/gltf+json" }[b.type] || "";
+    var i = h("input", { type: "file", accept: accept, style: "display:none" });
+    i.addEventListener("change", function () {
+      var f = i.files[0]; if (!f) return;
+      var r = new FileReader();
+      r.onload = function () {
+        b.src = r.result;
+        if (b.type === "media") b.mime = (String(r.result).match(/^data:(.*?);/) || [])[1] || "";
+        if (b.type === "model") b.format = modelFormat(f.name);
+        delete b.pos; // reset framing for the new file
+        save().then(keepScroll(rerender || renderDetail));
+      };
+      r.readAsDataURL(f);
+    });
+    document.body.appendChild(i); i.click();
+    setTimeout(function () { i.remove(); }, 120000);
+  }
+  /* ---- Decorate a block: Layout Studio overlay (transparent) saved on b.deco ---- */
+  function openBlockStudio(item, b, rerender) {
+    ensureStudio().then(function () {
+      window.AKLayout.openEditor({
+        design: (b.deco && b.deco.els) ? JSON.parse(JSON.stringify(b.deco)) : { h: 700, bg: "transparent", els: [] },
+        onSave: function (design) {
+          if (design && design.els && design.els.length) b.deco = design; else delete b.deco;
+          save().then(keepScroll(rerender || renderDetail));
+        },
+        themes: DATA.canvasThemes || [],
+        onThemesChange: function (list) { DATA.canvasThemes = list; save(); }
+      });
+    }).catch(function () { alert("Couldn't load Layout Studio (layout-studio.js missing next to this page)."); });
+  }
+  /* ---- free drag-to-resize a content block: sets column span + height ---- */
+  function wireBlockResize(block, item, b, handle, rerender) {
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button != null && e.button > 0) return;
+      e.preventDefault(); e.stopPropagation();
+      var gridEl = block.parentNode; if (!gridEl) return;
+      var cs = getComputedStyle(gridEl);
+      var cols = cs.gridTemplateColumns.split(" ").map(parseFloat).filter(function (n) { return !isNaN(n); });
+      var nCols = cols.length || 6, colW = cols[0] || 100;
+      var colGap = parseFloat(cs.columnGap || cs.gap) || 18;
+      var r = block.getBoundingClientRect(), left = r.left, top = r.top, pending = null;
+      block.classList.add("ak-block-resizing"); block.setAttribute("draggable", "false");
+      try { handle.setPointerCapture(e.pointerId); } catch (er) {}
+      function move(ev) {
+        var w = ev.clientX - left, hgt = ev.clientY - top;
+        var c = Math.max(1, Math.min(nCols, Math.round((w + colGap) / (colW + colGap))));
+        var hh = Math.max(120, Math.round(hgt));
+        block.style.gridColumn = "span " + c;
+        block.setAttribute("data-bento", "1"); block.style.setProperty("--bh", hh + "px");
+        pending = { c: c, h: hh };
+      }
+      function up() {
+        handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", up);
+        block.classList.remove("ak-block-resizing"); block.setAttribute("draggable", "true");
+        if (pending) { b.span = pending.c; b.customH = pending.h; delete b.size; save().then(keepScroll(rerender || renderDetail)); }
+      }
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+    });
+  }
   function renderBlock(item, b, idx, admin, rerender) {
     rerender = rerender || renderDetail;
+    var sh = shadowCss(b.shadow);
+    var rad = "border-radius:" + (b.radius != null ? b.radius : 15) + "px" + (sh ? ";box-shadow:" + sh : "");
     var inner;
     if (b.type === "image") {
-      inner = h("div", {}, [h("div", { class: "ak-wide" }, [h("img", { class: "media", src: dataURLtoBlobURL(b.src), alt: b.caption || "" })]), b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
+      var imgHold = h("div", { class: "ak-wide ak-imghold", style: rad });
+      var buildImg = function () {
+        var im = h("img", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), alt: b.caption || "", decoding: "async" });
+        im.addEventListener("load", function () { imgHold.classList.add("loaded"); });
+        im.addEventListener("error", function () { imgHold.classList.add("loaded"); imgHold.innerHTML = ""; imgHold.appendChild(mediaMissing(I.img, "Image unavailable", rad)); });
+        imgHold.appendChild(im);
+      };
+      if (idx === 0) buildImg(); else lazyMount(imgHold, buildImg, 600); // first image eager (instant top), rest deferred
+      inner = h("div", {}, [imgHold, b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else if (b.type === "pdf") {
-      inner = h("div", {}, [h("div", { class: "ak-pdf" }, [h("iframe", { src: dataURLtoBlobURL(b.src) + "#toolbar=1", title: b.caption || "PDF" })]), b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
+      var pdfHold = h("div", { class: "ak-pdf", style: rad });
+      lazyMount(pdfHold, function () { pdfHold.appendChild(h("iframe", { src: dataURLtoBlobURL(b.src) + "#toolbar=1", title: b.caption || "PDF" })); });
+      inner = h("div", {}, [pdfHold, b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else if (b.type === "prototype") {
       var protoInfo = h("div", { class: "ak-proto-info" }, [
         h("span", { class: "eyebrow" }, ["Live Prototype"]),
@@ -1379,25 +2588,79 @@
           h("span", { class: "chip" }, ["Best viewed on desktop"])
         ])
       ]);
-      inner = h("div", {}, [protoInfo, h("div", { class: "ak-wide" }, [h("iframe", { class: "media", src: b.src, allowfullscreen: "", loading: "lazy" })])]);
+      inner = h("div", {}, [protoInfo, h("div", { class: "ak-wide" }, [h("iframe", { class: "media", style: rad, src: b.src, allowfullscreen: "", loading: "lazy" })])]);
     } else if (b.type === "media") {
       var isAudio = (b.mime || "").indexOf("audio") === 0;
-      var mEl = isAudio ? h("audio", { class: "media", src: dataURLtoBlobURL(b.src), controls: "" }) : h("video", { class: "media", src: dataURLtoBlobURL(b.src), controls: "", playsinline: "" });
+      var mEl = isAudio ? h("audio", { class: "media", src: dataURLtoBlobURL(b.src), controls: "", preload: "metadata" }) : h("video", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), controls: "", playsinline: "", preload: "metadata" });
+      mEl.addEventListener("error", function () { var ph = mediaMissing(I.media, isAudio ? "Audio unavailable" : "Video unavailable", rad); if (mEl.parentNode) mEl.parentNode.replaceChild(ph, mEl); });
       inner = h("div", {}, [isAudio ? mEl : h("div", { class: "ak-wide" }, [mEl]), b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else if (b.type === "model") {
-      var holder = h("div", { class: "ak-3d" });
-      mount3D(holder, b);
+      var holder = h("div", { class: "ak-3d", style: rad });
+      lazyMount(holder, function () { mount3D(holder, b); });
       inner = h("div", {}, [h("div", { class: "ak-wide" }, [holder]), b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else if (b.type === "text") {
-      inner = h("div", { class: "ak-text" }, [b.heading ? h("h2", {}, [b.heading]) : null, b.body ? h("p", {}, [b.body]) : null]);
+      var tsh = textShadowCss(b.shadow);
+      var ts = b.tstyle || {};
+      var wrapS = (tsh ? "text-shadow:" + tsh + ";" : "") + (ts.align && ts.align !== "left" ? "text-align:" + ts.align + ";" : "");
+      var hS = "", pS = "", h2S = "";
+      var hF = ts.hFont || ts.font, h2F = ts.h2Font || ts.font, bF = ts.bFont || ts.font;
+      if (hF) hS += "font-family:" + hF + ";";
+      if (h2F) h2S += "font-family:" + h2F + ";";
+      if (bF) pS += "font-family:" + bF + ";";
+      if (ts.hSize) hS += "font-size:" + ts.hSize + "px;";
+      if (ts.hWeight) hS += "font-weight:" + ts.hWeight + ";"; else if (ts.hBold) hS += "font-weight:800;";
+      if (ts.hColor) hS += "color:" + ts.hColor + ";";
+      if (ts.h2Size) h2S += "font-size:" + ts.h2Size + "px;";
+      if (ts.h2Weight) h2S += "font-weight:" + ts.h2Weight + ";"; else if (ts.h2Bold) h2S += "font-weight:800;";
+      if (ts.h2Color) h2S += "color:" + ts.h2Color + ";";
+      if (ts.bSize) pS += "font-size:" + ts.bSize + "px;";
+      if (ts.bColor) pS += "color:" + ts.bColor + ";";
+      if (ts.bBold) pS += "font-weight:700;";
+      if (ts.lh) pS += "line-height:" + ts.lh + ";";
+      if (ts.ls) { hS += "letter-spacing:" + ts.ls + "px;"; pS += "letter-spacing:" + ts.ls + "px;"; h2S += "letter-spacing:" + ts.ls + "px;"; }
+      if (ts.italic || ts.hI) hS += "font-style:italic;";
+      if (ts.italic || ts.h2I) h2S += "font-style:italic;";
+      if (ts.italic || ts.bI) pS += "font-style:italic;";
+      if (ts.hU) hS += "text-decoration:underline;text-underline-offset:4px;";
+      if (ts.h2U) h2S += "text-decoration:underline;text-underline-offset:3px;";
+      if (ts.bU) pS += "text-decoration:underline;text-underline-offset:3px;";
+      if (ts.upper) { hS += "text-transform:uppercase;"; h2S += "text-transform:uppercase;"; }
+      if (ts.align === "center") pS += "margin-left:auto;margin-right:auto;";
+      else if (ts.align === "right") pS += "margin-left:auto;";
+      var textInner = h("div", { class: "ak-text", style: wrapS }, [b.heading ? h("h2", { style: hS }, [b.heading]) : null, b.heading2 ? h("h3", { style: h2S }, [b.heading2]) : null, b.body ? h("p", { style: pS }, [b.body]) : null]);
+      if (b.section) {
+        var _sn = 0; for (var _j = 0; _j <= idx; _j++) { var _bb = item.blocks[_j]; if (_bb && _bb.type === "text" && _bb.section) _sn++; }
+        var _num = ("0" + _sn).slice(-2);
+        inner = h("div", { class: "ak-sec" }, [
+          h("div", { class: "ak-sec-top", style: "display:flex;align-items:center;gap:14px;margin-bottom:14px" }, [
+            h("span", { class: "ak-sec-num", style: "font-family:'Inter',sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.18em;color:var(--accent);flex:none" }, [_num]),
+            h("span", { style: "flex:1;height:1px;background:var(--line)" })
+          ]),
+          textInner
+        ]);
+      } else {
+        inner = textInner;
+      }
+      var _tbc = textBoxCss(b, !!b.section);
+      if (_tbc) { var _tbHost = b.section ? inner : textInner; _tbHost.setAttribute("style", (_tbHost.getAttribute("style") || "") + _tbc); }
+    } else if (b.type === "canvas") {
+      var cvh = h("div", { class: "ak-canvas" });
+      ensureStudio().then(function () { window.AKLayout.render(cvh, b.design || { h: 600, els: [] }); });
+      inner = h("div", {}, [h("div", { class: "ak-wide" }, [cvh]), b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else inner = h("div", {}, ["Unknown block"]);
 
-    var block = h("div", { class: "ak-block" + (admin ? " admin" : "") }, []);
+    var block = h("div", { class: "ak-block" + (admin ? " admin" : ""), "data-bid": b.id || "" }, []);
+    block.style.gridColumn = (b.section && b.span == null && b.size == null) ? "1 / -1" : ("span " + (b.span || sizeSpan(b.size)));
+    var _bh = b.customH || (b.section ? 0 : sizeH(b.size));
+    if (_bh) { block.setAttribute("data-bento", "1"); block.style.setProperty("--bh", _bh + "px"); }
     if (admin) {
       var toolbar = h("div", { class: "ak-btoolbar" }, [
         h("div", { class: "grab", html: I.dots + "<span>" + esc(typeLabel(b.type)) + "</span>" }),
         h("button", { class: "ak-tb", title: "Move up", html: I.up, onclick: function () { moveBlock(item, idx, -1, rerender); }, disabled: idx === 0 ? "" : null }),
         h("button", { class: "ak-tb", title: "Move down", html: I.down, onclick: function () { moveBlock(item, idx, 1, rerender); }, disabled: idx === item.blocks.length - 1 ? "" : null }),
+        h("button", { class: "ak-tb ak-tb-w", "data-ak-size-btn": "1", title: "Card size", html: '<span>' + SIZE_DEF[sizeKey(b.size)].short + '</span>', onclick: function (e) { e.stopPropagation(); openBlockSizePop(item, b, e.currentTarget, rerender); } }),
+        (["image", "media", "pdf", "prototype", "model"].indexOf(b.type) >= 0) ? h("button", { class: "ak-tb", title: "Move / scale \u2014 drag to reposition, slider to zoom", html: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>', onclick: function (e) { e.stopPropagation(); enterAdjust(block, b, rerender); } }) : null,
+        (["image", "media", "pdf", "model"].indexOf(b.type) >= 0) ? h("button", { class: "ak-tb", title: "Replace file", "aria-label": "Replace file", html: I_REPLACE, onclick: function (e) { e.stopPropagation(); replaceBlockFile(item, b, rerender); } }) : null,
         h("button", { class: "ak-tb", title: "Edit", html: I.edit, onclick: function () { editBlock(item, b, undefined, rerender); } }),
         h("button", { class: "ak-tb warn", title: "Delete", html: I.trash, onclick: function () { deleteBlock(item, b, rerender); } })
       ]);
@@ -1414,9 +2677,24 @@
       });
     }
     block.appendChild(inner);
+    if (b.pos) applyMediaPos(inner, b);
+    if (b.deco && b.deco.els && b.deco.els.length) {
+      var _dhost = inner.querySelector(".ak-wide") || ((inner.classList && (inner.classList.contains("ak-sec") || inner.classList.contains("ak-text"))) ? inner : null) || inner.firstElementChild;
+      if (_dhost) {
+        if (getComputedStyle(_dhost).position === "static") _dhost.style.position = "relative";
+        var _deco = h("div", { class: "ak-block-deco", "aria-hidden": "true" });
+        _dhost.appendChild(_deco);
+        ensureStudio().then(function () { if (window.AKLayout && window.AKLayout.renderCover) window.AKLayout.renderCover(_deco, b.deco); });
+      }
+    }
+    if (admin) {
+      var _rez = h("button", { class: "ak-block-resize", title: "Drag to resize / scale this box", "aria-label": "Resize box", html: I_BRESIZE, onclick: function (e) { e.stopPropagation(); e.preventDefault(); } });
+      block.appendChild(_rez);
+      wireBlockResize(block, item, b, _rez, rerender);
+    }
     return block;
   }
-  function typeLabel(t) { return ({ image: "Image", pdf: "PDF", prototype: "Prototype", media: "Video / Audio", model: "3D model", text: "Text" })[t] || t; }
+  function typeLabel(t) { return ({ image: "Image", pdf: "PDF", prototype: "Prototype", media: "Video / Audio", model: "3D model", text: "Text", canvas: "Layout canvas" })[t] || t; }
 
   // Wrap a rerender so the page scroll position is preserved across the
   // full DOM rebuild (move/reorder/delete blocks should NOT jump to top).
@@ -1462,6 +2740,128 @@
   }
   function addBlock(type) { var c = currentCtx(); if (!c) return; editBlock(c.obj, null, type, c.rerender); }
 
+  /* ---------- Layout Studio (freeform themed canvas — layout-studio.js) ---------- */
+  /* Studio script is cache-busted per page-load so a redeploy is always picked up fresh. */
+  var STUDIO_V = (window.AK_BUILD || Date.now());
+  function ensureStudio() { return Promise.all([loadScript("layout-studio.js?v=" + STUDIO_V), loadScript("studio-templates.js?v=" + STUDIO_V)]); }
+
+  /* ---------- Whole-project Layout Studio (category-aware, ADDITIVE) ----------
+     A project opened here becomes a freeform canvas: every image / video /
+     prototype / 3D model is a movable, resizable card. Saving writes item.studio;
+     renderDetail then renders that canvas instead of the classic block stack.
+     Nothing is destroyed — item.blocks stays intact, and a project with no
+     item.studio renders exactly as before (safe fallback).
+     ROLLOUT: only pages in STUDIO_PAGES expose the entry points. All three
+     categories are now live. Per-category look lives in studio-templates.js. */
+  var STUDIO_PAGES = ["ui-ux", "gen-ai", "3d"];
+  function studioEnabled() { return STUDIO_PAGES.indexOf(CFG.page) >= 0; }
+  function itemInfo(it) {
+    var m = it.meta || {};
+    return { title: it.title || "", tag: it.tag || "", desc: it.desc || "", role: m.role || "", timeline: m.timeline || "", platform: m.platform || "", focus: m.focus || "", software: m.software || "" };
+  }
+  function applyItemInfo(it, info) {
+    it.title = info.title; it.tag = info.tag; it.desc = info.desc;
+    it.meta = { role: info.role, timeline: info.timeline, platform: info.platform, focus: info.focus, software: info.software };
+  }
+  function openProjectStudio(it) {
+    if (!it) return;
+    ensureStudio().then(function () {      var T = window.AKStudioTemplates, cat = T.forPage(CFG.page);
+      function launch(design) {
+        window.AKLayout.openEditor({
+          design: design,
+          title: it.title || ("Untitled " + CFG.noun),
+          badge: cat.label,
+          accent: cat.accent,
+          accent2: cat.accent2,
+          saveLabel: "Save project",
+          templateKey: CFG.page,
+          templateList: ["ui-ux", "gen-ai", "3d"].sort(function (a, b) { return (a === CFG.page ? -1 : 0) - (b === CFG.page ? -1 : 0); }).map(function (key) { var c = T.forPage(key); return { key: key, label: c.label, accent: c.accent, accent2: c.accent2, design: T.blankTemplate(key, TEMPLATES[key]) }; }),
+          info: itemInfo(it),
+          onInfo: function (info) { applyItemInfo(it, info); save().then(function () { renderTiles(); if (openItemId) renderDetail(); }); },
+          onSave: function (design) { it.studio = design; save().then(keepScroll(renderDetail)); },
+          themes: DATA.canvasThemes || [],
+          onThemesChange: function (list) { DATA.canvasThemes = list; save(); }
+        });
+      }
+      if (it.studio && it.studio.els && it.studio.els.length) {
+        syncStudioBlocks(it).then(function () { launch(JSON.parse(JSON.stringify(it.studio))); });
+      }
+      else Promise.resolve(T.buildFromItem(it, CFG.page, TEMPLATES[CFG.page])).then(launch);
+    }).catch(function () { alert("Couldn't load Layout Studio (layout-studio.js / studio-templates.js missing next to this page)."); });
+  }
+  function newProjectStudio() { editItem(null, "project"); }
+
+  /* ---------- keeping "Add content" / "Template" alive inside a Studio project ----------
+     A project with a saved it.studio renders the canvas INSTEAD of the block stack,
+     so anything added afterwards through "Add content" or the section "Template"
+     button used to save silently and never show up (and the same content was also
+     missing next time the Studio opened). Every block that has no card on the canvas
+     yet is appended to the bottom of the design, once. */
+  var studioSyncTried = Object.create(null);
+  function studioHasBlock(it, b) {
+    return ((it.studio && it.studio.els) || []).some(function (e) {
+      if (!e) return false;
+      if (e.sb && e.sb === b.id) return true;
+      var c = e.content; if (!c) return false;
+      if (b.src && c.src && c.src === b.src) return true;                       // pre-.sb layouts
+      if (b.type === "text" && c.type === "text") {
+        var t = (b.section ? (b.heading || b.body) : (b.text || b.body || b.heading || b.caption)) || "";
+        return !!t && c.text === t;
+      }
+      return false;
+    });
+  }
+  function pendingStudioBlocks(it) {
+    if (!(it && it.studio && it.studio.els && it.studio.els.length)) return [];
+    return (it.blocks || []).filter(function (b) {
+      return b && b.type && b.type !== "canvas" && !studioSyncTried[b.id] && !studioHasBlock(it, b);
+    });
+  }
+  function syncStudioBlocks(it) {
+    var pend = pendingStudioBlocks(it);
+    if (!pend.length) return Promise.resolve(false);
+    pend.forEach(function (b) { studioSyncTried[b.id] = 1; });   // never retry-loop on a failed measure
+    return ensureStudio()
+      .then(function () { return window.AKStudioTemplates.appendBlocks(it.studio, pend, CFG.page); })
+      .then(function () { return save(); })
+      .then(function () { return true; })
+      .catch(function () { return false; });
+  }
+  /* Recover from an unwanted freeform layout: drop item.studio so renderDetail
+     falls back to the classic stacked project. Media + details are untouched;
+     reopening the Studio rebuilds a fresh full-width layout from the media. */
+  function resetProjectStudio(it) {
+    if (!it) return;
+    confirmModal("Reset Studio layout?", "This clears the saved freeform layout for \u201c" + (it.title || CFG.noun) + "\u201d and restores the original stacked project. Your media and details are kept.", true)
+      .then(function (ok) {
+        if (!ok) return;
+        var prev = it.studio; delete it.studio;
+        closeMenu();
+        save().then(function () { if (openItemId) renderDetail(); else renderTiles(); });
+        showUndoToast("Studio layout reset", function () { it.studio = prev; save().then(function () { if (openItemId) renderDetail(); else renderTiles(); }); });
+      });
+  }
+  function openStudio(item, b, rerender) {
+    rerender = rerender || renderDetail;
+    ensureStudio().then(function () {
+      var cat = window.AKStudioTemplates.forPage(CFG.page); // theme chrome + bento hover to this category's accent
+      window.AKLayout.openEditor({
+        accent: cat.accent,
+        accent2: cat.accent2,
+        // new canvases start from the saved theme layout, so every project matches
+        design: b ? b.design : (DATA.themeLayout ? JSON.parse(JSON.stringify(DATA.themeLayout)) : null),
+        onSave: function (design) {
+          if (b) { b.design = design; }
+          else { b = { id: uid(), type: "canvas", design: design }; item.blocks.push(b); }
+          save().then(keepScroll(rerender));
+        },
+        onSaveTheme: function (design) { DATA.themeLayout = design; save(); },
+        themes: DATA.canvasThemes || [],
+        onThemesChange: function (list) { DATA.canvasThemes = list; save(); }
+      });
+    }).catch(function () { alert("Couldn't load Layout Studio (layout-studio.js missing next to this page)."); });
+  }
+
   /* ============================================================ APPEARANCE: spacing + background */
   function spacingTargets() {
     if (openCaseKey) return Array.prototype.slice.call(document.querySelectorAll('.panel[data-panel="' + openCaseKey + '"] .ak-case-blocks'));
@@ -1481,7 +2881,7 @@
     function close() { ov.remove(); document.removeEventListener("keydown", onKey); }
     function revert() { targets.forEach(function (t) { t.style.gap = orig + "px"; }); }
     function onKey(e) { if (e.key === "Escape") { revert(); close(); } }
-    var valLabel = h("span", { style: "font-family:'Space Grotesk',sans-serif;font-weight:600;color:var(--text)" }, [orig + "px"]);
+    var valLabel = h("span", { style: "font-family:'Inter',sans-serif;font-weight:600;color:var(--text)" }, [orig + "px"]);
     var range = h("input", { type: "range", min: "0", max: "100", step: "2", value: orig, style: "width:100%;accent-color:var(--accent);cursor:pointer" });
     range.addEventListener("input", function () { valLabel.textContent = range.value + "px"; targets.forEach(function (t) { t.style.gap = range.value + "px"; }); });
     var where = openCaseKey ? "case study" : CFG.noun;
@@ -1618,56 +3018,133 @@
     document.addEventListener("keydown", onKey);
     document.body.appendChild(ov);
   }
+  /* ---- project-home background: big text watermark and/or looping video behind the hero ---- */
+  function editHomeBg() {
+    var c = currentCtx(); if (!c || !openItemId) return;
+    var it = c.obj, hb = it.homeBg || {};
+    /* drag-to-position preview: mirrors the hero's translate(x%,y%) scale() transform */
+    var pos = { x: hb.x || 0, y: hb.y || 0, scale: hb.scale != null ? hb.scale : 100 };
+    var pvMedia = null;
+    var pvBox = h("div", { style: "position:relative;height:120px;border-radius:10px;overflow:hidden;background:var(--bg);border:1px dashed var(--line);cursor:grab;touch-action:none" });
+    var pvHint = h("div", { style: "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.78rem;color:var(--muted);pointer-events:none;text-align:center;padding:0 14px" }, ["Add an image or video, then drag here to position it"]);
+    pvBox.appendChild(pvHint);
+    function pvTransform() { if (pvMedia) pvMedia.style.transform = "translate(" + pos.x + "%," + pos.y + "%) scale(" + pos.scale / 100 + ")"; }
+    function pvSet(src, isVideo) {
+      if (pvMedia) { pvMedia.remove(); pvMedia = null; }
+      if (!src) { pvHint.style.display = "flex"; return; }
+      pvHint.style.display = "none";
+      pvMedia = h(isVideo ? "video" : "img", { style: "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;opacity:.85", src: src.slice(0, 5) === "data:" ? dataURLtoBlobURL(src) : src });
+      if (isVideo) { pvMedia.muted = true; pvMedia.loop = true; pvMedia.autoplay = true; pvMedia.playsInline = true; try { var p = pvMedia.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+      pvBox.insertBefore(pvMedia, pvHint); pvTransform();
+    }
+    var drag = null;
+    pvBox.addEventListener("pointerdown", function (e) {
+      if (!pvMedia) return;
+      drag = { sx: e.clientX, sy: e.clientY, x: pos.x, y: pos.y };
+      pvBox.setPointerCapture(e.pointerId); pvBox.style.cursor = "grabbing"; e.preventDefault();
+    });
+    pvBox.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var r = pvBox.getBoundingClientRect();
+      pos.x = Math.max(-100, Math.min(100, Math.round(drag.x + (e.clientX - drag.sx) / r.width * 100)));
+      pos.y = Math.max(-100, Math.min(100, Math.round(drag.y + (e.clientY - drag.sy) / r.height * 100)));
+      pvTransform();
+    });
+    function endDrag() { drag = null; pvBox.style.cursor = "grab"; }
+    pvBox.addEventListener("pointerup", endDrag); pvBox.addEventListener("pointercancel", endDrag);
+    var resetBtn = h("button", { type: "button", class: "ak-btn ghost", style: "position:absolute;right:6px;bottom:6px;padding:3px 10px;font-size:.68rem", onclick: function () { pos.x = 0; pos.y = 0; pvTransform(); } }, ["Reset"]);
+    pvBox.appendChild(resetBtn);
+    setTimeout(function () { if (hb.video) pvSet(hb.video, true); else if (hb.image) pvSet(hb.image, false); }, 0);
+    modal({
+      compact: true,
+      title: "Home background",
+      sub: "Text watermark, image or looping video behind the title — video layers on top of image. Clear all to reset.",
+      fields: [
+        { key: "text", label: "Watermark text", value: hb.text || "", placeholder: "e.g. FINTRACK — short words work best" },
+        { key: "image", label: "Image", type: "file", accept: "image/*", removable: true, value: hb.image || "", placeholder: "Choose image (PNG / JPG / WEBP)", onChange: function (d) { pvSet(d, false); } },
+        { key: "video", label: "Video · muted loop", type: "file", accept: "video/*", removable: true, value: hb.video || "", placeholder: "Choose video (MP4 / WEBM)", onChange: function (d) { pvSet(d, true); } },
+        { key: "pos", label: "Position · drag to move", type: "custom", el: pvBox, get: function () { return { x: pos.x, y: pos.y }; } },
+        { key: "opacity", label: "Opacity · default 22%", type: "range", min: 0, max: 100, step: 1, unit: "%", value: hb.opacity != null ? hb.opacity : 22 },
+        { key: "scale", label: "Zoom · 100% = fill", type: "range", min: 50, max: 300, step: 5, unit: "%", value: hb.scale != null ? hb.scale : 100, onInput: function (v) { pos.scale = parseInt(v, 10) || 100; pvTransform(); } }
+      ],
+      submitLabel: "Save"
+    }).then(function (v) {
+      if (!v) return;
+      if (!v.text && !v.video && !v.image) delete it.homeBg;
+      else {
+        var op = parseInt(v.opacity, 10), sc = parseInt(v.scale, 10);
+        it.homeBg = { text: v.text || "", image: v.image || "", video: v.video || "", opacity: isNaN(op) ? 22 : op, scale: isNaN(sc) ? 100 : sc, x: (v.pos && v.pos.x) || 0, y: (v.pos && v.pos.y) || 0 };
+      }
+      save().then(c.rerender);
+    });
+  }
   function editBlock(item, b, type, rerender) {
     if (!item) return;
     rerender = rerender || renderDetail;
     type = b ? b.type : type;
+    if (type === "canvas") { openStudio(item, b, rerender); return; }
     var creating = !b;
+    var radField = { key: "radius", label: "Corner radius", type: "range", min: 0, max: 60, step: 1, unit: "px", preview: "radius", value: b && b.radius != null ? b.radius : 15, hint: "Roundness of the corners — 0 is square, 15 is the default." };
+    var shField = { key: "shadow", label: "Drop shadow", type: "range", min: 0, max: 100, step: 5, unit: "%", preview: "shadow", value: b && b.shadow != null ? b.shadow : 0, hint: "Soft shadow that lifts the block off the page — 0% is flat, higher is deeper." };
+    var isSection = !!(b && b.section);
+    var sizeField = { key: "size", label: "Card size", type: "select", options: [{ value: "full", label: "Full width" }, { value: "small", label: "Small" }, { value: "medium", label: "Medium" }, { value: "wide", label: "Wide" }, { value: "tall", label: "Tall" }, { value: "hero", label: "Hero" }], value: sizeKey(b && b.size), hint: "Only affects blocks placed inside a template section \u2014 narrower widths sit side by side like bento cards." };
     var fields, title;
     if (type === "image") {
       title = "image"; fields = [
         { key: "src", label: "Image file", type: "file", accept: "image/*", multiple: creating, value: b ? b.src : "", hint: "PNG, JPG, GIF or WEBP. You can select multiple files to add several images at once." },
-        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
+        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" },
+        radField, shField
       ];
     } else if (type === "pdf") {
       title = "PDF"; fields = [
         { key: "src", label: "PDF file", type: "file", accept: "application/pdf", multiple: creating, value: b ? b.src : "", hint: "Displayed in an embedded viewer. You can select multiple PDFs at once." },
-        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
+        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" },
+        radField, shField
       ];
     } else if (type === "prototype") {
       title = "prototype"; fields = [
         { key: "raw", label: "Figma link or <iframe> embed code", type: "textarea", value: b ? b.raw : "", placeholder: "https://www.figma.com/proto/…  or  full <iframe …> code", hint: "Paste a Figma prototype share link, or any iframe embed code. To add several, put each link on its own line." },
-        { key: "caption", label: "Title shown above the prototype (optional)", value: b ? b.caption : "", placeholder: "e.g. Try the FinTrack prototype", hint: "Shown as the heading on top of the prototype, on a black stage." }
+        { key: "caption", label: "Title shown above the prototype (optional)", value: b ? b.caption : "", placeholder: "e.g. Try the FinTrack prototype", hint: "Shown as the heading on top of the prototype, on a black stage." },
+        radField, shField
       ];
     } else if (type === "media") {
       title = "video / audio"; fields = [
         { key: "src", label: "Video or audio file", type: "file", accept: "video/*,audio/*", multiple: creating, value: b ? b.src : "", hint: "MP4, WEBM, MOV, MP3, WAV… You can select multiple files at once." },
-        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
+        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" },
+        radField, shField
       ];
     } else if (type === "model") {
       title = "3D model"; fields = [
         { key: "src", label: "3D model file", type: "file", accept: ".glb,.gltf,.obj,.fbx,model/gltf-binary,model/gltf+json", multiple: creating, value: b ? b.src : "", hint: "GLB / GLTF render fully interactive. OBJ / FBX are supported too (GLB recommended for best results). You can select multiple files at once." },
-        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" }
+        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" },
+        radField, shField
       ];
     } else if (type === "text") {
+      var tdp = textDesignPanel(b);
       title = "text"; fields = [
-        { key: "heading", label: "Heading (optional)", value: b ? b.heading : "" },
-        { key: "body", label: "Body text", type: "textarea", value: b ? b.body : "", placeholder: "Write a paragraph…" }
+        { key: "tstyle", label: "", type: "custom", el: tdp.el, get: tdp.get, hint: "Text · Fill & Stroke · Shapes — switch tabs to style the box and add shapes, lines & color like a design tool." }
       ];
     }
     modal({
-      title: (creating ? "Add " : "Edit ") + title, fields: fields, submitLabel: creating ? "Add" : "Save",
+      title: (creating ? "Add " : "Edit ") + title, fields: fields, submitLabel: creating ? "Add" : "Save", compact: true,
       validate: function (v) {
         if ((type === "image" || type === "pdf" || type === "media" || type === "model") && !v.src && creating) return "Please choose a file.";
         if (type === "prototype" && !v.raw && creating) return "Please paste a link or embed code.";
-        if (type === "text" && !v.body && !v.heading) return "Add a heading or some text.";
+        if (type === "text" && v.tstyle && !v.tstyle.body && !v.tstyle.heading && !v.tstyle.heading2) return "Add a heading or some text.";
       }
     }).then(function (v) {
       if (!v) return;
+      var radVal = v.radius != null && v.radius !== "" ? parseInt(v.radius, 10) : NaN;
+      var shVal = v.shadow != null && v.shadow !== "" ? parseInt(v.shadow, 10) : NaN;
+      if (isNaN(shVal) && v.tstyle && v.tstyle.shadow != null && v.tstyle.shadow !== "") shVal = parseInt(v.tstyle.shadow, 10);
+      if (isNaN(radVal) && v.tstyle && v.tstyle.radius != null && v.tstyle.radius !== "") radVal = parseInt(v.tstyle.radius, 10);
       var multiFiles = v.src_files || [];
       if (creating && (type === "image" || type === "pdf" || type === "media" || type === "model") && multiFiles.length > 1) {
         multiFiles.forEach(function (fobj) {
           var nb = { id: uid(), type: type, src: fobj.data, caption: v.caption };
+          if (v.size && v.size !== "full") nb.size = v.size;
+          if (!isNaN(radVal)) nb.radius = radVal;
+          if (shVal > 0) nb.shadow = shVal;
           if (type === "media") nb.mime = (fobj.data.match(/^data:(.*?);/) || [])[1] || "";
           if (type === "model") nb.format = modelFormat(fobj.name);
           item.blocks.push(nb);
@@ -1679,7 +3156,11 @@
         var protoLines = (v.raw || "").split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
         if (protoLines.length > 1) {
           protoLines.forEach(function (line) {
-            item.blocks.push({ id: uid(), type: "prototype", raw: line, src: protoSrc(line), caption: v.caption });
+            var pb = { id: uid(), type: "prototype", raw: line, src: protoSrc(line), caption: v.caption };
+            if (v.size && v.size !== "full") pb.size = v.size;
+            if (!isNaN(radVal)) pb.radius = radVal;
+            if (shVal > 0) pb.shadow = shVal;
+            item.blocks.push(pb);
           });
           save().then(rerender);
           return;
@@ -1691,9 +3172,36 @@
       else if (type === "prototype") { if (v.raw) { block.raw = v.raw; block.src = protoSrc(v.raw); } block.caption = v.caption; }
       else if (type === "media") { if (v.src) { block.src = v.src; block.mime = (v.src.match(/^data:(.*?);/) || [])[1] || ""; } block.caption = v.caption; }
       else if (type === "model") { if (v.src) { block.src = v.src; block.format = modelFormat(v.src_name || v.src); } block.caption = v.caption; }
-      else if (type === "text") { block.heading = v.heading; block.body = v.body; }
+      else if (type === "text") {
+        block.heading = v.tstyle.heading; block.heading2 = v.tstyle.heading2; block.body = v.tstyle.body;
+        var ct = cleanTstyle(v.tstyle); if (ct) block.tstyle = ct; else delete block.tstyle;
+        if (v.tstyle.fill) block.fill = v.tstyle.fill; else delete block.fill;
+        if (v.tstyle.strokeColor && v.tstyle.strokeWidth) { block.strokeColor = v.tstyle.strokeColor; block.strokeWidth = parseFloat(v.tstyle.strokeWidth); } else { delete block.strokeColor; delete block.strokeWidth; }
+        if (v.tstyle.boxShadow) block.boxShadow = parseInt(v.tstyle.boxShadow, 10); else delete block.boxShadow;
+        if (v.tstyle.deco && v.tstyle.deco.els && v.tstyle.deco.els.length) block.deco = v.tstyle.deco; else delete block.deco;
+      }
+      if (!isNaN(radVal)) block.radius = radVal;
+      if (!isNaN(shVal)) { if (shVal > 0) block.shadow = shVal; else delete block.shadow; }
+      if (v.size !== undefined) { if (v.size && v.size !== "full") block.size = v.size; else delete block.size; }
       if (creating) item.blocks.push(block);
-      save().then(rerender);
+      var frameNew = creating && type === "image" && !!block.src && multiFiles.length <= 1;
+      save().then(function () {
+        rerender();
+        if (frameNew) autoFrameBlock(block.id, block, rerender);
+      });
+    });
+  }
+  // After a single image is added, scroll it into view and drop straight into
+  // move/scale so it can be framed before the user moves on.
+  function autoFrameBlock(bid, bdata, rerender) {
+    if (!bid) return;
+    requestAnimationFrame(function () {
+      var el = document.querySelector('.ak-block.admin[data-bid="' + bid + '"]');
+      if (!el) return;
+      var r = el.getBoundingClientRect();
+      var y = (window.pageYOffset || document.documentElement.scrollTop || 0) + r.top - Math.max(20, (window.innerHeight - r.height) / 2);
+      window.scrollTo(0, Math.max(0, y));
+      enterAdjust(el, bdata, rerender);
     });
   }
   function protoSrc(raw) {
@@ -1755,6 +3263,7 @@
         mv.setAttribute("environment-image", "neutral");
         mv.setAttribute("tone-mapping", "neutral");
         mv.style.cssText = "width:100%;height:100%;--poster-color:transparent";
+        mv.addEventListener("error", function () { holder.innerHTML = ""; holder.appendChild(mediaMissing(I.cube, "3D model unavailable", "")); });
         holder.appendChild(mv);
       }).catch(function () { fallback3D(holder, "Couldn't load the 3D viewer.", b.src, "model." + fmt); });
     } else {
@@ -1930,6 +3439,8 @@
           var d = bundle[page] || {};
           (d.items || []).forEach(function (it, i) {
             if (it.cover) it.cover = stash(it.cover, page, (_slug(it.title) || (page + "-item")) + "-cover");
+            if (it.homeBg && it.homeBg.video) it.homeBg.video = stash(it.homeBg.video, page, (_slug(it.title) || (page + "-item")) + "-home-bg");
+            if (it.homeBg && it.homeBg.image) it.homeBg.image = stash(it.homeBg.image, page, (_slug(it.title) || (page + "-item")) + "-home-bg-image");
             walkBlocks(it.blocks, page, _slug(it.title) || (page + "-" + i));
           });
           var cases = d.cases || {};
