@@ -87,9 +87,9 @@ header.nav-hidden{transform:translateY(-100%)}
 [data-theme="light"] .seg-btn.active{color:#fff;background:var(--ux-2)}
 
 /* ===== bento showcase — screens wall ===== */
-.pgrid{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:158px;grid-auto-flow:dense;gap:18px;max-width:1180px;margin:0 auto;padding-bottom:120px}
+.pgrid{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:154px;grid-auto-flow:dense;gap:16px;max-width:1180px;margin:0 auto;padding-bottom:120px}
 .ptile{grid-column:span 3;grid-row:span 2;position:relative;isolation:isolate;overflow:hidden;
-  border:1px solid var(--line);border-radius:24px;background:var(--surface);
+  border:1px solid var(--line);border-radius:22px;background:var(--surface);
   display:block;cursor:pointer;text-decoration:none;color:#FFF3F0;
   animation:tileIn .6s cubic-bezier(.2,.7,.3,1) both;
   transition:transform .45s cubic-bezier(.2,.7,.3,1),border-color .4s,box-shadow .4s}
@@ -127,7 +127,7 @@ header.nav-hidden{transform:translateY(-100%)}
 .ptile-tag{font-family:'Inter';font-weight:700;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--ux-1) 62%,#fff);background:none;border:0;padding:0;margin:0;-webkit-backdrop-filter:none;backdrop-filter:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ptile-tag::before{content:'';display:inline-block;width:.86em;height:.86em;margin-right:.44em;vertical-align:-.09em;background:var(--ux-1);filter:drop-shadow(0 1px 2px rgba(0,0,0,.65));-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat}
 .ptile-empty .ptile-tag::before{content:'';display:inline-block;width:.86em;height:.86em;margin-right:.44em;vertical-align:-.09em;background:var(--ux-1);filter:drop-shadow(0 1px 2px rgba(0,0,0,.65));-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat}
-.ptile h3{font-size:1.2rem;line-height:1.2;margin:0;color:#FFF6F4;text-shadow:0 2px 22px rgba(0,0,0,.55)}
+.ptile h3{font-size:1.16rem;line-height:1.2;margin:0;color:#FFF6F4;text-shadow:0 2px 22px rgba(0,0,0,.55)}
 .ptile-feat h3{font-size:clamp(1.5rem,2.4vw,2.1rem);letter-spacing:-.02em}
 .ptile-body h3{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ptile-go{position:absolute;right:16px;bottom:16px;z-index:3;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:color-mix(in srgb,var(--ux-1) 26%,rgba(11,9,9,.5));-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);border:1px solid rgba(255,255,255,.28);box-shadow:0 10px 24px -10px rgba(0,0,0,.65);transition:background .25s,border-color .25s}
@@ -136,7 +136,7 @@ header.nav-hidden{transform:translateY(-100%)}
 .ptile:hover .ptile-go .arr,.ptile:focus-visible .ptile-go .arr{transform:rotate(-45deg)}
 .ptile-empty .ptile-go{display:none}
 .ptile-empty .ptile-body{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:0;left:20px;right:20px;bottom:16px}
-@media(max-width:900px){.pgrid{grid-auto-rows:144px}}
+@media(max-width:900px){.pgrid{grid-auto-rows:136px}}
 @media(max-width:620px){
   .pgrid{grid-auto-rows:152px;gap:13px;padding-bottom:80px}
   .ptile{grid-column:span 6 !important;grid-row:span 2}
@@ -329,6 +329,50 @@ body.detail .cs-detail{display:block}
   .back .bk-rest{display:none}
   .nav-right{gap:12px}
 }
+/* ===== mobile / tablet: distinct Canvas vs Grid, labels that fit inside the card ===== */
+@media(max-width:620px){
+  /* Canvas keeps a real bento rhythm on phones — features full-width, small cards paired */
+  .pgrid:not(.view-grid){grid-auto-rows:104px;gap:12px}
+  .pgrid:not(.view-grid) .ptile{grid-column:span 6 !important;grid-row:span 3 !important}
+  .pgrid:not(.view-grid) .ptile-s{grid-column:span 3 !important;grid-row:span 2 !important}
+  .pgrid:not(.view-grid) .ptile-t{grid-column:span 3 !important;grid-row:span 3 !important}
+  .pgrid:not(.view-grid) .ptile-hero,
+  .pgrid:not(.view-grid) .ptile-feat{grid-row:span 4 !important}
+  .pgrid:not(.view-grid) .ptile-empty{grid-row:span 2 !important}
+  /* Grid = one wide column so the whole cover reads and the label has room */
+  .pgrid.view-grid{grid-template-columns:1fr;gap:14px}
+  .pgrid.view-grid .ptile-body{left:16px;right:70px;bottom:15px;gap:3px}
+  .pgrid.view-grid .ptile h3{font-size:1.06rem;line-height:1.25}
+  .pgrid.view-grid .ptile-tag{font-size:.6rem}
+  .pgrid.view-grid .ptile-go{width:42px;height:42px;right:15px;bottom:15px}
+  .pgrid.view-grid .ptile-go .arr{font-size:1.12rem}
+  .pgrid.view-grid .ptile-empty .ptile-body{left:16px;right:16px;bottom:15px}
+  /* Half-width canvas tiles: label above the arrow so neither gets squeezed */
+  .pgrid:not(.view-grid) .ptile-s .ptile-body,
+  .pgrid:not(.view-grid) .ptile-t .ptile-body{left:13px;right:13px;bottom:46px;gap:2px}
+  .pgrid:not(.view-grid) .ptile-s h3,
+  .pgrid:not(.view-grid) .ptile-t h3{font-size:.95rem;line-height:1.25}
+  .pgrid:not(.view-grid) .ptile-s .ptile-tag,
+  .pgrid:not(.view-grid) .ptile-t .ptile-tag{font-size:.56rem}
+  .pgrid:not(.view-grid) .ptile-s .ptile-go,
+  .pgrid:not(.view-grid) .ptile-t .ptile-go{width:34px;height:34px;right:12px;bottom:12px}
+  .pgrid:not(.view-grid) .ptile-s .ptile-go .arr,
+  .pgrid:not(.view-grid) .ptile-t .ptile-go .arr{font-size:.95rem}
+}
+/* Tablet grid: two columns, label scaled to the narrower card */
+@media(min-width:621px) and (max-width:900px){
+  .pgrid.view-grid{grid-template-columns:repeat(2,1fr);gap:16px}
+  .pgrid.view-grid .ptile-body{left:16px;right:66px;bottom:14px;gap:2px}
+  .pgrid.view-grid .ptile h3{font-size:1rem;line-height:1.25}
+  .pgrid.view-grid .ptile-tag{font-size:.58rem}
+  .pgrid.view-grid .ptile-go{width:38px;height:38px;right:14px;bottom:14px}
+  .pgrid.view-grid .ptile-go .arr{font-size:1.02rem}
+  .pgrid.view-grid .ptile-empty .ptile-body{left:16px;right:16px;bottom:14px}
+}
+/* Grid view reads cover-first: lighter scrim than the bento canvas */
+@media(max-width:900px){
+  .pgrid.view-grid .ptile::after{background:linear-gradient(180deg,rgba(5,6,11,0) 34%,rgba(5,6,11,.48) 66%,rgba(5,6,11,.93) 100%)}
+}
 </style>
 </head>
 <body>
@@ -361,7 +405,8 @@ body.detail .cs-detail{display:block}
 </div>
 
 <script>
-const root=document.documentElement, knob=document.getElementById('knob');
+const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 
 /* hide header on scroll down, reveal on scroll up */
 (function(){
@@ -370,21 +415,25 @@ const root=document.documentElement, knob=document.getElementById('knob');
   let ticking=false;
   function update(){
     const y=window.scrollY||document.documentElement.scrollTop;
-    if(document.body.classList.contains('ak-item-detail')){ last=y; ticking=false; return; }
-    if(y>last && y>120){ head.classList.add('nav-hidden'); }
-    else{ head.classList.remove('nav-hidden'); }
-    last=y; ticking=false;
+    if(document.body.classList.contains('ak-item-detail')){last=y;ticking=false;return;}
+    if(y>last && y>120){head.classList.add('nav-hidden');}
+    else{head.classList.remove('nav-hidden');}
+    last=y;
+    ticking=false;
   }
-  addEventListener('scroll',()=>{ if(!ticking){requestAnimationFrame(update);ticking=true;} },{passive:true});
+  addEventListener('scroll',()=>{
+    if(!ticking){requestAnimationFrame(update);ticking=true;}
+  },{passive:true});
 })();
 
-/* theme glyph on load — theme is applied early in <head>; toggling + ripple handled by
-   theme-ripple.js, shared across pages via localStorage 'ak-theme' */
+/* theme toggle (shared with portfolio via localStorage) */
+const root=document.documentElement, knob=document.getElementById('knob');
 (function(){ knob.textContent=root.dataset.theme==='light'?'☀️':'🌙'; })();
+/* smooth water-ripple theme reveal is wired by the shared theme-ripple.js */
 
 /* Canvas / Grid view toggle */
 (function(){
-  var pg=document.querySelector('.index-view .pgrid'); if(!pg) return;
+  var pg=document.querySelector('.pgrid'); if(!pg) return;
   var cur='canvas', btns=[].slice.call(document.querySelectorAll('.seg-btn'));
   function apply(v){
     v=(v==='grid')?'grid':'canvas';

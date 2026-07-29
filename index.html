@@ -940,14 +940,21 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
   opacity:0;transform:translateX(-6px);transition:opacity .3s,transform .3s;pointer-events:none;
 }
 .gmail-copied.show{opacity:1;transform:translateX(0)}
-/* On phones the horizontal expansion ran off the edge (footer clips it), so the
-   revealed address drops onto its own full-width row under the icons instead. */
-@media(max-width:620px){
-  .gmail-group{flex-wrap:wrap;flex-basis:100%;justify-content:center;row-gap:12px}
-  .gmail-reveal{flex-basis:100%;justify-content:center;max-width:100%;max-height:0;
-    transition:max-height .42s cubic-bezier(.2,.7,.3,1),opacity .32s}
-  .gmail-group.open .gmail-reveal{max-height:48px}
-  .gmail-addr{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+/* On phones the horizontal expansion ran off the screen edge. display:contents lifts the
+   mail icon into the social row (so it sits inline with the others) and lets the revealed
+   address open as its own full-width row underneath. */
+/* The reveal used to expand horizontally, which ran past the footer column at EVERY width
+   (the footer clips overflow, so the address was unreadable). It now opens as its own
+   full-width row beneath the icons; display:contents lifts the mail icon into the social
+   row so it stays inline with the other links. */
+.gmail-group{display:contents}
+.gmail-reveal{display:none}
+.gmail-group.open .gmail-reveal{display:flex;flex-basis:100%;order:9;justify-content:flex-start;
+  max-width:100%;max-height:none;opacity:1;pointer-events:auto;animation:gmDrop .32s ease}
+.gmail-addr{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+@keyframes gmDrop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media(max-width:760px){
+  .gmail-group.open .gmail-reveal{justify-content:center}
 }
 .scard::before{
   content:'';position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .4s;

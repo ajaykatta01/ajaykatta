@@ -86,9 +86,9 @@ header.nav-hidden{transform:translateY(-100%)}
 [data-theme="light"] .seg-btn.active{color:#fff;background:var(--d3-1)}
 
 /* ===== bento showcase — studio mosaic ===== */
-.pgrid{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:150px;grid-auto-flow:dense;gap:14px;max-width:1180px;margin:0 auto;padding-bottom:120px}
+.pgrid{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:154px;grid-auto-flow:dense;gap:16px;max-width:1180px;margin:0 auto;padding-bottom:120px}
 .ptile{grid-column:span 3;grid-row:span 2;position:relative;isolation:isolate;overflow:hidden;
-  border:1px solid var(--line);border-radius:18px;background:var(--surface);
+  border:1px solid var(--line);border-radius:22px;background:var(--surface);
   display:block;cursor:pointer;text-decoration:none;color:#EAF9FF;
   animation:tileIn .6s cubic-bezier(.2,.7,.3,1) both;
   transition:transform .45s cubic-bezier(.2,.7,.3,1),border-color .4s,box-shadow .4s}
@@ -139,7 +139,7 @@ header.nav-hidden{transform:translateY(-100%)}
 .reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease var(--d,0s),transform .7s cubic-bezier(.2,.7,.3,1) var(--d,0s)}
 .reveal.in{opacity:1;transform:none}
 @media (prefers-reduced-motion: reduce){.reveal{opacity:1;transform:none}}
-@media(max-width:900px){.pgrid{grid-auto-rows:132px}}
+@media(max-width:900px){.pgrid{grid-auto-rows:136px}}
 @media(max-width:760px){
   .container{padding:0 20px}
   .phead{padding:60px 0 40px}
@@ -166,6 +166,50 @@ header.nav-hidden{transform:translateY(-100%)}
 }
 [data-theme="light"] .ptile{box-shadow:0 16px 40px -22px rgba(17,20,26,.4)}
 [data-theme="light"] .ptile:hover{box-shadow:0 30px 66px -30px rgba(17,20,26,.4),0 0 0 1px color-mix(in srgb,var(--d3-1) 30%,transparent)}
+/* ===== mobile / tablet: distinct Canvas vs Grid, labels that fit inside the card ===== */
+@media(max-width:620px){
+  /* Canvas keeps a real bento rhythm on phones — features full-width, small cards paired */
+  .pgrid:not(.view-grid){grid-auto-rows:104px;gap:12px}
+  .pgrid:not(.view-grid) .ptile{grid-column:span 6 !important;grid-row:span 3 !important}
+  .pgrid:not(.view-grid) .ptile-s{grid-column:span 3 !important;grid-row:span 2 !important}
+  .pgrid:not(.view-grid) .ptile-t{grid-column:span 3 !important;grid-row:span 3 !important}
+  .pgrid:not(.view-grid) .ptile-hero,
+  .pgrid:not(.view-grid) .ptile-feat{grid-row:span 4 !important}
+  .pgrid:not(.view-grid) .ptile-empty{grid-row:span 2 !important}
+  /* Grid = one wide column so the whole cover reads and the label has room */
+  .pgrid.view-grid{grid-template-columns:1fr;gap:14px}
+  .pgrid.view-grid .ptile-body{left:16px;right:70px;bottom:15px;gap:3px}
+  .pgrid.view-grid .ptile h3{font-size:1.06rem;line-height:1.25}
+  .pgrid.view-grid .ptile-tag{font-size:.6rem}
+  .pgrid.view-grid .ptile-go{width:42px;height:42px;right:15px;bottom:15px}
+  .pgrid.view-grid .ptile-go .arr{font-size:1.12rem}
+  .pgrid.view-grid .ptile-empty .ptile-body{left:16px;right:16px;bottom:15px}
+  /* Half-width canvas tiles: label above the arrow so neither gets squeezed */
+  .pgrid:not(.view-grid) .ptile-s .ptile-body,
+  .pgrid:not(.view-grid) .ptile-t .ptile-body{left:13px;right:13px;bottom:46px;gap:2px}
+  .pgrid:not(.view-grid) .ptile-s h3,
+  .pgrid:not(.view-grid) .ptile-t h3{font-size:.95rem;line-height:1.25}
+  .pgrid:not(.view-grid) .ptile-s .ptile-tag,
+  .pgrid:not(.view-grid) .ptile-t .ptile-tag{font-size:.56rem}
+  .pgrid:not(.view-grid) .ptile-s .ptile-go,
+  .pgrid:not(.view-grid) .ptile-t .ptile-go{width:34px;height:34px;right:12px;bottom:12px}
+  .pgrid:not(.view-grid) .ptile-s .ptile-go .arr,
+  .pgrid:not(.view-grid) .ptile-t .ptile-go .arr{font-size:.95rem}
+}
+/* Tablet grid: two columns, label scaled to the narrower card */
+@media(min-width:621px) and (max-width:900px){
+  .pgrid.view-grid{grid-template-columns:repeat(2,1fr);gap:16px}
+  .pgrid.view-grid .ptile-body{left:16px;right:66px;bottom:14px;gap:2px}
+  .pgrid.view-grid .ptile h3{font-size:1rem;line-height:1.25}
+  .pgrid.view-grid .ptile-tag{font-size:.58rem}
+  .pgrid.view-grid .ptile-go{width:38px;height:38px;right:14px;bottom:14px}
+  .pgrid.view-grid .ptile-go .arr{font-size:1.02rem}
+  .pgrid.view-grid .ptile-empty .ptile-body{left:16px;right:16px;bottom:14px}
+}
+/* Grid view reads cover-first: lighter scrim than the bento canvas */
+@media(max-width:900px){
+  .pgrid.view-grid .ptile::after{background:linear-gradient(180deg,rgba(5,6,11,0) 34%,rgba(5,6,11,.48) 66%,rgba(5,6,11,.93) 100%)}
+}
 </style>
 </head>
 <body>
