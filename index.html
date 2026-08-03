@@ -158,10 +158,10 @@ header{
 
 /* ---------- hero ---------- */
 .hero{position:relative;min-height:100svh;display:flex;align-items:flex-start;overflow:visible;overflow-x:clip}
-/* rounded viewport frame revealed on scroll */
+/* viewport frame revealed on scroll — always sharp corners */
 .scroll-frame{
   position:fixed;inset:0;z-index:60;pointer-events:none;
-  border-radius:var(--frad,0px);
+  border-radius:0;
   box-shadow:0 0 0 40px var(--bg), inset 0 0 0 1px color-mix(in srgb, var(--line) 60%, transparent);
   opacity:0;
 }
@@ -1126,10 +1126,11 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
   .hero-stats{gap:26px;margin-top:28px}
   .stat .num{font-size:1.7rem}
   .container{padding:0 20px}
-  /* mobile: rotator 10% larger and centred on the full text column
-     (block + 100% width, so words centre against "Hi, I'm a" and the tagline) */
-  .hero h1 .role-rotator{font-size:1.1em;display:block;width:100%;vertical-align:baseline}
-  .hero h1 .role-rotator .role-size{display:none}
+  /* mobile: rotator 10% larger, centred on the same axis as "Hi, I'm a" + tagline.
+     h1 spans the column so the inline-block rotator centres in it; .role-size must
+     stay in flow — it is what gives the rotator its width. */
+  .hero h1{width:100%;text-align:center}
+  .hero h1 .role-rotator{font-size:1.1em;max-width:100%}
 }
 @media(max-width:480px){
   .hero-stats{gap:18px 26px}
@@ -2278,7 +2279,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   if(!window.gsap || !window.ScrollTrigger) return;
   gsap.registerPlugin(ScrollTrigger);
 
-  // rounded viewport frame: corners round in as you scroll down, flatten at the very top
+  // viewport frame: fades in as you scroll down; corners stay square
   let frame=document.querySelector('.scroll-frame');
   if(!frame){
     frame=document.createElement('div');
@@ -2286,8 +2287,8 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
     document.body.appendChild(frame);
   }
   gsap.fromTo(frame,
-    {'--frad':'0px', opacity:0},
-    {'--frad':'34px', opacity:1, ease:'none',
+    {opacity:0},
+    {opacity:1, ease:'none',
      scrollTrigger:{start:0, end:420, scrub:true}}
   );
 
