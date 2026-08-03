@@ -40,6 +40,7 @@
   --text:#11141A; --muted:#49515F; --accent:#FF6B5C; --accent-2:#C2410C; --glow:color-mix(in srgb, #FF6B5C 24%, transparent);
 }
 .theme-toggle{width:54px;height:28px;border-radius:99px;border:1px solid var(--line);background:var(--surface);cursor:pointer;position:relative;transition:background .4s;flex:none}
+.theme-toggle::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
 .theme-toggle .knob{position:absolute;top:2.5px;left:3px;width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 35% 35%,var(--accent-2),var(--accent));box-shadow:0 0 10px var(--glow);transition:transform .35s cubic-bezier(.5,1.6,.4,1);display:flex;align-items:center;justify-content:center;font-size:11px}
 [data-theme="light"] .theme-toggle .knob{transform:translateX(26px)}
 .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -124,7 +125,7 @@ header.nav-hidden{transform:translateY(-100%)}
 .ptile-body{position:absolute;left:20px;right:74px;bottom:16px;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:3px}
 .ptile-body h3{text-shadow:0 1px 2px rgba(0,0,0,.92),0 3px 20px rgba(0,0,0,.6)}
 .ptile-body .ptile-tag{text-shadow:0 1px 3px rgba(0,0,0,.92)}
-.ptile-tag{font-family:'Inter';font-weight:700;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--ux-1) 62%,#fff);background:none;border:0;padding:0;margin:0;-webkit-backdrop-filter:none;backdrop-filter:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptile-tag{font-family:'Inter';font-weight:700;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--ux-1) 62%,#fff);background:none;border:0;padding:0;margin:0;-webkit-backdrop-filter:none;backdrop-filter:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ptile-tag::before{content:'';display:inline-block;width:.86em;height:.86em;margin-right:.44em;vertical-align:-.09em;background:var(--ux-1);filter:drop-shadow(0 1px 2px rgba(0,0,0,.65));-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat}
 .ptile-empty .ptile-tag::before{content:'';display:inline-block;width:.86em;height:.86em;margin-right:.44em;vertical-align:-.09em;background:var(--ux-1);filter:drop-shadow(0 1px 2px rgba(0,0,0,.65));-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12 6.627 0 12-5.373 12-12z' fill='%23000'/%3E%3C/svg%3E") center/contain no-repeat}
 .ptile h3{font-size:1.16rem;line-height:1.2;margin:0;color:#FFF6F4;text-shadow:0 2px 22px rgba(0,0,0,.55)}
@@ -434,13 +435,14 @@ const root=document.documentElement, knob=document.getElementById('knob');
 /* Canvas / Grid view toggle */
 (function(){
   var pg=document.querySelector('.pgrid'); if(!pg) return;
-  var cur='canvas', btns=[].slice.call(document.querySelectorAll('.seg-btn'));
+  /* Grid is the default on phones; Canvas everywhere else (session-only either way) */
+  var isPhone=window.matchMedia&&window.matchMedia('(max-width:620px)').matches;
+  var cur=isPhone?'grid':'canvas', btns=[].slice.call(document.querySelectorAll('.seg-btn'));
   function apply(v){
     v=(v==='grid')?'grid':'canvas';
     pg.classList.remove('view-canvas','view-grid'); pg.classList.add('view-'+v);
     btns.forEach(function(b){var on=b.dataset.view===v;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');});
   }
-  /* Canvas is the default on every load — the toggle is session-only, never sticky */
   apply(cur);
   btns.forEach(function(b){b.addEventListener('click',function(){cur=(b.dataset.view==='grid')?'grid':'canvas';apply(cur);});});
   document.addEventListener('ak-tiles-rendered',function(){apply(cur);});

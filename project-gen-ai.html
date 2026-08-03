@@ -40,6 +40,7 @@
 }
 /* theme toggle */
 .theme-toggle{width:54px;height:28px;border-radius:99px;border:1px solid var(--line);background:var(--surface);cursor:pointer;position:relative;transition:background .4s;flex:none}
+.theme-toggle::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
 .theme-toggle .knob{position:absolute;top:2.5px;left:3px;width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 35% 35%,var(--accent-2),var(--accent));box-shadow:0 0 10px var(--glow);transition:transform .35s cubic-bezier(.5,1.6,.4,1);display:flex;align-items:center;justify-content:center;font-size:11px}
 [data-theme="light"] .theme-toggle .knob{transform:translateX(26px)}
 .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -286,13 +287,14 @@ const root=document.documentElement, knob=document.getElementById('knob');
 /* Canvas / Grid view toggle */
 (function(){
   var pg=document.querySelector('.pgrid'); if(!pg) return;
-  var cur='canvas', btns=[].slice.call(document.querySelectorAll('.seg-btn'));
+  /* Grid is the default on phones; Canvas everywhere else (session-only either way) */
+  var isPhone=window.matchMedia&&window.matchMedia('(max-width:620px)').matches;
+  var cur=isPhone?'grid':'canvas', btns=[].slice.call(document.querySelectorAll('.seg-btn'));
   function apply(v){
     v=(v==='grid')?'grid':'canvas';
     pg.classList.remove('view-canvas','view-grid'); pg.classList.add('view-'+v);
     btns.forEach(function(b){var on=b.dataset.view===v;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false');});
   }
-  /* Canvas is the default on every load — the toggle is session-only, never sticky */
   apply(cur);
   btns.forEach(function(b){b.addEventListener('click',function(){cur=(b.dataset.view==='grid')?'grid':'canvas';apply(cur);});});
   document.addEventListener('ak-tiles-rendered',function(){apply(cur);});

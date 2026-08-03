@@ -78,6 +78,8 @@ header{
 }
 [data-theme="light"] .theme-toggle .knob{transform:translateX(26px)}
 .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+/* invisible 44px hit area so the switch is tappable on touch (visual size unchanged) */
+.theme-toggle::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
 
 /* ---------- sheet ---------- */
 .wrap{max-width:920px;margin:0 auto;padding:120px 28px 90px}

@@ -437,11 +437,11 @@
     .ak-d-hero p{color:var(--muted);font-size:1.05rem;max-width:600px;margin:0 auto 26px}
     .ak-meta{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
     .ak-meta .m{display:flex;flex-direction:column;gap:4px;padding:12px 16px;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb,var(--surface) 55%,transparent);min-width:120px}
-    .ak-meta .mk{font-family:'Inter',sans-serif;font-size:.56rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
+    .ak-meta .mk{font-family:'Inter',sans-serif;font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
     .ak-meta .mv{font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;color:var(--text)}
     .ak-blocks{max-width:1100px;margin:0 auto;padding:48px 24px 110px;display:grid;grid-template-columns:repeat(6,1fr);gap:18px;grid-auto-flow:dense;align-items:start}
     .ak-blocks>.ak-secgroup,.ak-blocks>.ak-empty{grid-column:1/-1}
-    @media(max-width:640px){.ak-blocks,.ak-case-blocks{grid-template-columns:1fr}.ak-blocks>.ak-block,.ak-case-blocks>.ak-block{grid-column:1/-1 !important}}
+    @media(max-width:640px){.ak-blocks,.ak-case-blocks{grid-template-columns:minmax(0,1fr)}.ak-blocks>.ak-block,.ak-case-blocks>.ak-block{grid-column:1/-1 !important;min-width:0}.ak-d-hero{padding-left:24px;padding-right:24px}}
     /* horizontal media-preview slider under the project home/hero */
     .ak-pstrip{max-width:1100px;margin:34px auto 0;padding:0 24px;position:relative}
     .ak-pstrip .ps-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
@@ -569,6 +569,12 @@
     .ak-wide{width:min(1600px,93vw);margin-left:50%;transform:translateX(-50%)}
     .ak-wide img.media,.ak-wide video.media,.ak-wide iframe.media{display:block;width:100%;height:auto;border-radius:0;border:0;background:#000}
     .ak-wide iframe.media{height:min(80vh,820px)}
+    /* phones + small tablets: 93vw is wider than the padded column, which pushed every media
+       block ~14px past the right edge (and made the page scroll sideways) — sit flush instead */
+    @media(max-width:700px){
+      .ak-detail .ak-wide,.ak-blocks .ak-wide,.ak-case-blocks .ak-wide{width:100%;margin-left:0;transform:none}
+      .ak-detail .ak-wide iframe.media{height:min(66vh,600px)}
+    }
     /* prototype info header (admin-added prototypes) */
     .ak-proto-info{max-width:760px;margin:0 auto 26px;text-align:center}
     .ak-proto-info .eyebrow{font-family:'Inter',sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:12px}
