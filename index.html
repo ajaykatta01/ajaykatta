@@ -699,9 +699,12 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 .eq-r.open .eq-t{color:var(--text)}
 .eq-t .n{font-family:'Inter';font-weight:600;font-size:.63rem;letter-spacing:.16em;color:var(--dc);flex:none}
 .eq-t .cnt{margin-left:auto;font-family:'Inter';font-weight:500;font-size:.65rem;letter-spacing:.14em;color:var(--muted);flex:none}
-.eq-t .pm{flex:none;width:31px;height:31px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;
-  font-family:'Inter';font-weight:400;font-size:1.13rem;line-height:1;color:var(--dc);
+.eq-t .pm{flex:none;width:31px;height:31px;border-radius:50%;border:1px solid var(--line);position:relative;
+  font-size:0;line-height:0;color:transparent;
   transition:transform .45s cubic-bezier(.2,.7,.3,1),border-color .3s,background .3s}
+.eq-t .pm::before,.eq-t .pm::after{content:"";position:absolute;top:50%;left:50%;width:11px;height:1.5px;border-radius:1px;
+  background:var(--dc);transform:translate(-50%,-50%)}
+.eq-t .pm::after{transform:translate(-50%,-50%) rotate(90deg)}
 .eq-t:hover .pm{border-color:var(--dc);background:color-mix(in srgb,var(--dc) 12%,transparent)}
 .eq-r.open .eq-t .pm{transform:rotate(135deg);border-color:var(--dc);background:color-mix(in srgb,var(--dc) 14%,transparent)}
 .eq-t:focus-visible{outline:2px solid var(--dc);outline-offset:3px;border-radius:8px}

@@ -98,8 +98,10 @@
     ring.style.right = 'auto';
     ring.style.bottom = 'auto';
   }
-  // restore a saved position from a previous drag (shared across project pages)
-  try {
+  // Phones always start parked at bottom-left (CSS default); a position dragged on desktop
+  // is never restored here, and a drag on mobile stays session-only.
+  var MOBILE = matchMedia('(max-width:760px)').matches;
+  if (!MOBILE) try {
     var saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
     if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') custom = saved;
   } catch (e) {}
@@ -130,7 +132,7 @@
       suppressClick = true;               // the click that follows a drag isn't a real tap
       var r = ring.getBoundingClientRect();
       custom = { x: r.left, y: r.top };
-      try { localStorage.setItem(POS_KEY, JSON.stringify(custom)); } catch (_) {}
+      if (!MOBILE) try { localStorage.setItem(POS_KEY, JSON.stringify(custom)); } catch (_) {}
     }
     drag = null;
   }
