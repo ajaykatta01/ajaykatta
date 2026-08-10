@@ -204,7 +204,11 @@
   }
   function save() {
     try { if (typeof isUnlocked === "function" && isUnlocked()) localStorage.setItem(EDIT_FLAG, "1"); } catch (e) {}
-    return idbSet("data:" + CFG.page, DATA);
+    return idbSet("data:" + CFG.page, DATA).then(function (r) {
+      // keeps Settings → Projects / Draft in step with newly added projects and files
+      try { document.dispatchEvent(new CustomEvent("ak-cases-changed", { detail: { page: CFG.page } })); } catch (e) {}
+      return r;
+    });
   }
 
   /* ============================================================ STYLES */
@@ -3517,6 +3521,7 @@
             var zip = makeZip(f2);
             var a = h("a", { href: URL.createObjectURL(zip), download: "portfolio-site-data.zip" });
             document.body.appendChild(a); a.click(); a.remove();
+            markCasesPublished();
             setTimeout(function () { doneModal(null); }, 200);
           }
           function proceed(mode) {
@@ -3525,6 +3530,7 @@
               return pkg.full({ mode: mode === "delta" ? "delta" : "full", portfolioJSON: JSON.stringify(bundle, null, 2), portfolioFiles: files });
             }).then(function (info) {
               if (info && info.empty) { alert("Nothing to publish \u2014 the live site already matches your changes."); return; }
+              markCasesPublished();
               setTimeout(function () { doneModal(info); }, 200);
             })["catch"](function () { legacyZip(); });
           }
@@ -3598,7 +3604,19 @@
     });
   }
   // lets Settings → Publish include unpublished case-study edits from this device
-  window.AK_ADMIN_DATA = { build: function () { return exportData(true); } };
+  // markPublished(): after a successful download, the projects on this device ARE the
+  // live ones — the snapshot is what stops Settings → Projects showing them as edited.
+  function markCasesPublished() {
+    var ks = ["ui-ux", "gen-ai", "3d"];
+    return Promise.all(ks.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
+      var data = {};
+      ks.forEach(function (k, i) { if (vals[i]) data[k] = vals[i]; });
+      return idbSet("case:pub-base", { at: Date.now(), data: data });
+    }).then(function () {
+      try { document.dispatchEvent(new CustomEvent("ak-cases-changed")); } catch (e) {}
+    })["catch"](function () {});
+  }
+  window.AK_ADMIN_DATA = { build: function () { return exportData(true); }, markPublished: markCasesPublished };
 
   function importData() {
     var fi = h("input", { type: "file", accept: "application/json,.json", style: "display:none" });

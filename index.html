@@ -1,44 +1,42 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark"><head>
-<style data-omelette-injected="">html,body{background:transparent}</style><script data-omelette-injected="">(()=>{{const W=new URLSearchParams(location.search).get("theme");if(W==="light"||W==="dark"){document.documentElement.dataset.theme=W}}{if(new URLSearchParams(location.search).get("_omthumb")==="1"){const W=(q)=>{const X=q.focus;if(!X)return;q.focus=function(H){X.call(this,{...H,preventScroll:true})}};W(HTMLElement.prototype);W(SVGElement.prototype);if(typeof MathMLElement!=="undefined"){W(MathMLElement.prototype)}const $=(q)=>{q.removeAttribute("autofocus");q.inert=true;if(!(q instanceof HTMLElement))q.removeAttribute("tabindex")};const z=(q)=>{if(q.hasAttribute("autofocus"))$(q);for(const X of q.querySelectorAll("[autofocus]")){$(X)}};z(document.documentElement);new MutationObserver((q)=>{for(const X of q){for(const H of X.addedNodes){if(H.nodeType===1)z(H)}}}).observe(document,{childList:true,subtree:true})}}{const W=()=>{try{if(document.querySelector('meta[name="color-scheme"]'))return;const $=getComputedStyle(document.documentElement).getPropertyValue("color-scheme").trim();if($&&$!=="normal")return;const z=(j)=>{if(!j)return null;const F=getComputedStyle(j).backgroundColor.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+%?))?\s*\)$/);if(!F)return null;const G=F[4]==null?1:parseFloat(F[4])/(F[4].endsWith("%")?100:1);if(G<0.99)return null;return[+F[1],+F[2],+F[3]]};const q=z(document.body)||z(document.documentElement);if(!q)return;const X=(j)=>{const F=j/255;return F<=0.04045?F/12.92:((F+0.055)/1.055)**2.4};const H=0.2126*X(q[0])+0.7152*X(q[1])+0.0722*X(q[2]);document.documentElement.style.setProperty("color-scheme",H<0.4?"dark":"light")}catch{}};if(document.readyState==="complete")W();else window.addEventListener("load",W)}var b=["https://claude.ai","https://preview.claude.ai","https://ff58f7fe-f2ce-4a22-afec-21479144f884.claudeusercontent.com"];var p=true;var u=30000;var d=3000;document.addEventListener("DOMContentLoaded",()=>{const W=window.Babel;const $="om-src-id";if(W&&W.registerPlugin&&!(W.availablePlugins&&W.availablePlugins[$])){W.registerPlugin($,({types:H})=>({visitor:{JSXOpeningElement(j,F){const G=j.node;if(G.name&&G.name.type==="JSXMemberExpression")return;for(let Q=0;Q<G.attributes.length;Q++){const V=G.attributes[Q];if(V.type==="JSXAttribute"&&V.name&&V.name.name==="data-om-id")return}const P=F.file&&F.file.opts&&F.file.opts.filename||"?";const R=G.loc&&G.loc.start;const J=`jsx:${P}:${G.start??0}:${R?R.line:0}:${R?R.column+1:0}`;G.attributes.push(H.jsxAttribute(H.jsxIdentifier("data-om-id"),H.stringLiteral(J)))}}}))}const z="om-text-extract";let q=false;if(p&&W&&W.registerPlugin&&!(W.availablePlugins&&W.availablePlugins[z])){const H=window.React;if(H&&H.useSyncExternalStore&&H.createElement){q=true;const j={};const F=new Set;let G=0;window.__omTextO=j;window.__omTextSet=(J)=>{for(const Q in J){const V=J[Q];if(V==null)delete j[Q];else j[Q]=V}G++;F.forEach((Q)=>Q())};const P=(J)=>{F.add(J);return()=>F.delete(J)};const R=()=>G;window.__OmT=function J(Q){H.useSyncExternalStore(P,R,R);return H.createElement("span",{"data-om-text":Q.i,className:"__om-t"},Q.i in j?j[Q.i]:Q.children)};W.registerPlugin(z,({types:J})=>{const Q={style:1,script:1,noscript:1,textarea:1,title:1,option:1,text:1,tspan:1,textPath:1};const V={placeholder:1,alt:1,title:1,label:1,"aria-label":1,"aria-description":1,"aria-placeholder":1};const Y=(K,M)=>J.logicalExpression("??",J.memberExpression(J.logicalExpression("||",J.memberExpression(J.identifier("window"),J.identifier("__omTextO")),J.objectExpression([])),J.stringLiteral(K),true),M);const Z=(K)=>K.file&&K.file.opts&&K.file.opts.filename||"?";const B=(K)=>K.file&&K.file.code||"";const U=(K,M)=>{const L=(D)=>D&&D.start!=null&&D.end!=null&&(D.type==="StringLiteral"||D.type==="TemplateLiteral"&&D.expressions.length===0)?[D.start,D.end]:null;const N=L(M);if(N)return N;if(M&&M.type==="Identifier"){const D=K.scope.getBinding(M.name);if(D&&D.constant&&D.path.node.type==="VariableDeclarator"){return L(D.path.node.init)}}return null};const x=(K,M,L)=>{const N=K.node;let D=false;const f=(w,A)=>{D=true;return J.jsxElement(J.jsxOpeningElement(J.jsxIdentifier("__OmT"),[J.jsxAttribute(J.jsxIdentifier("i"),J.stringLiteral(w))],false),J.jsxClosingElement(J.jsxIdentifier("__OmT")),[A],false)};const C=N.children.map((w)=>{if(w.type==="JSXText"){if(w.start==null||w.end==null)return w;const A=L.slice(w.start,w.end);const S=A.length-A.trimStart().length;const O=A.length-A.trimEnd().length;if(S+O>=A.length)return w;return f(`txt:${M}:${w.start+S}:${w.end-O}`,w)}if(w.type==="JSXExpressionContainer"){const A=U(K,w.expression);if(A)return f(`str:${M}:${A[0]}:${A[1]}`,w)}return w});if(D)N.children=C};return{visitor:{JSXOpeningElement(K,M){const L=K.node;const N=Z(M);const D={};for(let f=0;f<L.attributes.length;f++){const C=L.attributes[f];if(C.type!=="JSXAttribute"||!C.name)continue;const w=C.name.name;if(!V[w])continue;if(!C.value||C.value.type!=="StringLiteral")continue;if(C.value.start==null||C.value.end==null)continue;const A=`txt:${N}:${C.value.start}:${C.value.end}`;D[w]=A;C.value=J.jsxExpressionContainer(Y(A,J.stringLiteral(C.value.value)))}if(Object.keys(D).length){L.attributes.push(J.jsxAttribute(J.jsxIdentifier("data-om-text-attrs"),J.stringLiteral(JSON.stringify(D))))}},JSXElement(K,M){const L=K.node.openingElement;const N=L&&L.name&&L.name.name;if(N==="__OmT")return;if(typeof N==="string"&&Q[N])return;x(K,Z(M),B(M))},JSXFragment(K,M){x(K,Z(M),B(M))}}}})}}const X=q?["transform-react-jsx-source",$,z]:["transform-react-jsx-source",$];document.querySelectorAll('script[type="text/babel"],script[type="text/jsx"]').forEach((H,j)=>{const F=H.getAttribute("data-plugins")||"";const G=X.filter((P)=>F.indexOf(P)<0);if(G.length){H.setAttribute("data-plugins",F?`${F},${G.join(",")}`:G.join(","))}if(!H.hasAttribute("data-filename")){H.setAttribute("data-filename",H.getAttribute("src")||`inline-${j}`)}})});var I=window.parent;var g="not editable here — open the project in the Claude Design editor to save";var n=()=>Promise.resolve({persisted:false,noHost:true,reason:g});var k=n;var v="data/storage.json";var l=()=>{try{const W=new URL(document.baseURI);const $=W.pathname.match(/\/projects\/([^/]+)\/serve\//);if($)return $[1];return W.hostname.split(".")[0]||""}catch{return location.hostname.split(".")[0]||""}};var o=()=>{try{const W=new URL(document.baseURI);const $=W.pathname.indexOf("/serve/");if($>=0)return W.origin+W.pathname.slice(0,$+"/serve/".length)+v}catch{}return"./"+v};var E=null;var _=()=>{if(!E){E=fetch(o(),{cache:"no-store"}).then((W)=>{if(W.ok)return W.text();return W.status===404?"":null}).catch(()=>null).then((W)=>{if(W===null){E=null;return null}const $=new Map;if(!W)return $;let z;try{z=JSON.parse(W)}catch{console.warn("[omelette.storage] "+v+" is not valid JSON; treating the store as unreadable so a save cannot overwrite the "+"hand-edited bytes. Fix the JSON (or delete the file) to re-enable persistence.");E=null;return null}if(z===null||typeof z!=="object"||Array.isArray(z)){console.warn("[omelette.storage] "+v+" doesn't hold a JSON object; treating the store as unreadable so a save cannot "+"overwrite the hand-edited bytes. Make the top level a JSON object to re-enable persistence.");E=null;return null}const q=z;if("data"in q){const X=q.data;if(X===null||typeof X!=="object"||Array.isArray(X)){console.warn("[omelette.storage] "+v+' has a "data" field that is not a JSON object; treating the store as unreadable so a '+'save cannot overwrite the hand-edited bytes. Make "data" a JSON object to re-enable persistence.');E=null;return null}const H=q._meta;const j=H!==null&&typeof H==="object"?H.project:undefined;if(typeof j==="string"&&j!==""&&j!==l())return $;for(const F of Object.keys(X))$.set(F,X[F]);return $}for(const X of Object.keys(q)){if(X!=="_meta")$.set(X,q[X])}return $})}return E};var y=(W)=>k(v,JSON.stringify({_meta:{project:l(),version:1},data:Object.fromEntries(W)},null,2));var m=Promise.resolve();var T=(W)=>{const $=m.then(W);m=$.then(()=>{return},()=>{return});return $};var s=/sk-(?:ant-)?[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[a-z]-[A-Za-z0-9][A-Za-z0-9-]{9,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----/;var a=/password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|credential/i;var r=(W,$,z)=>{if(s.test($)||a.test(W)&&typeof z==="string"&&z.length>=8){console.warn('[omelette.storage] the value for "'+W+'" looks like a credential. The storage file is a plaintext project file — visible to '+"everyone with project access and copied when the project is duplicated. Do not store secrets here.")}};var c={persisted:false,reason:"could not load the existing store — not overwriting it"};var i={persisted:false,reason:"stored value changed since a failed read — re-read this key before saving"};var h=new Set;var t={get:(W)=>{if(typeof W!=="string"){return Promise.reject(new TypeError("storage.get: key must be a string"))}return T(_).then(($)=>{if($===null){h.add(W);return null}h.delete(W);if(!$.has(W))return null;const z=$.get(W);return z==null?null:JSON.parse(JSON.stringify(z))})},set:(W,$)=>{if(typeof W!=="string"){return Promise.reject(new TypeError("storage.set: key must be a string"))}let z;try{z=JSON.stringify($)}catch(X){return Promise.reject(new TypeError("storage.set: value must be JSON-serializable ("+String(X)+")"))}if(z===undefined){return Promise.reject(new TypeError("storage.set: value must be JSON-serializable"))}r(W,z,$);const q=JSON.parse(z);return T(()=>_().then((X)=>{if(X===null)return c;if(h.has(W)){if(X.has(W))return i;h.delete(W)}X.set(W,q);return y(X)}))},delete:(W)=>{if(typeof W!=="string"){return Promise.reject(new TypeError("storage.delete: key must be a string"))}return T(()=>_().then(($)=>{if($===null)return c;if(h.has(W)){if($.has(W))return i;h.delete(W)}$.delete(W);return y($)}))},keys:()=>T(_).then((W)=>W===null?[]:Array.from(W.keys()))};window.omelette={writeFile:(W,$)=>k(W,$).then((z)=>{if(!z.persisted&&!z.noHost){throw new Error(z.reason||"write failed")}}),storage:t};if(I&&I!==window){const W=(J,Q)=>{try{I.postMessage({__omelette_log:true,type:J,data:Q},"*")}catch{}};["log","warn","error"].forEach((J)=>{const Q=console[J];console[J]=(...V)=>{const Y=V.map((Z)=>{try{return typeof Z==="object"?JSON.stringify(Z):String(Z)}catch{try{return String(Z)}catch{return"[unstringifiable]"}}}).join(" ");W(J,Y);Q.apply(console,V)}});window.addEventListener("error",(J)=>{const Q=J.target;if(Q&&Q!==window&&Q.tagName){const V=Q.src||Q.href||"";W("resource_error",`${Q.tagName} failed to load: ${V}`)}else{W("error",`${J.message||"Unknown error"} at ${J.filename||"?"}:${J.lineno||0}:${J.colno||0}`)}},true);window.addEventListener("unhandledrejection",(J)=>{const Q=J.reason;const V=Q instanceof Error?`${Q.message} ${Q.stack}`:String(Q);W("error",`Unhandled rejection: ${V}`)});window.addEventListener("click",(J)=>{if(J.defaultPrevented||J.button!==0)return;if(J.metaKey||J.ctrlKey||J.shiftKey||J.altKey)return;const Q=J.composedPath?J.composedPath():[];const V=["button","input","select","textarea","summary","label"];let Y=null;for(const x of Q){if(!(x instanceof Element))continue;if(x.localName==="a"){if(!(x instanceof HTMLAnchorElement))return;Y=x;break}if(V.indexOf(x.localName)!==-1)return}if(!Y)return;if(Y.isContentEditable)return;const Z=Y.closest("[contenteditable]");if(Z&&Z.getAttribute("contenteditable")!=="false")return;const B=(Y.getAttribute("target")||"_self").toLowerCase();if(B!=="_self"&&B!=="_top"&&B!=="_parent")return;let U;try{U=new URL(Y.href)}catch{return}if(U.protocol!=="http:"&&U.protocol!=="https:")return;if(location.origin==="null")return;if(U.origin===location.origin)return;J.preventDefault();window.open(U.href,"_blank","noopener,noreferrer")});const $=()=>{try{I.postMessage({type:"omelette:height",height:document.documentElement.scrollHeight},"*")}catch{}};if(window.ResizeObserver)new ResizeObserver($).observe(document.documentElement);const z=()=>{$();if(!document.querySelector('script[type="text/babel"],script[type="text/jsx"]'))return;const J=()=>document.getElementById("root")||document.querySelector("body > div[id]");const Q=J()?.firstElementChild??null;let V=0;const Y=()=>{const Z=J();if(Z&&Z.firstElementChild!==Q||++V>30){$();return}setTimeout(Y,100)};setTimeout(Y,100)};if(document.readyState==="complete")z();else window.addEventListener("load",z);const q={};let X=0;const H=(J)=>new Promise((Q,V)=>{if(!b.length){V(new Error("claude.complete: no parent origin"));return}const Y=`c${++X}`;const Z=()=>setTimeout(()=>{delete q[Y];V(new Error(`claude.complete: no data for ${u/1000}s`))},u);const B=Z();q[Y]={resolve:Q,reject:V,text:"",t:B,arm:Z};try{for(const U of b){I.postMessage({__om_api:true,id:Y,body:J},U)}}catch(U){clearTimeout(B);delete q[Y];V(U)}});const j=8;const F=async(J,Q)=>{if(!Array.isArray(J.messages)){throw new Error("claude.complete: tools require a messages array")}const V=J.messages.slice();const Y={...J,tools:J.tools.map((U)=>{if(U===null||typeof U!=="object")return U;const x={};for(const K of Object.keys(U)){if(typeof U[K]!=="function")x[K]=U[K]}return x})};const Z=Y.tool_choice;const B=Z!=null&&(Z.type==="any"||Z.type==="tool")?{...Y,tool_choice:Z.disable_parallel_tool_use!==undefined?{type:"auto",disable_parallel_tool_use:Z.disable_parallel_tool_use}:{type:"auto"}}:Y;for(let U=0;U<j;U++){const x=await H({...U===0?Y:B,messages:V});const K=x.message;const M=K&&Array.isArray(K.content)?K.content:null;const L=M?M.filter((D)=>D?.type==="tool_use"):[];if(K?.stop_reason!=="tool_use"||L.length===0){return x.text}const N=[];for(const D of L){const f=Q.get(D.name);if(!f){N.push({type:"tool_result",tool_use_id:D.id,content:`no handler for tool "${D.name}"`,is_error:true});continue}try{const C=await f(D.input);const w=typeof C==="string"?C:R(C)??"";N.push({type:"tool_result",tool_use_id:D.id,content:w})}catch(C){N.push({type:"tool_result",tool_use_id:D.id,content:String(C?.message??C??"tool handler failed"),is_error:true})}}V.push({role:"assistant",content:M},{role:"user",content:N})}throw new Error(`claude.complete: exceeded ${j} tool turns`)};window.claude={complete(J){const Q=J;if(Q!==null&&typeof Q==="object"&&Array.isArray(Q.tools)&&Q.tools.some((V)=>V!==null&&typeof V==="object"&&typeof V.run==="function")){const V=new Map;for(const Y of Q.tools){if(Y!==null&&typeof Y==="object"&&typeof Y.run==="function"){V.set(String(Y.name),Y.run)}}return F(Q,V)}return H(J).then((V)=>V.text)}};const G={};let P=0;k=(J,Q)=>new Promise((V)=>{if(!b.length){V({persisted:false,noHost:true,reason:g});return}const Y=`f${++P}`;const Z=setTimeout(()=>{delete G[Y];V({persisted:false,noHost:true,reason:g})},d);G[Y]={settle:V,t:Z};try{for(const B of b){I.postMessage({__om_file:true,id:Y,op:"write",path:J,content:Q},B)}}catch{clearTimeout(Z);delete G[Y];V({persisted:false,noHost:true,reason:g})}});const R=(J)=>{try{return JSON.stringify(J)}catch{return JSON.stringify(String(J))}};window.addEventListener("message",(J)=>{if(b.indexOf(J.origin)<0)return;if(J.source!==I)return;const Q=J.data;if(!Q)return;if(Q.type==="omelette-preview-refresh"){if(typeof Q.token!=="string"||!/^[0-9a-f.-]+(\.(rc|pr-[0-9]+))?(\.[0-9]+\.[0-9a-f]{16})?$/.test(Q.token))return;const Z=Math.max(1,Math.floor((Q.expiresAt||0)-Date.now()/1000));document.cookie="__Host-omelette-preview="+Q.token+"; Path=/; Secure; SameSite=None; Partitioned; Max-Age="+Z;return}if(Q.__om_file_r){const Z=G[Q.id];if(!Z)return;clearTimeout(Z.t);delete G[Q.id];Z.settle(Q.ok?{persisted:true}:{persisted:false,reason:Q.error||"write failed"});return}if(Q.__om_api_r){const Z=q[Q.id];if(!Z)return;if(Q.error!=null){clearTimeout(Z.t);delete q[Q.id];Z.reject(new Error(Q.error));return}if(Q.chunk!=null){clearTimeout(Z.t);Z.t=Z.arm();Z.text+=Q.chunk;return}if(Q.done){clearTimeout(Z.t);delete q[Q.id];Z.resolve({text:Q.text!=null?Q.text:Z.text,message:Q.message});return}return}if(!Q.__om_eval)return;const V=Q;const Y=(Z)=>{J.source.postMessage({...Z,__om_eval_r:1,id:V.id},J.origin)};try{const Z=(0,eval)(V.code);if(Z&&typeof Z.then==="function"){Z.then((B)=>Y({ok:1,v:R(B)}),(B)=>Y({ok:0,e:String(B)}))}else{Y({ok:1,v:R(Z)})}}catch(Z){Y({ok:0,e:String(Z)})}})}})();
-</script>
-
+<html lang="en" data-theme="dark">
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>(function(){try{var t=localStorage.getItem('ak-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
-<title>Ajay Katta — Product Designer</title>
-<meta name="description" content="Ajay Katta — With 5+ years of experience, I enjoy turning complex problems into simple, intuitive experiences by combining UX strategy, user-centered design, photorealistic 3D visualization, and AI-powered workflows.">
+<title>Ajay Katta — 3D & Product Designer</title>
+<meta name="description" content="Ajay Katta — 3D, Product and UI/UX Designer. 5+ years building game-ready 3D assets, photorealistic renders and end-to-end product experiences.">
 <meta name="author" content="Ajay Katta">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
-<link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'&gt;&lt;rect width='64' height='64' rx='14' fill='%23111318'/&gt;&lt;text x='32' y='44' font-family='Helvetica,Arial,sans-serif' font-size='29' font-weight='700' fill='%23FF6B5C' text-anchor='middle'&gt;AK&lt;/text&gt;&lt;/svg&gt;">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23111318'/><text x='32' y='44' font-family='Helvetica,Arial,sans-serif' font-size='29' font-weight='700' fill='%23FF6B5C' text-anchor='middle'>AK</text></svg>">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Ajay Katta">
-<meta property="og:title" content="Ajay Katta — Product Designer">
-<meta property="og:description" content="Ajay Katta — With 5+ years of experience, I enjoy turning complex problems into simple, intuitive experiences by combining UX strategy, user-centered design, photorealistic 3D visualization, and AI-powered workflows.">
+<meta property="og:title" content="Ajay Katta — 3D &amp; Product Designer">
+<meta property="og:description" content="Ajay Katta — 3D, Product and UI/UX Designer. 5+ years building game-ready 3D assets, photorealistic renders and end-to-end product experiences.">
 <meta property="og:image" content="media/home/profile-photo.webp">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Ajay Katta — Product Designer">
-<meta name="twitter:description" content="Ajay Katta — With 5+ years of experience, I enjoy turning complex problems into simple, intuitive experiences by combining UX strategy, user-centered design, photorealistic 3D visualization, and AI-powered workflows.">
+<meta name="twitter:title" content="Ajay Katta — 3D &amp; Product Designer">
+<meta name="twitter:description" content="Ajay Katta — 3D, Product and UI/UX Designer. 5+ years building game-ready 3D assets, photorealistic renders and end-to-end product experiences.">
 <meta name="twitter:image" content="media/home/profile-photo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&amp;family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <template id="__bundler_thumbnail" data-bg-color="#1C1A14">
   <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
-    <rect width="1200" height="800" fill="#1C1A14"></rect>
+    <rect width="1200" height="800" fill="#1C1A14"/>
     <g fill="#FF6B5C">
-      <rect x="585" y="240" width="30" height="30" transform="rotate(45 600 255)"></rect>
-      <rect x="470" y="350" width="22" height="22" transform="rotate(45 481 361)" opacity="0.8"></rect>
-      <rect x="710" y="350" width="22" height="22" transform="rotate(45 721 361)" opacity="0.8"></rect>
-      <rect x="360" y="470" width="16" height="16" transform="rotate(45 368 478)" fill="#E85949" opacity="0.7"></rect>
-      <rect x="824" y="470" width="16" height="16" transform="rotate(45 832 478)" fill="#E85949" opacity="0.7"></rect>
-      <rect x="585" y="480" width="30" height="30" transform="rotate(45 600 495)" fill="#E85949"></rect>
-      <rect x="250" y="560" width="12" height="12" transform="rotate(45 256 566)" opacity="0.5"></rect>
-      <rect x="938" y="560" width="12" height="12" transform="rotate(45 944 566)" opacity="0.5"></rect>
+      <rect x="585" y="240" width="30" height="30" transform="rotate(45 600 255)"/>
+      <rect x="470" y="350" width="22" height="22" transform="rotate(45 481 361)" opacity="0.8"/>
+      <rect x="710" y="350" width="22" height="22" transform="rotate(45 721 361)" opacity="0.8"/>
+      <rect x="360" y="470" width="16" height="16" transform="rotate(45 368 478)" fill="#E85949" opacity="0.7"/>
+      <rect x="824" y="470" width="16" height="16" transform="rotate(45 832 478)" fill="#E85949" opacity="0.7"/>
+      <rect x="585" y="480" width="30" height="30" transform="rotate(45 600 495)" fill="#E85949"/>
+      <rect x="250" y="560" width="12" height="12" transform="rotate(45 256 566)" opacity="0.5"/>
+      <rect x="938" y="560" width="12" height="12" transform="rotate(45 944 566)" opacity="0.5"/>
     </g>
   </svg>
 </template>
@@ -1181,7 +1179,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
       <span class="nav-div" aria-hidden="true"></span>
       <div class="nav-actions">
         <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf" id="resumeBtn" target="_blank" rel="noopener">Resume</a>
-        <button class="home-admin" id="homeAdmin" type="button" title="Admin — locked" aria-label="Admin — locked"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="dot"></span></button>
+        <button class="home-admin" id="homeAdmin" type="button" title="Admin — locked" aria-label="Admin — locked"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="dot"></span></button>
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark and light mode"><span class="knob" id="knob">🌙</span></button>
       </div>
       <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
@@ -1225,12 +1223,12 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
         <div class="id-deco" aria-hidden="true"></div>
         <div class="id-photo"></div>
         <div class="pf-ctrl">
-          <button type="button" class="pf-btn" aria-label="Change profile photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></button>
+          <button type="button" class="pf-btn" aria-label="Change profile photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
           <div class="pf-menu" role="menu">
             <button type="button" class="pf-replace"><span class="gl">⤴</span>Replace photo</button>
             <button type="button" class="pf-default"><span class="gl">↺</span>Use default</button>
           </div>
-          <input type="file" class="pf-input" accept="image/*" hidden="">
+          <input type="file" class="pf-input" accept="image/*" hidden>
         </div>
         <div class="id-quote">“Systems before screens.”</div>
       </div>
@@ -1270,12 +1268,12 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
         </div>
         <div class="case-scrim"></div>
         <div class="cover-ctrl">
-          <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>Cover</button>
+          <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Cover</button>
           <div class="cover-menu" role="menu">
             <button type="button" class="cm-replace"><span class="gl">⤴</span>Replace photo</button>
             <button type="button" class="cm-default"><span class="gl">↺</span>Use default</button>
           </div>
-          <input type="file" class="cover-input" accept="image/*" hidden="">
+          <input type="file" class="cover-input" accept="image/*" hidden>
         </div>
         <span class="case-eyebrow">Generative AI</span>
         <div class="case-body">
@@ -1296,12 +1294,12 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
         </div>
         <div class="case-scrim"></div>
         <div class="cover-ctrl">
-          <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>Cover</button>
+          <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Cover</button>
           <div class="cover-menu" role="menu">
             <button type="button" class="cm-replace"><span class="gl">⤴</span>Replace photo</button>
             <button type="button" class="cm-default"><span class="gl">↺</span>Use default</button>
           </div>
-          <input type="file" class="cover-input" accept="image/*" hidden="">
+          <input type="file" class="cover-input" accept="image/*" hidden>
         </div>
         <span class="case-eyebrow">UI / UX</span>
         <div class="case-body">
@@ -1320,12 +1318,12 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
         </div>
         <div class="case-scrim"></div>
         <div class="cover-ctrl">
-          <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>Cover</button>
+          <button type="button" class="cover-btn" aria-label="Set cover photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Cover</button>
           <div class="cover-menu" role="menu">
             <button type="button" class="cm-replace"><span class="gl">⤴</span>Replace photo</button>
             <button type="button" class="cm-default"><span class="gl">↺</span>Use default</button>
           </div>
-          <input type="file" class="cover-input" accept="image/*" hidden="">
+          <input type="file" class="cover-input" accept="image/*" hidden>
         </div>
         <span class="case-eyebrow">3D</span>
         <div class="case-body">
@@ -1402,28 +1400,28 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
     <div class="exp-wrap">
       <div class="exp-map reveal" aria-hidden="true">
         <svg viewBox="0 0 320 470" role="img" aria-label="Career flight path">
-          <path class="fm-route" d="M 238 410 C 272 332 46 336 92 232 C 132 146 282 158 228 64"></path>
-          <path class="fm-done" id="fmDone" d="M 238 410 C 272 332 46 336 92 232 C 132 146 282 158 228 64"></path>
+          <path class="fm-route" d="M 238 410 C 272 332 46 336 92 232 C 132 146 282 158 228 64"/>
+          <path class="fm-done" id="fmDone" d="M 238 410 C 272 332 46 336 92 232 C 132 146 282 158 228 64"/>
 
-          <circle class="fm-ring" data-i="2" cx="238" cy="410" r="14"></circle>
-          <circle class="fm-ring" data-i="1" cx="92" cy="232" r="14"></circle>
-          <circle class="fm-ring" data-i="0" cx="228" cy="64" r="14"></circle>
-          <circle class="fm-node" data-i="2" cx="238" cy="410" r="6.5"></circle>
-          <circle class="fm-node" data-i="1" cx="92" cy="232" r="6.5"></circle>
-          <circle class="fm-node" data-i="0" cx="228" cy="64" r="6.5"></circle>
+          <circle class="fm-ring" data-i="2" cx="238" cy="410" r="14"/>
+          <circle class="fm-ring" data-i="1" cx="92" cy="232" r="14"/>
+          <circle class="fm-ring" data-i="0" cx="228" cy="64" r="14"/>
+          <circle class="fm-node" data-i="2" cx="238" cy="410" r="6.5"/>
+          <circle class="fm-node" data-i="1" cx="92" cy="232" r="6.5"/>
+          <circle class="fm-node" data-i="0" cx="228" cy="64" r="6.5"/>
 
           <text class="fm-yr" data-i="2" x="254" y="414" text-anchor="start">2015 — 19</text>
           <text class="fm-yr" data-i="1" x="74" y="228" text-anchor="end">2019</text>
           <text class="fm-yr" data-i="0" x="244" y="68" text-anchor="end">2020 — 25</text>
 
           <g class="fm-drone" id="fmDrone">
-            <circle class="glow" r="18"></circle>
-            <path class="flame flame-outer" d="M-12 -4 L-22 0 L-12 4 Q-9 0 -12 -4 Z"></path>
-            <path class="flame flame-inner" d="M-12 -2.4 L-18 0 L-12 2.4 Q-10 0 -12 -2.4 Z"></path>
-            <path class="fin" d="M-4 -6 L-14 -13 L-12 -5 Z"></path>
-            <path class="fin" d="M-4 6 L-14 13 L-12 5 Z"></path>
-            <path class="body" d="M-12 -6 L3 -6 Q18 -5.5 18 0 Q18 5.5 3 6 L-12 6 Q-14 0 -12 -6 Z"></path>
-            <circle class="window" cx="7" cy="0" r="3"></circle>
+            <circle class="glow" r="18"/>
+            <path class="flame flame-outer" d="M-12 -4 L-22 0 L-12 4 Q-9 0 -12 -4 Z"/>
+            <path class="flame flame-inner" d="M-12 -2.4 L-18 0 L-12 2.4 Q-10 0 -12 -2.4 Z"/>
+            <path class="fin" d="M-4 -6 L-14 -13 L-12 -5 Z"/>
+            <path class="fin" d="M-4 6 L-14 13 L-12 5 Z"/>
+            <path class="body" d="M-12 -6 L3 -6 Q18 -5.5 18 0 Q18 5.5 3 6 L-12 6 Q-14 0 -12 -6 Z"/>
+            <circle class="window" cx="7" cy="0" r="3"/>
           </g>
 
           <text class="fm-cap" x="0" y="458">Flight log · hover to travel</text>
@@ -1456,9 +1454,9 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
       <h2>Certifications</h2>
     </div>
     <div class="cert-carousel">
-      <button class="cert-nav prev" id="certPrev" type="button" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+      <button class="cert-nav prev" id="certPrev" type="button" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="cert-track" id="certTrack"></div>
-      <button class="cert-nav next" id="certNext" type="button" aria-label="Next"><svg viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+      <button class="cert-nav next" id="certNext" type="button" aria-label="Next"><svg viewBox="0 0 24 24" fill="none"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="cert-dots" id="certDots"></div>
     </div>
   </div>
@@ -1466,7 +1464,7 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 
 <!-- cert lightbox -->
 <div class="cert-lb" id="certLb" aria-hidden="true">
-  <button class="cert-lb-x" id="certLbX" aria-label="Close">×</button>
+  <button class="cert-lb-x" id="certLbX" aria-label="Close">&times;</button>
   <img id="certLbImg" alt="Certificate">
 </div>
 
@@ -1475,16 +1473,16 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
   <div class="cert-dialog" role="dialog" aria-modal="true" aria-labelledby="certModalTitle">
     <div class="cert-dialog-head">
       <h3 id="certModalTitle">Add certificate</h3>
-      <button class="cert-x" id="certModalClose" aria-label="Close">×</button>
+      <button class="cert-x" id="certModalClose" aria-label="Close">&times;</button>
     </div>
     <label class="cert-drop">
-      <input type="file" accept="image/*" id="certFile" hidden="">
+      <input type="file" accept="image/*" id="certFile" hidden>
       <div class="cert-drop-empty" id="certDropEmpty">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V5m0 0L8 9m4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V5m0 0L8 9m4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <span>Click to upload certificate image</span>
         <small>PNG or JPG</small>
       </div>
-      <img id="certPreview" alt="" hidden="">
+      <img id="certPreview" alt="" hidden>
     </label>
     <div class="cert-field"><label for="certTitle">Title</label><input type="text" id="certTitle" placeholder="e.g. Google UX Design Professional Certificate"></div>
     <div class="cert-row2">
@@ -1514,17 +1512,17 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
         </div>
         <div class="social-cards">
       <a class="scard reveal" href="https://www.linkedin.com/in/ajaykatta01" target="_blank" rel="noopener" aria-label="LinkedIn" style="--sc:#0A66C2">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3V9zm6 0h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.6 8.65 22 10.3 22 13.4V21h-4v-6.7c0-1.6-.03-3.66-2.23-3.66-2.23 0-2.57 1.74-2.57 3.54V21H9V9z"></path></svg></span>
+        <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3V9zm6 0h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.6 8.65 22 10.3 22 13.4V21h-4v-6.7c0-1.6-.03-3.66-2.23-3.66-2.23 0-2.57 1.74-2.57 3.54V21H9V9z"/></svg></span>
       </a>
       <a class="scard reveal" href="https://www.behance.net/ajaygoud8" target="_blank" rel="noopener" aria-label="Behance" style="--sc:#1769FF">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 11.1c.8-.4 1.3-1.1 1.3-2.1 0-2-1.5-2.7-3.3-2.7H1v11h5.4c1.9 0 3.6-.9 3.6-3 0-1.3-.6-2.3-1.8-2.7zM3.5 8.3h2c.8 0 1.5.2 1.5 1.1S6.4 10.6 5.6 10.6h-2.1V8.3zm2.3 6.9H3.5v-2.7h2.4c1 0 1.6.4 1.6 1.4 0 1-.7 1.3-1.7 1.3zM23 13.3c0-2.4-1.4-4.4-3.9-4.4-2.5 0-4.2 1.9-4.2 4.3 0 2.5 1.6 4.3 4.2 4.3 1.9 0 3.2-.9 3.8-2.7h-2.1c-.2.6-.9.9-1.6.9-1 0-1.7-.6-1.8-1.7H23c0-.3.0-.6.0-.7zM17.5 12c.1-1 .7-1.6 1.6-1.6.9 0 1.5.7 1.5 1.6h-3.1zM15.3 7h4.8v1.2h-4.8V7z"></path></svg></span>
+        <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 11.1c.8-.4 1.3-1.1 1.3-2.1 0-2-1.5-2.7-3.3-2.7H1v11h5.4c1.9 0 3.6-.9 3.6-3 0-1.3-.6-2.3-1.8-2.7zM3.5 8.3h2c.8 0 1.5.2 1.5 1.1S6.4 10.6 5.6 10.6h-2.1V8.3zm2.3 6.9H3.5v-2.7h2.4c1 0 1.6.4 1.6 1.4 0 1-.7 1.3-1.7 1.3zM23 13.3c0-2.4-1.4-4.4-3.9-4.4-2.5 0-4.2 1.9-4.2 4.3 0 2.5 1.6 4.3 4.2 4.3 1.9 0 3.2-.9 3.8-2.7h-2.1c-.2.6-.9.9-1.6.9-1 0-1.7-.6-1.8-1.7H23c0-.3.0-.6.0-.7zM17.5 12c.1-1 .7-1.6 1.6-1.6.9 0 1.5.7 1.5 1.6h-3.1zM15.3 7h4.8v1.2h-4.8V7z"/></svg></span>
       </a>
       <a class="scard reveal" href="https://www.artstation.com/ajaykatta" target="_blank" rel="noopener" aria-label="ArtStation" style="--sc:#13AFF0">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 17.7l2.2 3.8c.4.7 1.1 1 1.9 1h13.3l-2.8-4.8H0zm24-1.4c0-.5-.1-1-.4-1.4L17.2 3.5c-.4-.7-1.1-1.2-2-1.2H11l11.6 20.1 1.1-1.9c.2-.4.3-.6.3-1.1v-3.1zM13.2 14.9L8.3 6.4l-4.9 8.5h9.8z"></path></svg></span>
+        <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 17.7l2.2 3.8c.4.7 1.1 1 1.9 1h13.3l-2.8-4.8H0zm24-1.4c0-.5-.1-1-.4-1.4L17.2 3.5c-.4-.7-1.1-1.2-2-1.2H11l11.6 20.1 1.1-1.9c.2-.4.3-.6.3-1.1v-3.1zM13.2 14.9L8.3 6.4l-4.9 8.5h9.8z"/></svg></span>
       </a>
       <div class="gmail-group">
         <button class="scard reveal" type="button" id="gmailBtn" aria-label="Email" aria-expanded="false" style="--sc:#EA4335">
-          <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 5.5C2 4.7 2.7 4 3.5 4h17c.8 0 1.5.7 1.5 1.5v13c0 .8-.7 1.5-1.5 1.5h-17C2.7 20 2 19.3 2 18.5v-13zm2.2.5L12 11.6 19.8 6H4.2zM20 7.6l-7.4 5.3a1 1 0 0 1-1.2 0L4 7.6V18h16V7.6z"></path></svg></span>
+          <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 5.5C2 4.7 2.7 4 3.5 4h17c.8 0 1.5.7 1.5 1.5v13c0 .8-.7 1.5-1.5 1.5h-17C2.7 20 2 19.3 2 18.5v-13zm2.2.5L12 11.6 19.8 6H4.2zM20 7.6l-7.4 5.3a1 1 0 0 1-1.2 0L4 7.6V18h16V7.6z"/></svg></span>
         </button>
       </div>
         </div>
@@ -1541,28 +1539,28 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 <div class="mailpop" id="mailpop" role="dialog" aria-label="Send Ajay an email">
   <div class="mailpop-top">
     <div class="mailpop-addr">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 5.5C2 4.7 2.7 4 3.5 4h17c.8 0 1.5.7 1.5 1.5v13c0 .8-.7 1.5-1.5 1.5h-17C2.7 20 2 19.3 2 18.5v-13zm2.2.5L12 11.6 19.8 6H4.2zM20 7.6l-7.4 5.3a1 1 0 0 1-1.2 0L4 7.6V18h16V7.6z"></path></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 5.5C2 4.7 2.7 4 3.5 4h17c.8 0 1.5.7 1.5 1.5v13c0 .8-.7 1.5-1.5 1.5h-17C2.7 20 2 19.3 2 18.5v-13zm2.2.5L12 11.6 19.8 6H4.2zM20 7.6l-7.4 5.3a1 1 0 0 1-1.2 0L4 7.6V18h16V7.6z"/></svg>
       <span>ajaygd01@gmail.com</span>
     </div>
     <button class="mailpop-copy" type="button" id="mailpopCopy" aria-label="Copy email address">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
     </button>
     <span class="mailpop-flash" id="mailpopFlash">Copied!</span>
   </div>
-  <form class="mailpop-form" id="mailpopForm" novalidate="">
+  <form class="mailpop-form" id="mailpopForm" novalidate>
     <div class="mp-row">
       <div class="mp-field">
         <label for="mpName">Name</label>
-        <input id="mpName" type="text" placeholder="Your name" autocomplete="name">
+        <input id="mpName" type="text" placeholder="Your name" autocomplete="name" />
       </div>
       <div class="mp-field">
         <label for="mpMail">Mail id</label>
-        <input id="mpMail" type="email" placeholder="you@email.com" autocomplete="email">
+        <input id="mpMail" type="email" placeholder="you@email.com" autocomplete="email" />
       </div>
     </div>
     <div class="mp-field">
       <label for="mpSubj">Subject</label>
-      <input id="mpSubj" type="text" placeholder="What is this about?">
+      <input id="mpSubj" type="text" placeholder="What is this about?" />
     </div>
     <div class="mp-field">
       <label for="mpMsg">Message</label>
@@ -1570,16 +1568,16 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
     </div>
     <p class="mp-err" id="mpErr"></p>
     <div class="mp-acts">
-      <span class="mp-talk">Let’s talk</span>
+      <span class="mp-talk">Let&rsquo;s talk</span>
       <button class="ak-btn ghost" type="button" id="mpCancel">Cancel</button>
       <button class="ak-btn" type="submit" id="mpSend">
         <span class="mp-lbl">Send</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
       </button>
     </div>
   </form>
   <div class="mp-done" id="mpDone">
-    <div class="mp-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></div>
+    <div class="mp-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
     <h4>Message sent</h4>
     <p>Thanks — I will reply to your mail id soon.</p>
   </div>
@@ -3000,6 +2998,5 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
 })();
 </script>
 <script src="theme-ripple.js"></script>
-
-
-</body></html>
+</body>
+</html>

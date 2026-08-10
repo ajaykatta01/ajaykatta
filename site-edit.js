@@ -29,6 +29,121 @@
   var PAGELABEL = { "index": "Home", "project-ui-ux": "UI / UX", "project-gen-ai": "Gen AI", "project-3d": "3D", "resume": "Résumé" };
   var BUCKETS = [["text", "Text"], ["html", "Text"], ["img", "Photo"], ["href", "Link"], ["attr", "Setting"], ["hide", "Hidden"], ["order", "Reordered"]];
 
+  /* ---- case studies: projects added with admin.js, surfaced here before publish ----
+     admin.js keeps each category page's projects in IndexedDB under data:<key>.
+     A project (and the files dropped into it) exists only on this device until it
+     is published, so Settings lists them alongside the page-content changes. */
+  var CASEPAGES = [["project-ui-ux", "ui-ux"], ["project-gen-ai", "gen-ai"], ["project-3d", "3d"]];
+  var CASES = null;   // [{page,key,label,projects:[…],pending:[…]}]
+  var CASEBASE = null; // this device's project data as of its last publish (admin.js writes it)
+
+  /* The local copy of a published project is NEVER byte-identical to the live JSON:
+     media lives as a data: URL here and as a media/… path there, and the editor keeps
+     runtime-only fields. So "already live" is judged loosely against portfolio-data.json
+     — media references collapse to one token, blanks and runtime keys drop out — while
+     an exact match against the last-publish snapshot (when there is one) is what proves
+     nothing changed since. */
+  var SKIPKEYS = { seeded: 1, open: 1, _rev: 1, updatedAt: 1, savedAt: 1, ts: 1 };
+  function loose(v) {
+    if (typeof v === "string") return (v.slice(0, 5) === "data:" || /^media\//i.test(v) || /^blob:/.test(v)) ? "@f" : v.replace(/\s+/g, " ").trim();
+    if (Array.isArray(v)) return v.map(loose);
+    if (v && typeof v === "object") {
+      var o = {};
+      Object.keys(v).sort().forEach(function (k) {
+        if (SKIPKEYS[k] || k.charAt(0) === "_") return;
+        var x = loose(v[k]);
+        if (x === "" || x == null || x === false) return;
+        if (Array.isArray(x) && !x.length) return;
+        if (x && typeof x === "object" && !Array.isArray(x) && !Object.keys(x).length) return;
+        o[k] = x;
+      });
+      return o;
+    }
+    return v;
+  }
+  function sameLive(a, b) { return eq(loose(a), loose(b)); }
+  function countMedia(v, acc) {
+    if (typeof v === "string") {
+      if (v.slice(0, 5) === "data:") { acc.files++; acc.pendingFiles++; acc.bytes += dataBytes(v); }
+      else if (/^media\//i.test(v)) acc.files++;
+      return acc;
+    }
+    if (Array.isArray(v)) { v.forEach(function (x) { countMedia(x, acc); }); return acc; }
+    if (v && typeof v === "object") { for (var k in v) countMedia(v[k], acc); }
+    return acc;
+  }
+  function projRow(it, state) {
+    var m = countMedia(it, { files: 0, pendingFiles: 0, bytes: 0 });
+    return {
+      id: it.id, state: state,
+      title: it.title || it.label || "Untitled project",
+      tag: it.tag || (it.meta && it.meta.role) || "",
+      blocks: (it.blocks || []).length,
+      files: m.files, pendingFiles: m.pendingFiles, bytes: m.bytes
+    };
+  }
+  function caseProjects(local, live, base) {
+    var pItems = (live && live.items) || [];
+    var lItems = (local && local.items && local.items.length) ? local.items : null;
+    if (!lItems) return pItems.map(function (it) { return projRow(it || {}, "live"); });
+    var byId = {}; pItems.forEach(function (it) { if (it && it.id) byId[it.id] = it; });
+    var byBase = {}; ((base && base.items) || []).forEach(function (it) { if (it && it.id) byBase[it.id] = it; });
+    var hasBase = !!(base && base.items);
+    var out = [], seen = {};
+    lItems.forEach(function (it) {
+      if (!it) return;
+      seen[it.id] = 1;
+      var pub = byId[it.id], bse = byBase[it.id], state;
+      if (!pub && !bse) state = "new";
+      else if (hasBase && bse) state = eq(bse, it) ? "live" : "edited";           // exact: nothing changed since the last publish
+      else if (pub) state = sameLive(pub, it) ? "live" : "edited";                 // no snapshot: loose match with the live JSON
+      else state = "edited";
+      out.push(projRow(it, state));
+    });
+    pItems.forEach(function (it) {
+      if (!it || seen[it.id]) return;
+      var r = projRow(it, "removed"); r.files = 0; r.pendingFiles = 0; r.bytes = 0; out.push(r);
+    });
+    return out;
+  }
+  function loadCases() {
+    return Promise.all([
+      fetch("portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+      idbGet("case:pub-base")
+    ].concat(CASEPAGES.map(function (c) { return idbGet("data:" + c[1]); }))).then(function (res) {
+      var live = res[0] || {};
+      CASEBASE = (res[1] && res[1].data) || null;
+      CASES = CASEPAGES.map(function (c, i) {
+        var projects = caseProjects(res[i + 2], live[c[1]], CASEBASE && CASEBASE[c[1]]);
+        return {
+          page: c[0], key: c[1], label: PAGELABEL[c[0]] || c[1], projects: projects,
+          pending: projects.filter(function (p) { return p.state !== "live"; })
+        };
+      });
+      syncBar();
+      return CASES;
+    }).catch(function () { CASES = []; return CASES; });
+  }
+  function cases() { return CASES ? Promise.resolve(CASES) : loadCases(); }
+  // admin.js fires this whenever a project is created / edited / deleted on this page
+  document.addEventListener("ak-cases-changed", function () { CASES = null; loadCases(); });
+  function caseTotal() { var n = 0; (CASES || []).forEach(function (g) { n += g.pending.length; }); return n; }
+  function projLine(p) {
+    var bits = [];
+    if (p.tag) bits.push(short(p.tag, 18));
+    bits.push(p.files + " file" + (p.files === 1 ? "" : "s"));
+    if (p.state !== "live" && p.pendingFiles) bits.push(p.pendingFiles + " not yet published · " + kb(p.bytes));
+    else if (p.blocks) bits.push(p.blocks + " block" + (p.blocks === 1 ? "" : "s"));
+    return bits.join(" · ");
+  }
+  var STATEC = { "new": "#36d399", edited: "var(--accent,#E5783A)", removed: "#ef4444", live: "var(--muted,#C9C8C6)" };
+  function pill(state) {
+    var c = STATEC[state] || STATEC.live;
+    return h("span", { style: "flex:none;padding:3px 9px;border-radius:99px;font-size:.64rem;font-weight:700;letter-spacing:.04em;" +
+      "text-transform:uppercase;color:" + c + ";background:color-mix(in srgb," + c + " 16%,transparent);" +
+      "border:1px solid color-mix(in srgb," + c + " 38%,transparent)" }, [state === "live" ? "Live" : state === "new" ? "New" : state === "edited" ? "Edited" : "Removed"]);
+  }
+
   /* PUBBASE = snapshot of this device's edits at the moment they were last
      downloaded for publishing. A value that matches EITHER the live
      site-content.json or this snapshot is already published, so it must not
@@ -56,7 +171,16 @@
   function markPublished() {
     PUBBASE = JSON.parse(JSON.stringify(DATA)); PUBAT = Date.now();
     idbSet("site:published-base", { at: PUBAT, data: PUBBASE });
+    markCasesPublished();
     flagChanged(); syncBar();
+  }
+  // the projects on this device are now the published ones too
+  function markCasesPublished() {
+    return Promise.all(CASEPAGES.map(function (c) { return idbGet("data:" + c[1]); })).then(function (vals) {
+      var data = {};
+      CASEPAGES.forEach(function (c, i) { if (vals[i]) data[c[1]] = vals[i]; });
+      return idbSet("case:pub-base", { at: Date.now(), data: data });
+    }).then(function () { CASES = null; return loadCases(); }).catch(function () {});
   }
 
   /* ---------------------------------------------------------------- helpers */
@@ -627,7 +751,7 @@
     var scrim = h("div", { class: "aks-ui aks-scrim", onclick: closePanel });
     var body = h("div", { class: "aks-body" });
     var tabs = h("div", { class: "aks-tabs" });
-    [["draft", "Draft"], ["sections", "Sections"], ["theme", "Theme"], ["seo", "SEO"], ["links", "Links"], ["files", "Files"], ["versions", "Versions"], ["publish", "Publish"]]
+    [["draft", "Draft"], ["projects", "Projects"], ["sections", "Sections"], ["theme", "Theme"], ["seo", "SEO"], ["links", "Links"], ["files", "Files"], ["versions", "Versions"], ["publish", "Publish"]]
       .forEach(function (t) {
         tabs.appendChild(h("button", { class: "aks-tab" + (t[0] === curTab ? " on" : ""), onclick: function () { curTab = t[0]; openPanel(curTab); } }, [t[1]]));
       });
@@ -640,7 +764,7 @@
     ]);
     document.body.appendChild(scrim); document.body.appendChild(panelEl);
     panelEl.__scrim = scrim;
-    ({ draft: tabDraft, sections: tabSections, theme: tabTheme, seo: tabSEO, links: tabLinks, files: tabFiles, versions: tabVersions, publish: tabPublish }[curTab])(body);
+    ({ draft: tabDraft, projects: tabProjects, sections: tabSections, theme: tabTheme, seo: tabSEO, links: tabLinks, files: tabFiles, versions: tabVersions, publish: tabPublish }[curTab])(body);
   }
   function closePanel() { if (panelEl) { if (panelEl.__scrim) panelEl.__scrim.remove(); panelEl.remove(); panelEl = null; } }
 
@@ -816,6 +940,39 @@
     });
   }
 
+  function tabProjects(box) {
+    box.appendChild(h("div", { class: "aks-note", html: "Every case study across your three category pages — including the ones you just added. A project and its files stay on this device until you publish." }));
+    var wrap = h("div", {});
+    box.appendChild(wrap);
+    cases().then(function (groups) {
+      if (!groups || !groups.length) { wrap.appendChild(h("div", { class: "aks-note" }, ["No project pages found."])); return; }
+      var pend = caseTotal();
+      wrap.appendChild(h("div", { class: "aks-note", html: pend
+        ? "<b>" + pend + " project change" + (pend === 1 ? "" : "s") + " waiting.</b> They ship with either download on the Publish tab."
+        : "<b>All projects match the live site.</b>" }));
+      groups.forEach(function (g) {
+        wrap.appendChild(h("div", { class: "aks-sec" }, [g.label + " · " + g.projects.length + " project" + (g.projects.length === 1 ? "" : "s") +
+          (g.pending.length ? " · " + g.pending.length + " unpublished" : "")]));
+        if (!g.projects.length) wrap.appendChild(h("div", { class: "aks-note" }, ["Nothing here yet."]));
+        g.projects.forEach(function (p) {
+          wrap.appendChild(h("div", { class: "aks-row" }, [
+            h("div", { class: "gr" }, [h("div", { class: "t" }, [short(p.title, 30)]), h("div", { class: "s" }, [projLine(p)])]),
+            pill(p.state)
+          ]));
+        });
+        if (g.page !== PAGE) wrap.appendChild(h("button", { class: "aks-b", style: "width:100%;border:1px solid var(--line);margin-top:8px",
+          onclick: function () { location.href = g.page + ".html"; } }, ["Open " + g.label + " to add or edit projects"]));
+      });
+      wrap.appendChild(h("div", { class: "aks-note", style: "margin-top:12px", html: "Projects are added on the category page itself — open it, unlock, then use <b>Add project</b>. This list is read-only." }));
+      if (pend) wrap.appendChild(h("button", { class: "aks-b", style: "width:100%;border:1px solid var(--line);margin-top:8px;opacity:.85", onclick: function () {
+        confirmBox({ title: "Mark every project as live?", sub: "Use this if these projects are already on the live site — published from another device, or pushed by hand. It only updates this list; nothing on the site changes.", ok: "Mark as live" }).then(function (go) {
+          if (!go) return;
+          markCasesPublished().then(function () { openPanel("projects"); toast("Projects marked as live"); });
+        });
+      } }, ["These are already live — clear the list"]));
+    });
+  }
+
   function tabVersions(box) {
     box.appendChild(h("div", { class: "aks-note" }, ["The last " + MAXV + " saved states of your edits. Reverting only changes your local working copy — the live site is untouched until you publish."]));
     idbGet("site:versions").then(function (v) {
@@ -849,9 +1006,12 @@
   }
 
   /* ----------------------------------------------------------------- draft */
-  function tabDraft(box) {
+  function tabDraft(box) { cases().then(function () { drawDraft(box); }); }
+  function drawDraft(box) {
     var d = diffList(), total = 0;
     d.forEach(function (g) { total += g.items.length; });
+    var cg = (CASES || []).filter(function (g) { return g.pending.length; });
+    total += caseTotal();
     box.appendChild(h("div", { class: "aks-note", html: total
       ? "<b>Saved on this device only.</b> Everything you change is kept here as a draft — the live site is untouched until you publish. Look around the site, keep editing, come back when you like it."
       : "<b>Nothing waiting.</b> This device matches the live site." + (PUBAT ? " Last download " + ago(PUBAT) + "." : "") }));
@@ -862,6 +1022,17 @@
         if (g.items.length > 12) blk.appendChild(h("div", { class: "it" }, ["+ " + (g.items.length - 12) + " more"]));
         box.appendChild(blk);
       });
+      cg.forEach(function (g) {
+        var blk = h("div", { class: "aks-diff" }, [h("div", { class: "hd" }, [g.label + " projects · " + g.pending.length + " change" + (g.pending.length === 1 ? "" : "s")])]);
+        g.pending.slice(0, 12).forEach(function (p) {
+          blk.appendChild(h("div", { class: "it" }, [(p.state === "new" ? "New project" : p.state === "removed" ? "Removed" : "Edited") + " · " + short(p.title, 26) +
+            (p.pendingFiles ? " · " + p.pendingFiles + " file" + (p.pendingFiles === 1 ? "" : "s") + " (" + kb(p.bytes) + ")" : "")]));
+        });
+        if (g.pending.length > 12) blk.appendChild(h("div", { class: "it" }, ["+ " + (g.pending.length - 12) + " more"]));
+        box.appendChild(blk);
+      });
+      if (cg.length) box.appendChild(h("button", { class: "aks-b", style: "width:100%;border:1px solid var(--line);margin-top:8px",
+        onclick: function () { curTab = "projects"; openPanel("projects"); } }, ["See all projects and their files"]));
       box.appendChild(h("div", { class: "aks-sec" }, ["When you're happy"]));
       box.appendChild(h("button", { class: "aks-b pri", style: "width:100%;height:50px", onclick: function () { curTab = "publish"; openPanel("publish"); } },
         [h("span", { html: I.up2 }), h("span", {}, ["Publish these " + total + " change" + (total === 1 ? "" : "s") + " to live"])]));
@@ -905,6 +1076,7 @@
   function tabPublish(box) {
     var d = diffList(), total = 0;
     d.forEach(function (g) { total += g.items.length; });
+    total += caseTotal();
     box.appendChild(h("div", { class: "aks-note", html: (total ? "<b>" + total + " draft change" + (total === 1 ? "" : "s") + " ready.</b> " : "") + "Publishing is two steps: download your website here, then put it in your repo. Nothing goes live until you push." }));
     if (!total) box.appendChild(h("div", { class: "aks-note", html: PUBAT
       ? "<b>No unpublished changes.</b> Last downloaded " + ago(PUBAT) + " — if you haven't pushed that ZIP to GitHub yet, do that to make it live."
@@ -1097,6 +1269,7 @@
       if (hasLocal && local && typeof local === "object") { DATA = local; S.localWins = true; S.use(DATA); }
       else DATA = JSON.parse(JSON.stringify(S.published || {}));
       buildBar();
+      loadCases();
       // hidden sections stay visible-but-marked for the admin so they can be restored
       var hd = (DATA[PAGE] || {}).hide || {};
       for (var k in hd) { var el = S.resolve(k); if (el) { el.style.removeProperty("display"); el.classList.add("aks-hidden-mark"); } }

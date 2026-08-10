@@ -67,11 +67,15 @@ on every page for the rest of the browser session.
 |---|---|
 | **Edit** | Turns edit mode on. Tap any text to retype it, tap any photo to swap it. Tap Edit again to preview exactly what visitors see. |
 | **Undo** | Steps back through your changes (⌘Z / Ctrl-Z also works). |
-| **Settings** | Sections · Theme · SEO · Links · Files · Versions · Publish. |
+| **Settings** | Draft · Projects · Sections · Theme · SEO · Links · Files · Versions · Publish. |
 | **Publish** | The badge counts unpublished changes. |
 
 **The Settings panel**
 
+- **Projects** — every case study across your three category pages, with its file
+  count and a **New / Edited / Live** badge. Projects you just added (and the files
+  dropped into them) show up here before you publish, and they're counted in the
+  Draft summary too. Read-only list — projects are still added on the category page.
 - **Sections** — hide a section from visitors, or move it up/down. This page only.
 - **Theme** — every colour, dark and light. Scoped to the current page unless you turn
   on *Apply to every page*. (The home page deliberately runs a darker palette.)
