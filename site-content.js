@@ -173,15 +173,17 @@
   }
 
   /* ---------- boot: cached copy first (no flash), then the published file ---------- */
+  var CACHED = null;
   try {
     var c = localStorage.getItem(CACHE);
-    if (c) use(JSON.parse(c));
+    if (c) { CACHED = JSON.parse(c); use(CACHED); }
   } catch (e) {}
 
   fetch(FILE, { cache: "no-store" })
     .then(function (r) { return r.ok ? r.json() : null; })
     .catch(function () { return null; })
     .then(function (j) {
+      if (!j && CACHED) window.AK_SITE.published = CACHED;   // offline: last known live file
       if (j) {
         window.AK_SITE.published = j;
         try { localStorage.setItem(CACHE, JSON.stringify(j)); } catch (e) {}
@@ -209,7 +211,7 @@
     var wants = unlocked() || /(^|#)edit$/.test(location.hash) || location.hash === "#edit";
     if (!wants || document.getElementById("ak-site-edit-js")) return;
     var s = document.createElement("script");
-    s.id = "ak-site-edit-js"; s.src = "site-edit.js?v=2"; s.defer = true;
+    s.id = "ak-site-edit-js"; s.src = "site-edit.js?v=3"; s.defer = true;
     document.body.appendChild(s);
   }
   window.addEventListener("hashchange", maybeLoadEditor);

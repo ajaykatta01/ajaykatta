@@ -27,6 +27,37 @@
   var MAXV = 10;
   var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume"];
   var PAGELABEL = { "index": "Home", "project-ui-ux": "UI / UX", "project-gen-ai": "Gen AI", "project-3d": "3D", "resume": "Résumé" };
+  var BUCKETS = [["text", "Text"], ["html", "Text"], ["img", "Photo"], ["href", "Link"], ["attr", "Setting"], ["hide", "Hidden"], ["order", "Reordered"]];
+
+  /* PUBBASE = snapshot of this device's edits at the moment they were last
+     downloaded for publishing. A value that matches EITHER the live
+     site-content.json or this snapshot is already published, so it must not
+     count as pending. (Photos only match the snapshot: the live file holds a
+     media/site/… path while the local copy still holds the data: URL.) */
+  var PUBBASE = null, PUBAT = 0;
+  function eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  function isPublished(p, b, k, v) {
+    var live = (((S.published || {})[p] || {})[b] || {});
+    if (k in live && eq(live[k], v)) return true;
+    var snap = (((PUBBASE || {})[p] || {})[b] || {});
+    return (k in snap) && eq(snap[k], v);
+  }
+  function varPublished(p, mode, k, v) {
+    var live = ((((S.published || {})[p] || {}).vars || {})[mode] || {});
+    if (k in live && eq(live[k], v)) return true;
+    var snap = ((((PUBBASE || {})[p] || {}).vars || {})[mode] || {});
+    return (k in snap) && eq(snap[k], v);
+  }
+  function allPages() {
+    var seen = {}, out = [];
+    PAGES.concat(Object.keys(DATA || {})).forEach(function (p) { if (!seen[p]) { seen[p] = 1; out.push(p); } });
+    return out;
+  }
+  function markPublished() {
+    PUBBASE = JSON.parse(JSON.stringify(DATA)); PUBAT = Date.now();
+    idbSet("site:published-base", { at: PUBAT, data: PUBBASE });
+    flagChanged(); syncBar();
+  }
 
   /* ---------------------------------------------------------------- helpers */
   function h(tag, attrs, kids) {
@@ -361,8 +392,11 @@
   function flagChanged() {
     document.querySelectorAll(".aks-changed").forEach(function (e) { e.classList.remove("aks-changed"); });
     var d = DATA[PAGE] || {};
-    ["text", "img", "href"].forEach(function (b) {
-      for (var k in (d[b] || {})) { var el = S.resolve(k); if (el) el.classList.add("aks-changed"); }
+    ["text", "html", "img", "href"].forEach(function (b) {
+      for (var k in (d[b] || {})) {
+        if (isPublished(PAGE, b, k, d[b][k])) continue;
+        var el = S.resolve(k); if (el) el.classList.add("aks-changed");
+      }
     });
   }
 
@@ -556,33 +590,23 @@
   var bar, editBtn, undoBtn, cntEl;
   function changeCount() {
     var n = 0;
-    for (var p in DATA) {
-      var d = DATA[p] || {};
-      ["text", "html", "img", "href", "attr", "hide"].forEach(function (b) { n += Object.keys(d[b] || {}).length; });
-      if (d.order) n += Object.keys(d.order).length;
-      if (d.meta) n += Object.keys(d.meta).length;
-      if (d.vars) n += Object.keys(d.vars.dark || {}).length + Object.keys(d.vars.light || {}).length;
-    }
+    diffList().forEach(function (g) { n += g.items.length; });
     return n;
   }
   function markDirty() { syncBar(); }
   function syncBar() {
-    if (!cntEl) return;
-    var n = changeCount();
-    cntEl.textContent = n;
-    cntEl.style.display = n ? "" : "none";
     if (undoBtn) undoBtn.disabled = !UNDO.length;
     if (editBtn) editBtn.classList.toggle("on", ON);
   }
   function buildBar() {
     editBtn = btn(I.pen, "Edit", toggleEdit);
     undoBtn = btn(I.undo, "", undo);
-    cntEl = h("span", { class: "aks-count", style: "display:none" }, ["0"]);
+    cntEl = null;
     bar = h("div", { class: "aks-ui aks-bar" }, [
       editBtn,
       undoBtn,
       btn(I.panel, "Settings", openPanel),
-      h("button", { class: "aks-b pri", onclick: function () { openPanel("publish"); } }, [h("span", { html: I.up2 }), h("span", { class: "lb" }, ["Publish"]), cntEl])
+      h("button", { class: "aks-b pri", onclick: function () { openPanel("draft"); } }, [h("span", { html: I.up2 }), h("span", { class: "lb" }, ["Publish"])])
     ]);
     document.body.appendChild(bar);
     syncBar();
@@ -596,14 +620,14 @@
   }
 
   /* ----------------------------------------------------------------- panel */
-  var panelEl = null, curTab = "sections";
+  var panelEl = null, curTab = "draft";
   function openPanel(tab) {
     closePanel();
     curTab = tab || curTab;
     var scrim = h("div", { class: "aks-ui aks-scrim", onclick: closePanel });
     var body = h("div", { class: "aks-body" });
     var tabs = h("div", { class: "aks-tabs" });
-    [["sections", "Sections"], ["theme", "Theme"], ["seo", "SEO"], ["links", "Links"], ["files", "Files"], ["versions", "Versions"], ["publish", "Publish"]]
+    [["draft", "Draft"], ["sections", "Sections"], ["theme", "Theme"], ["seo", "SEO"], ["links", "Links"], ["files", "Files"], ["versions", "Versions"], ["publish", "Publish"]]
       .forEach(function (t) {
         tabs.appendChild(h("button", { class: "aks-tab" + (t[0] === curTab ? " on" : ""), onclick: function () { curTab = t[0]; openPanel(curTab); } }, [t[1]]));
       });
@@ -616,7 +640,7 @@
     ]);
     document.body.appendChild(scrim); document.body.appendChild(panelEl);
     panelEl.__scrim = scrim;
-    ({ sections: tabSections, theme: tabTheme, seo: tabSEO, links: tabLinks, files: tabFiles, versions: tabVersions, publish: tabPublish }[curTab])(body);
+    ({ draft: tabDraft, sections: tabSections, theme: tabTheme, seo: tabSEO, links: tabLinks, files: tabFiles, versions: tabVersions, publish: tabPublish }[curTab])(body);
   }
   function closePanel() { if (panelEl) { if (panelEl.__scrim) panelEl.__scrim.remove(); panelEl.remove(); panelEl = null; } }
 
@@ -724,6 +748,7 @@
   }
 
   function tabSEO(box) {
+    box.appendChild(h("div", { class: "aks-note" }, ["Saved to your draft on this device. Google only sees it after you publish."]));
     var m = pd().meta || {};
     var title = m.title || document.title;
     var desc = m.description || (document.head.querySelector('meta[name="description"]') || {}).content || "";
@@ -814,6 +839,7 @@
         confirmBox({ title: "Discard all local changes?", sub: "Everything you've edited on this device since the last publish is deleted. The live site is unaffected.", ok: "Discard everything", danger: true }).then(function (go) {
           if (!go) return;
           idbSet("site:content", {}).then(function () {
+            idbSet("site:published-base", null);
             try { localStorage.removeItem(FLAG); } catch (e) {}
             location.reload();
           });
@@ -822,39 +848,62 @@
     });
   }
 
+  /* ----------------------------------------------------------------- draft */
+  function tabDraft(box) {
+    var d = diffList(), total = 0;
+    d.forEach(function (g) { total += g.items.length; });
+    box.appendChild(h("div", { class: "aks-note", html: total
+      ? "<b>Saved on this device only.</b> Everything you change is kept here as a draft — the live site is untouched until you publish. Look around the site, keep editing, come back when you like it."
+      : "<b>Nothing waiting.</b> This device matches the live site." + (PUBAT ? " Last download " + ago(PUBAT) + "." : "") }));
+    if (total) {
+      d.forEach(function (g) {
+        var blk = h("div", { class: "aks-diff" }, [h("div", { class: "hd" }, [(PAGELABEL[g.page] || g.page) + " · " + g.items.length + " change" + (g.items.length === 1 ? "" : "s")])]);
+        g.items.slice(0, 12).forEach(function (t) { blk.appendChild(h("div", { class: "it" }, [t])); });
+        if (g.items.length > 12) blk.appendChild(h("div", { class: "it" }, ["+ " + (g.items.length - 12) + " more"]));
+        box.appendChild(blk);
+      });
+      box.appendChild(h("div", { class: "aks-sec" }, ["When you're happy"]));
+      box.appendChild(h("button", { class: "aks-b pri", style: "width:100%;height:50px", onclick: function () { curTab = "publish"; openPanel("publish"); } },
+        [h("span", { html: I.up2 }), h("span", {}, ["Publish these " + total + " change" + (total === 1 ? "" : "s") + " to live"])]));
+      box.appendChild(h("button", { class: "aks-b", style: "width:100%;height:46px;border:1px solid var(--line);margin-top:8px", onclick: function () { closePanel(); if (ON) toggleEdit(); toast("Preview — this is your draft"); } },
+        [h("span", {}, ["Keep it local, look around first"])]));
+      box.appendChild(h("div", { class: "aks-note", style: "margin-top:10px", html: "Changed your mind about one thing? Tap it on the page and choose <b>Reset to original</b>. To drop everything, use <b>Versions → Discard</b>." }));
+    }
+  }
+
   /* --------------------------------------------------------------- publish */
   function diffList() {
-    var pub = S.published || {}, out = [];
-    PAGES.forEach(function (p) {
-      var d = DATA[p]; if (!d) return;
-      var items = [], P = pub[p] || {};
-      [["text", "Text"], ["img", "Photo"], ["href", "Link"], ["hide", "Hidden"], ["order", "Reordered"]].forEach(function (b) {
-        var set = d[b[0]] || {}, ps = P[b[0]] || {};
+    var out = [];
+    allPages().forEach(function (p) {
+      var d = (DATA || {})[p]; if (!d) return;
+      var items = [];
+      BUCKETS.forEach(function (b) {
+        var set = d[b[0]] || {};
         for (var k in set) {
-          if (JSON.stringify(ps[k]) === JSON.stringify(set[k])) continue;
+          if (isPublished(p, b[0], k, set[k])) continue;
           var v = set[k];
-          items.push(b[1] + " · " + (b[0] === "text" ? '"' + short(v, 40) + '"' :
+          items.push(b[1] + " · " + (b[0] === "text" || b[0] === "html" ? '"' + short(v, 40) + '"' :
             b[0] === "img" ? "new photo" : b[0] === "href" ? short(String(v), 34) :
-            b[0] === "hide" ? "section hidden" : "section order"));
+            b[0] === "hide" ? "section hidden" : b[0] === "order" ? "section order" : short(String(v), 34)));
         }
       });
-      if (d.meta) for (var mk in d.meta) if ((P.meta || {})[mk] !== d.meta[mk]) items.push("SEO · " + mk);
-      if (d.vars) items.push("Theme colours");
+      if (d.meta) for (var mk in d.meta) if (!isPublished(p, "meta", mk, d.meta[mk])) items.push("SEO · " + mk);
+      if (d.vars) ["dark", "light"].forEach(function (mode) {
+        var set = d.vars[mode] || {};
+        for (var vk in set) if (!varPublished(p, mode, vk, set[vk])) items.push("Theme · " + vk.replace(/^--/, "") + " (" + mode + ")");
+      });
       if (items.length) out.push({ page: p, items: items });
     });
     return out;
   }
+  function pendingTotal() { var n = 0; diffList().forEach(function (g) { n += g.items.length; }); return n; }
   function tabPublish(box) {
     var d = diffList(), total = 0;
     d.forEach(function (g) { total += g.items.length; });
-    box.appendChild(h("div", { class: "aks-note" }, ["Publishing is two steps: download your website here, then put it in your repo. Nothing goes live until you push."]));
-    if (!total) box.appendChild(h("div", { class: "aks-note", html: "<b>No unpublished changes.</b> Everything on this device matches the live site." }));
-    d.forEach(function (g) {
-      var blk = h("div", { class: "aks-diff" }, [h("div", { class: "hd" }, [(PAGELABEL[g.page] || g.page) + " · " + g.items.length + " change" + (g.items.length === 1 ? "" : "s")])]);
-      g.items.slice(0, 12).forEach(function (t) { blk.appendChild(h("div", { class: "it" }, [t])); });
-      if (g.items.length > 12) blk.appendChild(h("div", { class: "it" }, ["+ " + (g.items.length - 12) + " more"]));
-      box.appendChild(blk);
-    });
+    box.appendChild(h("div", { class: "aks-note", html: (total ? "<b>" + total + " draft change" + (total === 1 ? "" : "s") + " ready.</b> " : "") + "Publishing is two steps: download your website here, then put it in your repo. Nothing goes live until you push." }));
+    if (!total) box.appendChild(h("div", { class: "aks-note", html: PUBAT
+      ? "<b>No unpublished changes.</b> Last downloaded " + ago(PUBAT) + " — if you haven't pushed that ZIP to GitHub yet, do that to make it live."
+      : "<b>No unpublished changes.</b> Everything on this device matches the live site." }));
     box.appendChild(h("div", { class: "aks-sec" }, ["Choose a download"]));
     box.appendChild(h("div", { class: "aks-note", html: "<b>Only my changes</b> — a small ZIP with just the files that differ from the live site. Quickest to drop in and push.<br><br><b>Whole website</b> — every page, script, photo and file, with your edits written into the pages. Use it for a fresh deploy, a backup, or when you want to open it and check the site first." }));
     box.appendChild(h("button", { class: "aks-b pri", style: "width:100%;height:50px", onclick: function () { doExportFull("delta"); } },
@@ -956,7 +1005,8 @@
       ensurePkg().then(function (pkg) {
         return pkg.full({ mode: mode === "delta" ? "delta" : "full", siteContent: JSON.parse(JSON.stringify(DATA)) });
       }).then(function (r) {
-        if (r.empty) { toast("Nothing to publish \u2014 the live site already matches"); return; }
+        if (r.empty) { markPublished(); toast("Nothing to publish \u2014 the live site already matches"); return; }
+        markPublished();
         var isDelta = r.mode === "delta";
         sheet(function (box, close) {
           box.appendChild(h("h3", {}, [isDelta ? "Your changes are downloaded \u2713" : "Your updated website is downloaded \u2713"]));
@@ -995,6 +1045,7 @@
         "Exported " + new Date().toLocaleString() + "\n") });
       var blob = makeZip(files);
       download(blob, "site-content.zip");
+      markPublished();
       closePanel();
       sheet(function (box, close) {
         box.appendChild(h("h3", {}, ["Content files downloaded ✓"]));
@@ -1024,7 +1075,9 @@
     start();
   }
   function start() {
-    idbGet("site:content").then(function (local) {
+    Promise.all([idbGet("site:content"), idbGet("site:published-base")]).then(function (r) {
+      var local = r[0], pb = r[1];
+      if (pb && typeof pb === "object" && pb.data) { PUBBASE = pb.data; PUBAT = pb.at || 0; }
       var hasLocal = false; try { hasLocal = !!localStorage.getItem(FLAG); } catch (e) {}
       if (hasLocal && local && typeof local === "object") { DATA = local; S.localWins = true; S.use(DATA); }
       else DATA = JSON.parse(JSON.stringify(S.published || {}));
