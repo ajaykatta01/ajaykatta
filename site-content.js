@@ -116,9 +116,33 @@
     if (!VARSTYLE) { VARSTYLE = document.createElement("style"); VARSTYLE.id = "ak-site-vars"; document.head.appendChild(VARSTYLE); }
     VARSTYLE.textContent = css;
   }
+  var META0 = null;
+  function snapMeta() {
+    if (META0) return;
+    function g(sel) { var e = document.head.querySelector(sel); return e ? e.getAttribute("content") : null; }
+    META0 = {
+      title: document.title,
+      description: g('meta[name="description"]'),
+      image: g('meta[property="og:image"]')
+    };
+  }
   function applyMeta() {
-    var m = PAGEDATA && PAGEDATA.meta;
-    if (!m) return;
+    snapMeta();
+    var m = (PAGEDATA && PAGEDATA.meta) || {};
+    /* an absent override means the page's own tags win again */
+    if (!m.title && META0.title) {
+      document.title = META0.title;
+      set2("property", "og:title", META0.title); set2("name", "twitter:title", META0.title);
+    }
+    if (!m.description && META0.description) {
+      set2("name", "description", META0.description);
+      set2("property", "og:description", META0.description); set2("name", "twitter:description", META0.description);
+    }
+    if (!m.image && META0.image) { set2("property", "og:image", META0.image); set2("name", "twitter:image", META0.image); }
+    function set2(attr, name, val) {
+      var e = document.head.querySelector("meta[" + attr + '="' + name + '"]');
+      if (e) e.setAttribute("content", val);
+    }
     if (m.title) {
       document.title = m.title;
       set("property", "og:title", m.title); set("name", "twitter:title", m.title);
@@ -172,18 +196,22 @@
     if (!quiet) { watch(); if (document.body) applyAll(); }
   }
 
-  /* ---------- boot: cached copy first (no flash), then the published file ---------- */
+  /* ---------- boot: the published file is the only truth ----------------------
+     The cached copy is kept ONLY for offline loads. It is never applied ahead of
+     the fetch: once an edit is baked into the page HTML, site-content.json drops
+     it, and a pre-applied cache would keep pasting the old title/text over the
+     new page forever. */
   var CACHED = null;
   try {
     var c = localStorage.getItem(CACHE);
-    if (c) { CACHED = JSON.parse(c); use(CACHED); }
+    if (c) CACHED = JSON.parse(c);
   } catch (e) {}
 
   fetch(FILE, { cache: "no-store" })
     .then(function (r) { return r.ok ? r.json() : null; })
     .catch(function () { return null; })
     .then(function (j) {
-      if (!j && CACHED) window.AK_SITE.published = CACHED;   // offline: last known live file
+      if (!j && CACHED) { window.AK_SITE.published = CACHED; use(CACHED); }  // offline only
       if (j) {
         window.AK_SITE.published = j;
         try { localStorage.setItem(CACHE, JSON.stringify(j)); } catch (e) {}

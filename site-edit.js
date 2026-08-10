@@ -868,6 +868,11 @@
       box.appendChild(h("button", { class: "aks-b", style: "width:100%;height:46px;border:1px solid var(--line);margin-top:8px", onclick: function () { closePanel(); if (ON) toggleEdit(); toast("Preview — this is your draft"); } },
         [h("span", {}, ["Keep it local, look around first"])]));
       box.appendChild(h("div", { class: "aks-note", style: "margin-top:10px", html: "Changed your mind about one thing? Tap it on the page and choose <b>Reset to original</b>. To drop everything, use <b>Versions → Discard</b>." }));
+    } else {
+      box.appendChild(h("div", { class: "aks-sec" }, ["Still want a copy?"]));
+      box.appendChild(h("div", { class: "aks-note" }, ["You can download the site any time — as a backup, or to re-deploy it as it stands."]));
+      box.appendChild(h("button", { class: "aks-b pri", style: "width:100%;height:50px", onclick: function () { curTab = "publish"; openPanel("publish"); } },
+        [h("span", { html: I.up2 }), h("span", {}, ["Go to downloads"])]));
     }
   }
 
@@ -1005,7 +1010,17 @@
       ensurePkg().then(function (pkg) {
         return pkg.full({ mode: mode === "delta" ? "delta" : "full", siteContent: JSON.parse(JSON.stringify(DATA)) });
       }).then(function (r) {
-        if (r.empty) { markPublished(); toast("Nothing to publish \u2014 the live site already matches"); return; }
+        if (r.empty) {
+          markPublished();
+          sheet(function (box, close) {
+            box.appendChild(h("h3", {}, ["Nothing has changed"]));
+            box.appendChild(h("div", { class: "sub" }, ["This device already matches the live site, so a change pack would be empty."]));
+            box.appendChild(h("button", { class: "aks-b pri", style: "width:100%;height:48px;margin-top:12px", onclick: function () { close(); doExportFull("full"); } },
+              [h("span", { html: I.up2 }), h("span", {}, ["Download the whole website instead"])]));
+            box.appendChild(h("div", { class: "aks-acts", style: "border:0;padding:10px 0 0" }, [h("button", { class: "aks-b", style: "border:1px solid var(--line)", onclick: close }, ["Close"])]));
+          });
+          return;
+        }
         markPublished();
         var isDelta = r.mode === "delta";
         sheet(function (box, close) {

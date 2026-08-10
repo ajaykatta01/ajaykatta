@@ -1,5 +1,11 @@
 {
-  "index": {},
+  "index": {
+    "meta": {
+      "title": "Ajay Katta — Product Designer",
+      "description": "Ajay Katta — With 5+ years of experience, I enjoy turning complex problems into simple, intuitive experiences by combining UX strategy, user-centered design, photorealistic 3D visualization, and AI-powered workflows."
+    },
+    "hide": {}
+  },
   "project-ui-ux": {},
   "project-gen-ai": {},
   "project-3d": {},
