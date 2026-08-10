@@ -18,7 +18,6 @@
     { page: "page", noun: "project", gridSelector: ".pgrid", tileTag: "article" },
     window.AK_ADMIN || {}
   );
-  var NS = "ak-admin:" + CFG.page;
   var PW_KEY = "ak-admin-pw";            // local override SHA-256 password hash (per browser)
   var SESSION_KEY = "ak-admin-unlocked"; // session unlock flag (all pages)
   // Baked-in default password hash, shipped with the site so EVERY browser/device
@@ -809,16 +808,6 @@
   function sizeH(v) { return SIZE_DEF[sizeKey(v)].h; }
   var SIZE_CYCLE = ["full", "small", "medium", "wide", "tall", "hero"];
   // A block is “in a section” (bento grid) if any earlier block is a section header.
-  function blockInSection(item, idx) {
-    for (var j = 0; j < idx; j++) { if (item.blocks[j] && item.blocks[j].type === "text" && item.blocks[j].section) return true; }
-    return false;
-  }
-  function cycleSize(item, b, rerender) {
-    var cur = SIZE_CYCLE.indexOf(sizeKey(b.size));
-    var next = SIZE_CYCLE[(cur + 1) % SIZE_CYCLE.length];
-    if (next === "full") delete b.size; else b.size = next;
-    save().then(function () { keepScroll(rerender || renderDetail)(); });
-  }
   // ---- media position/scale. Images & video pan via object-position (moves the crop
   // within the card) and zoom via scale; pdf/prototype/3D pan+zoom via transform. Stored as
   // b.pos {x,y,s,mode}, applied through CSS vars on the .ak-wide host so it survives lazy
@@ -974,26 +963,6 @@
       { heading: "Final Shots" }
     ]
   };
-  function hasTemplate() { return !!(TEMPLATES[CFG.page] && TEMPLATES[CFG.page].length); }
-  function applyTemplate(store, rerender) {
-    var secs = TEMPLATES[CFG.page];
-    if (!store || !secs || !secs.length) return;
-    var lbl = TEMPLATE_LABEL[CFG.page] || "";
-    confirmModal("Add the " + lbl + " template?",
-      "Appends " + secs.length + " styled section titles to the end of this " + CFG.noun + ". Drop your images, video, prototype or 3D under each — nothing existing is changed.", false)
-      .then(function (ok) {
-        if (!ok) return;
-        var start = store.blocks.length;
-        secs.forEach(function (s) {
-          store.blocks.push({ id: uid(), type: "text", section: true, heading: s.heading, body: s.body || "", tstyle: Object.assign({}, SECTION_TS) });
-        });
-        save().then(function () { (rerender || renderDetail)(); });
-        showUndoToast("Added the " + lbl + " template", function () {
-          store.blocks = store.blocks.slice(0, start);
-          save().then(function () { (rerender || renderDetail)(); });
-        });
-      });
-  }
 
   /* ============================================================ AUTH */
   function isUnlocked() { return UNLOCKED || sessionStorage.getItem(SESSION_KEY) === "1"; }
@@ -2522,19 +2491,6 @@
     setTimeout(function () { i.remove(); }, 120000);
   }
   /* ---- Decorate a block: Layout Studio overlay (transparent) saved on b.deco ---- */
-  function openBlockStudio(item, b, rerender) {
-    ensureStudio().then(function () {
-      window.AKLayout.openEditor({
-        design: (b.deco && b.deco.els) ? JSON.parse(JSON.stringify(b.deco)) : { h: 700, bg: "transparent", els: [] },
-        onSave: function (design) {
-          if (design && design.els && design.els.length) b.deco = design; else delete b.deco;
-          save().then(keepScroll(rerender || renderDetail));
-        },
-        themes: DATA.canvasThemes || [],
-        onThemesChange: function (list) { DATA.canvasThemes = list; save(); }
-      });
-    }).catch(function () { alert("Couldn't load Layout Studio (layout-studio.js missing next to this page)."); });
-  }
   /* ---- free drag-to-resize a content block: sets column span + height ---- */
   function wireBlockResize(block, item, b, handle, rerender) {
     handle.addEventListener("pointerdown", function (e) {
@@ -2573,7 +2529,7 @@
     if (b.type === "image") {
       var imgHold = h("div", { class: "ak-wide ak-imghold", style: rad });
       var buildImg = function () {
-        var im = h("img", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), alt: b.caption || "", decoding: "async" });
+        var im = h("img", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), alt: b.caption || "", loading: "lazy", decoding: "async" });
         im.addEventListener("load", function () { imgHold.classList.add("loaded"); });
         im.addEventListener("error", function () { imgHold.classList.add("loaded"); imgHold.innerHTML = ""; imgHold.appendChild(mediaMissing(I.img, "Image unavailable", rad)); });
         imgHold.appendChild(im);
@@ -2729,9 +2685,12 @@
     confirmModal("Delete this " + typeLabel(b.type).toLowerCase() + " block?", "", true).then(function (ok) {
       if (!ok) return;
       var idx = item.blocks.indexOf(b);
-      item.blocks = item.blocks.filter(function (x) { return x.id !== b.id; }); save().then(keepScroll(rerender));
+      item.blocks = item.blocks.filter(function (x) { return x.id !== b.id; });
+      var shed = studioDropBlock(item, b);
+      save().then(keepScroll(rerender));
       showUndoToast("Deleted " + typeLabel(b.type).toLowerCase() + " block", function () {
         if (item.blocks.indexOf(b) < 0) item.blocks.splice(Math.max(0, Math.min(idx < 0 ? item.blocks.length : idx, item.blocks.length)), 0, b);
+        studioRestoreCards(item, b, shed);
         save().then(keepScroll(rerender));
       });
     });
@@ -2773,6 +2732,9 @@
     if (!it) return;
     ensureStudio().then(function () {      var T = window.AKStudioTemplates, cat = T.forPage(CFG.page);
       function launch(design) {
+        /* blocks that were represented on the canvas at open time — the only ones
+           a delete inside the Studio is allowed to remove */
+        var hadCards = ((it.blocks) || []).filter(function (b) { return designHasBlock(design, b); }).map(function (b) { return b.id; });
         window.AKLayout.openEditor({
           design: design,
           title: it.title || ("Untitled " + CFG.noun),
@@ -2784,7 +2746,11 @@
           templateList: ["ui-ux", "gen-ai", "3d"].sort(function (a, b) { return (a === CFG.page ? -1 : 0) - (b === CFG.page ? -1 : 0); }).map(function (key) { var c = T.forPage(key); return { key: key, label: c.label, accent: c.accent, accent2: c.accent2, design: T.blankTemplate(key, TEMPLATES[key]) }; }),
           info: itemInfo(it),
           onInfo: function (info) { applyItemInfo(it, info); save().then(function () { renderTiles(); if (openItemId) renderDetail(); }); },
-          onSave: function (design) { it.studio = design; save().then(keepScroll(renderDetail)); },
+          onSave: function (design) {
+            it.studio = design;
+            reapBlocks(it, design, hadCards);   // cards deleted on the canvas take their block with them
+            save().then(keepScroll(renderDetail));
+          },
           themes: DATA.canvasThemes || [],
           onThemesChange: function (list) { DATA.canvasThemes = list; save(); }
         });
@@ -2804,8 +2770,38 @@
      missing next time the Studio opened). Every block that has no card on the canvas
      yet is appended to the bottom of the design, once. */
   var studioSyncTried = Object.create(null);
-  function studioHasBlock(it, b) {
-    return ((it.studio && it.studio.els) || []).some(function (e) {
+  /* …and the reverse: a card deleted inside the Studio drops the block it came
+     from, so the sync above can never resurrect it on the next open / reload.
+     Only blocks that HAD a card when the Studio opened are eligible — clearing the
+     canvas or starting from a template can never wipe a project's media. */
+  function reapBlocks(it, design, eligible) {
+    if (!(it && it.blocks && it.blocks.length && design && design.els && eligible && eligible.length)) return [];
+    var can = Object.create(null); eligible.forEach(function (id) { can[id] = 1; });
+    var gone = it.blocks.filter(function (b) { return b && can[b.id] && !designHasBlock(design, b); });
+    if (!gone.length) return [];
+    var dead = Object.create(null); gone.forEach(function (b) { dead[b.id] = 1; });
+    it.blocks = it.blocks.filter(function (b) { return !(b && dead[b.id]); });
+    gone.forEach(function (b) { studioSyncTried[b.id] = 1; });   // don't re-append what was just removed
+    return gone;
+  }
+  /* Deleting a block also pulls its card off the freeform canvas — otherwise the
+     block is gone but the project still shows it in Studio (canvas) mode. */
+  function studioDropBlock(it, b) {
+    if (!(it && it.studio && it.studio.els && it.studio.els.length && b)) return null;
+    var gone = it.studio.els.filter(function (e) { return e && (e.sb === b.id || (b.src && e.content && e.content.src === b.src)); });
+    if (!gone.length) return null;
+    var ids = {}; gone.forEach(function (e) { ids[e.id] = 1; });
+    it.studio.els = it.studio.els.filter(function (e) { return !(e && ids[e.id]); });
+    return gone;
+  }
+  function studioRestoreCards(it, b, cards) {
+    delete studioSyncTried[b.id];
+    if (!(it && it.studio && cards && cards.length)) return;
+    it.studio.els = (it.studio.els || []).concat(cards);
+  }
+  function studioHasBlock(it, b) { return designHasBlock(it.studio, b); }
+  function designHasBlock(design, b) {
+    return ((design && design.els) || []).some(function (e) {
       if (!e) return false;
       if (e.sb && e.sb === b.id) return true;
       var c = e.content; if (!c) return false;
@@ -3093,7 +3089,6 @@
     var radField = { key: "radius", label: "Corner radius", type: "range", min: 0, max: 60, step: 1, unit: "px", preview: "radius", value: b && b.radius != null ? b.radius : 15, hint: "Roundness of the corners — 0 is square, 15 is the default." };
     var shField = { key: "shadow", label: "Drop shadow", type: "range", min: 0, max: 100, step: 5, unit: "%", preview: "shadow", value: b && b.shadow != null ? b.shadow : 0, hint: "Soft shadow that lifts the block off the page — 0% is flat, higher is deeper." };
     var isSection = !!(b && b.section);
-    var sizeField = { key: "size", label: "Card size", type: "select", options: [{ value: "full", label: "Full width" }, { value: "small", label: "Small" }, { value: "medium", label: "Medium" }, { value: "wide", label: "Wide" }, { value: "tall", label: "Tall" }, { value: "hero", label: "Hero" }], value: sizeKey(b && b.size), hint: "Only affects blocks placed inside a template section \u2014 narrower widths sit side by side like bento cards." };
     var fields, title;
     if (type === "image") {
       title = "image"; fields = [
@@ -3355,13 +3350,14 @@
     return { mime: (meta.split(";")[0] || ""), bytes: bytes };
   }
   /* ---- export: tiny JSON + media/ folder, zipped (GitHub & Vercel ready) ---- */
-  function exportData() {
-    save().then(function () {
+  function exportData(silent) {
+    silent = (silent === true);
+    return save().then(function () {
       var keys = ["ui-ux", "gen-ai", "3d"];
       // Read BOTH this browser's local edits (IndexedDB) AND the currently-published JSON.
       // A page only has a local copy if it was edited on THIS device; untouched pages must
       // fall back to the published data, otherwise they'd be dropped from the export.
-      Promise.all([
+      return Promise.all([
         fetch("portfolio-data.json", { cache: "no-store" })
           .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
       ].concat(keys.map(function (k) { return idbGet("data:" + k); }))).then(function (res) {
@@ -3468,39 +3464,69 @@
           if (bundle.home.profile) bundle.home.profile = stash(bundle.home.profile, "home", "profile-photo");
         }
 
-        Promise.all(fetches).then(function () {
+        return Promise.all(fetches).then(function () {
+          if (silent) return { json: JSON.stringify(bundle, null, 2), files: files };
           var mediaCount = files.length; // media only — JSON not added yet
           function counts(obj) { var o = { total: 0 }; keys.forEach(function (k) { var n = (obj && obj[k] && obj[k].items) ? obj[k].items.length : 0; o[k] = n; o.total += n; }); return o; }
           var nowC = counts(bundle);
-          function proceed() {
-            files.unshift({ name: "portfolio-data.json", bytes: new TextEncoder().encode(JSON.stringify(bundle, null, 2)) });
-            var zip = makeZip(files);
+          function doneModal(info) {
+            var ov2 = h("div", { class: "ak-ov" });
+            function close2() { ov2.remove(); }
+            ov2.appendChild(h("div", { class: "ak-modal", style: "width:min(480px,100%)" }, [
+              h("h3", {}, [!info ? "Export complete \u2713" : (info.mode === "delta" ? "Your changes are downloaded \u2713" : "Your updated website is downloaded \u2713")]),
+              h("div", { class: "sub" }, [info ? info.name + " \u00b7 " + info.sizeLabel + " \u00b7 " + info.count + " files"
+                                              : "portfolio-site-data.zip is downloading."]),
+              h("div", { class: "ak-xsec" }, ["Inside the ZIP"]),
+              h("div", { class: "ak-xrows" }, info ? (info.mode === "delta"
+                ? (info.changed || []).slice(0, 12).map(function (n) { return h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, [n]), h("span", { class: "v" }, ["changed"])]); })
+                    .concat((info.changed || []).length > 12 ? [h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["+ " + ((info.changed || []).length - 12) + " more"]), h("span", { class: "v" }, [""])])] : [])
+                : [
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Whole website"]), h("span", { class: "v" }, ["pages, scripts, photos"])]),
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["portfolio-data.json"]), h("span", { class: "v" }, ["your case studies"])]),
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["site-content.json"]), h("span", { class: "v" }, ["your page edits"])])
+              ]) : [
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["portfolio-data.json"]), h("span", { class: "v" }, ["your content"])]),
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["media/"]), h("span", { class: "v" }, [mediaCount + " file" + (mediaCount === 1 ? "" : "s")])])
+              ]),
+              h("div", { class: "ak-xsec" }, ["To publish"]),
+              h("ol", { class: "ak-xsteps" }, info ? (info.mode === "delta" ? [
+                h("li", {}, ["Unzip it."]),
+                h("li", {}, ["Open Ajaykatta_Website / GitRepo and copy these files into your repo, same folder layout \u2014 replace what's there."]),
+                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
+              ] : [
+                h("li", {}, ["Unzip it."]),
+                h("li", {}, ["Copy everything inside Ajaykatta_Website / GitRepo into your repo, keeping the same folder layout \u2014 replace the old files."]),
+                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."]),
+                h("li", {}, ["Want to check it first? Open GitRepo/index.html."])
+              ]) : [
+                h("li", {}, ["Unzip it."]),
+                h("li", {}, ["From Ajaykatta_Website / GitRepo, copy portfolio-data.json AND the media folder into your site repo, next to your HTML pages \u2014 replace the old ones."]),
+                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
+              ]),
+              h("div", { class: "ak-acts" }, [
+                h("button", { class: "ak-btn", onclick: close2 }, ["Done"])
+              ])
+            ]));
+            ov2.addEventListener("click", function (e) { if (e.target === ov2) close2(); });
+            document.body.appendChild(ov2);
+          }
+          function legacyZip() {
+            var f2 = files.slice();
+            f2.unshift({ name: "portfolio-data.json", bytes: new TextEncoder().encode(JSON.stringify(bundle, null, 2)) });
+            f2 = f2.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; });
+            var zip = makeZip(f2);
             var a = h("a", { href: URL.createObjectURL(zip), download: "portfolio-site-data.zip" });
             document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(function () {
-              var ov2 = h("div", { class: "ak-ov" });
-              function close2() { ov2.remove(); }
-              ov2.appendChild(h("div", { class: "ak-modal", style: "width:min(480px,100%)" }, [
-                h("h3", {}, ["Export complete \u2713"]),
-                h("div", { class: "sub" }, ["portfolio-site-data.zip is downloading."]),
-                h("div", { class: "ak-xsec" }, ["Inside the ZIP"]),
-                h("div", { class: "ak-xrows" }, [
-                  h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["portfolio-data.json"]), h("span", { class: "v" }, ["your content"])]),
-                  h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["media/"]), h("span", { class: "v" }, [mediaCount + " file" + (mediaCount === 1 ? "" : "s")])])
-                ]),
-                h("div", { class: "ak-xsec" }, ["To publish"]),
-                h("ol", { class: "ak-xsteps" }, [
-                  h("li", {}, ["Unzip it."]),
-                  h("li", {}, ["Copy portfolio-data.json AND the media folder into your site repo, next to your HTML pages \u2014 replace the old ones."]),
-                  h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
-                ]),
-                h("div", { class: "ak-acts" }, [
-                  h("button", { class: "ak-btn", onclick: close2 }, ["Done"])
-                ])
-              ]));
-              ov2.addEventListener("click", function (e) { if (e.target === ov2) close2(); });
-              document.body.appendChild(ov2);
-            }, 200);
+            setTimeout(function () { doneModal(null); }, 200);
+          }
+          function proceed(mode) {
+            if (location.protocol === "file:") return legacyZip();
+            ensurePkg().then(function (pkg) {
+              return pkg.full({ mode: mode === "delta" ? "delta" : "full", portfolioJSON: JSON.stringify(bundle, null, 2), portfolioFiles: files });
+            }).then(function (info) {
+              if (info && info.empty) { alert("Nothing to publish \u2014 the live site already matches your changes."); return; }
+              setTimeout(function () { doneModal(info); }, 200);
+            })["catch"](function () { legacyZip(); });
           }
           // pre-flight: compare against the currently-published JSON so a partial export can't silently wipe projects
           fetch("portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (pub) {
@@ -3518,7 +3544,7 @@
             function close() { ov.remove(); }
             ov.appendChild(h("div", { class: "ak-modal", style: "width:min(480px,100%)" }, [
               h("h3", {}, ["Export site data"]),
-              h("div", { class: "sub" }, ["This ZIP replaces all content on your live site."]),
+              h("div", { class: "sub" }, ["You get your whole website, updated \u2014 this replaces all content on your live site."]),
               h("div", { class: "ak-xsec" }, ["Projects"]),
               h("div", { class: "ak-xrows" }, [
                 row("UI / UX", nowC["ui-ux"] + " project" + (nowC["ui-ux"] === 1 ? "" : "s")),
@@ -3539,9 +3565,15 @@
                 h("div", { style: "margin-top:6px" }, warn.map(function (w) { return h("div", {}, ["\u2022 " + w]); })),
                 h("div", { style: "margin-top:6px" }, ["Publishing it will DELETE those missing projects."])
               ]) : null,
+              h("div", { class: "ak-xsec" }, ["Download"]),
+              h("div", { class: "ak-xrows" }, [
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Only my changes"]), h("span", { class: "v" }, ["small \u2014 just the differing files"])]),
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Whole website"]), h("span", { class: "v" }, ["every page, script and photo"])])
+              ]),
               h("div", { class: "ak-acts" }, [
                 h("button", { class: "ak-btn ghost", onclick: close }, ["Cancel"]),
-                h("button", { class: "ak-btn" + (warn.length ? " danger" : ""), onclick: function () { close(); proceed(); } }, [warn.length ? "Export anyway" : "Export ZIP"])
+                h("button", { class: "ak-btn ghost", onclick: function () { close(); proceed("full"); } }, ["Whole website"]),
+                h("button", { class: "ak-btn" + (warn.length ? " danger" : ""), onclick: function () { close(); proceed("delta"); } }, [warn.length ? "Changes only (anyway)" : "Only my changes"])
               ])
             ]));
             ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
@@ -3551,6 +3583,23 @@
       });
     });
   }
+  /* the whole-website packager is shared with site-edit.js — fetched on demand */
+  function ensurePkg() {
+    if (window.AK_PACKAGE) return Promise.resolve(window.AK_PACKAGE);
+    return new Promise(function (res, rej) {
+      var id = "ak-package-js";
+      if (!document.getElementById(id)) document.body.appendChild(h("script", { id: id, src: "site-package.js?v=1" }));
+      var tries = 0;
+      (function poll() {
+        if (window.AK_PACKAGE) return res(window.AK_PACKAGE);
+        if (++tries > 120) return rej(new Error("packager unavailable"));
+        setTimeout(poll, 50);
+      })();
+    });
+  }
+  // lets Settings → Publish include unpublished case-study edits from this device
+  window.AK_ADMIN_DATA = { build: function () { return exportData(true); } };
+
   function importData() {
     var fi = h("input", { type: "file", accept: "application/json,.json", style: "display:none" });
     document.body.appendChild(fi);

@@ -31,6 +31,9 @@
   "use strict";
   if (window.AKLayout) return;
   var DW = 1200; // design width in units
+  var detailOpen = 0;  // >0 while a bento detail overlay is up — editor keys must stand down
+  var detailClosers = [];
+  function closeBentoDetails() { detailClosers.slice().forEach(function (fn) { try { fn(); } catch (e) {} }); }
 
   function h(tag, attrs, kids) {
     var e = document.createElement(tag);
@@ -48,6 +51,10 @@
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   var _loaded = {};
+  /* CSS entry animations stall on their first keyframe while the document
+     timeline is frozen (hidden / throttled tab), which would leave a panel at
+     opacity 0. A timer (timers still fire) guarantees the resting state. */
+  function settle(node, ms) { setTimeout(function () { if (node && node.isConnected) node.style.animation = "none"; }, ms || 600); }
   function loadScript(src, type) {
     if (_loaded[src]) return _loaded[src];
     _loaded[src] = new Promise(function (res, rej) {
@@ -188,7 +195,9 @@
       --glass:color-mix(in srgb,var(--pnl) 88%,transparent);
       --shdw:0 20px 55px -20px rgba(0,0,0,.55),0 2px 12px -6px rgba(0,0,0,.3);
       background:color-mix(in srgb,var(--bg,#141311) 93%,#000);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:12px}
-    [data-theme="light"] .akls-ov{color-scheme:light;--shdw:0 20px 48px -20px rgba(28,26,20,.22),0 2px 12px -6px rgba(28,26,20,.1)}
+    /* light mode: lift the workspace instead of darkening it, and soften the chrome */
+    [data-theme="light"] .akls-ov{color-scheme:light;--shdw:0 20px 48px -20px rgba(28,26,20,.22),0 2px 12px -6px rgba(28,26,20,.1);
+      --mut:var(--muted,#6E6A60);background:color-mix(in srgb,var(--bg,#F6F3EE) 88%,#fff)}
     .akls-ov *{box-sizing:border-box}
     .akls-ov ::-webkit-scrollbar{width:9px;height:9px}
     .akls-ov ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--tx) 15%,transparent);border-radius:99px}
@@ -208,7 +217,7 @@
     /* top bar */
     .akls-top{flex:none;display:flex;align-items:center;gap:8px;height:54px;padding:0 14px 0 16px;position:relative;z-index:50;
       background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.15);backdrop-filter:blur(20px) saturate(1.15);
-      border-bottom:1px solid var(--ln);animation:aklsFade .3s ease both}
+      border-bottom:1px solid var(--ln);animation:aklsFade .3s ease forwards}
     .akls-top .ttl{display:flex;align-items:center;gap:11px;font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;letter-spacing:-.01em;white-space:nowrap;margin-right:6px}
     .akls-top .ttl .lg{display:grid;place-items:center;width:29px;height:29px;border-radius:9px;color:#fff;
       background:linear-gradient(135deg,var(--ac),var(--accent-2,#C2410C));box-shadow:0 5px 14px -5px color-mix(in srgb,var(--ac) 70%,transparent)}
@@ -241,6 +250,7 @@
     /* workspace */
     .akls-main{position:relative;flex:1;min-height:0}
     .akls-area.pan{cursor:grab}
+    .akls-area.place,.akls-area.place *{cursor:text!important}
     .akls-area.panning{cursor:grabbing}
     .akls-area.panning *{cursor:grabbing!important}
     .akls-area{position:absolute;inset:0;overflow:auto;padding:18px 306px 132px 282px;
@@ -257,10 +267,10 @@
     /* floating panels */
     .akls-side{position:absolute;left:0;top:0;bottom:0;width:240px;z-index:30;display:flex;flex-direction:column;min-height:0;overflow:hidden;
       background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.2);backdrop-filter:blur(22px) saturate(1.2);
-      border:none;border-right:1px solid var(--ln);border-radius:0;box-shadow:var(--shdw);animation:aklsL .35s cubic-bezier(.2,.8,.3,1) both}
+      border:none;border-right:1px solid var(--ln);border-radius:0;box-shadow:var(--shdw);animation:aklsL .35s cubic-bezier(.2,.8,.3,1) forwards}
     .akls-panel{position:absolute;right:0;top:0;bottom:0;width:264px;z-index:30;overflow-y:auto;overflow-x:hidden;padding:0 14px 22px;
       background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.2);backdrop-filter:blur(22px) saturate(1.2);
-      border:none;border-left:1px solid var(--ln);border-radius:0;box-shadow:var(--shdw);animation:aklsR .35s cubic-bezier(.2,.8,.3,1) both}
+      border:none;border-left:1px solid var(--ln);border-radius:0;box-shadow:var(--shdw);animation:aklsR .35s cubic-bezier(.2,.8,.3,1) forwards}
     @keyframes aklsL{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
     @keyframes aklsR{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
     @keyframes aklsUp{from{opacity:0;transform:translate(-50%,14px)}to{opacity:1;transform:translate(-50%,0)}}
@@ -311,18 +321,32 @@
     .akls-mi.warn:hover > svg{color:#ef4444}
     .akls-mi .kb{flex:none;font:600 9.5px 'Inter',sans-serif;color:var(--mut);letter-spacing:.02em}
     .akls-menu.ctx{min-width:198px;max-width:252px}
-    .akls-sf{flex:none;display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--ln);
+    .akls-sf{flex:none;display:flex;flex-wrap:wrap;align-items:center;column-gap:12px;row-gap:3px;padding:10px 16px;border-top:1px solid var(--ln);
       font:500 10.5px 'Inter',sans-serif;letter-spacing:.01em;font-variant-numeric:tabular-nums;color:var(--mut);white-space:nowrap;overflow:hidden}
     /* floating tool dock */
     .akls-dock{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:3px;padding:7px;
       background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.2);backdrop-filter:blur(22px) saturate(1.2);
-      border:1px solid var(--ln);border-radius:17px;box-shadow:var(--shdw);animation:aklsUp .42s cubic-bezier(.18,.9,.26,1.08) both}
+      border:1px solid var(--ln);border-radius:17px;box-shadow:var(--shdw);animation:aklsUp .42s cubic-bezier(.18,.9,.26,1.08) forwards}
     .akls-dock .akls-ib{width:40px;height:40px;border-radius:12px}
     .akls-dock .akls-ib svg{width:20px;height:20px}
     .akls-dock .akls-vsep{height:24px;margin:0 5px}
     /* selection + handles */
     .akls-selbox{position:absolute;pointer-events:none;outline:2px solid var(--ac)}
     .akls-selbox.crop{outline-style:dashed}
+    .akls-selbox.editing{outline-style:dashed}
+    /* type straight on the canvas — the live text editor replaces the rendered run */
+    .akls-ov .akls-el.akls-editing{cursor:text}
+    .akls-ov .akls-el.akls-editing > *{pointer-events:auto}
+    .akls-tedit{caret-color:var(--ac);cursor:text;outline:none;-webkit-user-select:text;user-select:text}
+    /* live bullets / paragraph spacing while typing on canvas */
+    .akls-tedit .trow{position:relative;min-height:1em}
+    .akls-tedit.list .trow + .trow{margin-top:var(--bps,0px)}
+    .akls-tedit.bul{counter-reset:aklsb}
+    .akls-tedit.bul .trow:not(.blank){padding-left:calc(var(--bw,1em) + var(--bgap,10px));counter-increment:aklsb}
+    .akls-tedit.bul .trow:not(.blank)::before{content:var(--bmark,"\\2022");position:absolute;left:0;top:0;width:var(--bw,1em);
+      text-align:var(--balign,left);color:var(--bcol,inherit);font-size:var(--bsz,100%);font-variant-numeric:tabular-nums;
+      -webkit-text-stroke:0;text-decoration:none;pointer-events:none;user-select:none}
+    .akls-tedit:empty::before{content:attr(data-ph);opacity:.4}
     .akls-selbox.multi{outline-color:color-mix(in srgb,var(--ac) 60%,transparent)}
     .akls-hd{position:absolute;width:var(--hs,11px);height:var(--hs,11px);background:#fff;border:1.5px solid var(--ac);border-radius:3px;
       transform:translate(-50%,-50%);pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.35)}
@@ -331,6 +355,22 @@
     .akls-hd.sw{left:0;top:100%;cursor:nesw-resize}.akls-hd.w{left:0;top:50%;cursor:ew-resize}
     .akls-hd.scale{left:100%;top:100%;margin-left:calc(var(--hs,11px)*.95);margin-top:calc(var(--hs,11px)*.95);border-radius:50%;
       background:var(--ac);border:1.5px solid #fff;cursor:nwse-resize}
+    .akls-hd.rot{left:50%;top:0;margin-top:calc(var(--hs,11px)*-2);border-radius:50%;background:var(--ac);border:1.5px solid #fff;cursor:grab}
+    /* line-end shape picker: preview + name per option */
+    .akls-cpw{position:relative;margin-bottom:9px}
+    .akls-cp{display:flex;align-items:center;gap:9px;width:100%;height:34px;padding:0 10px;border:1px solid var(--ln);border-radius:9px;
+      background:color-mix(in srgb,var(--tx) 3.5%,transparent);color:var(--tx);font:500 12px 'Inter',sans-serif;cursor:pointer;text-align:left;
+      transition:border-color .12s ease}
+    .akls-cp:hover{border-color:var(--ac)}
+    .akls-cp .cpv,.akls-cprow .cpv{display:grid;place-items:center;flex:none;color:var(--ac)}
+    .akls-cp .cpl,.akls-cprow .cpl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .akls-cp .cpc{flex:none;color:var(--mut);font-size:10px}
+    .akls-cpop{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:60;max-height:320px;overflow:auto;padding:5px;
+      border:1px solid var(--ln);border-radius:11px;background:var(--pnl);box-shadow:var(--shdw)}
+    .akls-cprow{display:flex;align-items:center;gap:9px;width:100%;padding:6px 7px;border:none;border-radius:8px;background:none;
+      color:var(--tx);font:500 11.5px 'Inter',sans-serif;cursor:pointer;text-align:left}
+    .akls-cprow:hover{background:color-mix(in srgb,var(--tx) 8%,transparent)}
+    .akls-cprow.on{background:color-mix(in srgb,var(--ac) 15%,transparent)}
     .akls-cropbadge{position:absolute;left:0;top:0;transform:translateY(-135%);font:600 10.5px 'Inter',sans-serif;letter-spacing:.01em;
       color:#fff;background:var(--ac);padding:4px 10px;border-radius:7px;white-space:nowrap;pointer-events:none}
     /* layout grid + smart guides */
@@ -355,6 +395,14 @@
     .akls-sec{display:flex;align-items:center;gap:8px;margin:16px -14px 10px;padding:13px 16px 0;border-top:1px solid var(--ln);
       font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:.005em;color:var(--mut)}
     .akls-panel .akls-sec:first-child{border-top:none;margin-top:0;padding-top:16px}
+    .akls-sech{justify-content:space-between;cursor:pointer;user-select:none}
+    .akls-sech:hover{color:var(--tx)}
+    .akls-sech.cl{padding-bottom:11px}
+    .akls-sectog{flex:none;width:19px;height:19px;display:flex;align-items:center;justify-content:center;padding:0;
+      border:1px solid var(--ln);border-radius:6px;background:none;color:inherit;cursor:pointer;
+      font:600 13px/1 'Inter',sans-serif;transition:border-color .12s,color .12s,background .12s}
+    .akls-sech:hover .akls-sectog{color:var(--tx);border-color:color-mix(in srgb,var(--ac) 55%,var(--ln))}
+    .akls-sectog:hover{background:color-mix(in srgb,var(--ac) 16%,transparent);border-color:var(--ac);color:var(--ac)}
     .akls-lab{display:block;font-size:10.5px;color:var(--mut);margin:0 0 5px}
     .akls-f{margin-bottom:10px}
     .akls-grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
@@ -366,6 +414,7 @@
     .akls-in input,.akls-in select{flex:1;min-width:0;height:100%;border:none;background:none;color:var(--tx);font:500 12px 'Inter',sans-serif;padding:0 8px 0 6px;outline:none;font-variant-numeric:tabular-nums;user-select:text}
     .akls-in select{cursor:pointer;padding-left:9px}
     .akls-in select option{background:var(--pnl);color:var(--tx)}
+    .akls-in select optgroup{background:var(--pnl);color:var(--mut);font:600 11px 'Inter',sans-serif}
     .akls-in input:disabled{opacity:.45}
     .akls-in input[type=number]{-moz-appearance:textfield}
     .akls-in input[type=number]::-webkit-inner-spin-button,.akls-in input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
@@ -382,7 +431,26 @@
     .akls-seg{display:flex;gap:2px;border:1px solid var(--ln);border-radius:9px;padding:2px;background:color-mix(in srgb,var(--tx) 3%,transparent)}
     .akls-seg button{flex:1;height:23px;border:none;border-radius:7px;background:none;color:var(--mut);font:600 11px 'Inter',sans-serif;cursor:pointer;padding:0;transition:background .12s,color .12s}
     .akls-seg button:hover{color:var(--tx)}
+    .akls-seg button svg{width:15px;height:15px;display:block;margin:0 auto}
     .akls-seg button.on{background:color-mix(in srgb,var(--ac) 20%,transparent);color:var(--ac)}
+    .akls-seg.tabs{overflow:hidden;margin-bottom:12px;padding:3px;gap:3px;border-color:color-mix(in srgb,var(--ac) 30%,var(--ln));
+      background:color-mix(in srgb,var(--ac) 7%,transparent)}
+    .akls-seg.tabs button{min-width:0;height:27px;font-size:10.5px;letter-spacing:.01em;padding:0 2px;color:color-mix(in srgb,var(--tx) 62%,transparent)}
+    .akls-seg.tabs button:hover{color:var(--tx);background:color-mix(in srgb,var(--tx) 7%,transparent)}
+    .akls-seg.tabs button.on{background:var(--ac);color:#fff;box-shadow:0 3px 10px -4px color-mix(in srgb,var(--ac) 80%,transparent)}
+    .akls-seg.tabs button.on:hover{background:var(--ac);color:#fff}
+    /* a tab carrying non-default values gets a dot, so nothing hides unseen */
+    .akls-seg.tabs button{position:relative}
+    .akls-seg.tabs button.dirty::after{content:"";position:absolute;top:4px;right:4px;width:4px;height:4px;
+      border-radius:50%;background:var(--ac)}
+    .akls-seg.tabs button.on.dirty::after{background:#fff;opacity:.9}
+    /* bullet-style picker */
+    .akls-bgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:9px}
+    .akls-bbtn{display:grid;place-items:center;height:29px;padding:0;border:1px solid var(--ln);border-radius:8px;background:none;
+      color:color-mix(in srgb,var(--tx) 82%,transparent);font:600 13px 'Inter',sans-serif;line-height:1;cursor:pointer;transition:border-color .12s,color .12s,background .12s}
+    .akls-bbtn.sm{font-size:10.5px;letter-spacing:.01em}
+    .akls-bbtn:hover{border-color:var(--ac);color:var(--ac)}
+    .akls-bbtn.on{border-color:var(--ac);color:var(--ac);background:color-mix(in srgb,var(--ac) 13%,transparent)}
     .akls-act{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 2px;border:1px solid var(--ln);border-radius:9px;background:none;color:var(--tx);cursor:pointer;transition:border-color .12s,color .12s,background .12s}
     .akls-act svg{width:15px;height:15px}
     .akls-act span{font-family:'Inter',sans-serif;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
@@ -405,7 +473,7 @@
     .akls-panel input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--ac);border:2.5px solid #fff;cursor:pointer}
     /* theme menu */
     .akls-menu{position:fixed;z-index:420;min-width:262px;max-width:310px;background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(1.2);backdrop-filter:blur(24px) saturate(1.2);
-      border:1px solid var(--ln);border-radius:14px;box-shadow:var(--shdw);padding:6px;animation:aklsMenu .16s ease both}
+      border:1px solid var(--ln);border-radius:14px;box-shadow:var(--shdw);padding:6px;animation:aklsMenu .16s ease forwards}
     @keyframes aklsMenu{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
     .akls-mhd{padding:9px 11px 5px;font-family:'Inter',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.005em;color:var(--mut)}
     .akls-mi{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border:none;background:none;color:var(--tx);border-radius:8px;cursor:pointer;text-align:left;font:500 12.5px 'Inter',sans-serif}
@@ -420,20 +488,23 @@
     .akls-msep{height:1px;background:var(--ln);margin:6px 4px}
     .akls-mnote{padding:2px 11px 9px;font-size:10.5px;line-height:1.5;color:var(--mut)}
     /* in-studio dialogs + toast */
-    .akls-dlgov{position:absolute;inset:0;z-index:430;display:grid;place-items:center;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:aklsFade .15s ease both}
-    .akls-dlg{width:min(330px,86vw);background:var(--pnl);border:1px solid var(--ln);border-radius:16px;padding:18px;box-shadow:var(--shdw);animation:aklsDlg .2s cubic-bezier(.2,.9,.3,1.15) both}
+    .akls-dlgov{position:absolute;inset:0;z-index:430;display:grid;place-items:center;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:aklsFade .15s ease forwards}
+    .akls-dlg{width:min(330px,86vw);background:var(--pnl);border:1px solid var(--ln);border-radius:16px;padding:18px;box-shadow:var(--shdw);animation:aklsDlg .2s cubic-bezier(.2,.9,.3,1.15) forwards}
     @keyframes aklsDlg{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
     .akls-dlg h4{margin:0 0 12px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:var(--tx)}
     .akls-dlg p{margin:0 0 14px;font-size:12px;line-height:1.55;color:var(--mut)}
     .akls-dlg .row{display:flex;gap:8px;justify-content:flex-end;margin-top:15px}
     .akls-toast{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);z-index:440;background:color-mix(in srgb,var(--tx) 94%,transparent);color:color-mix(in srgb,var(--bg,#141311) 96%,#000);
-      padding:9px 16px;border-radius:99px;font:600 12px 'Inter',sans-serif;box-shadow:var(--shdw);white-space:nowrap;animation:aklsToast .22s cubic-bezier(.2,.9,.3,1.1) both}
+      padding:9px 16px;border-radius:99px;font:600 12px 'Inter',sans-serif;box-shadow:var(--shdw);white-space:nowrap;animation:aklsToast .22s cubic-bezier(.2,.9,.3,1.1) forwards}
     @keyframes aklsToast{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
     .akls-audio{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:10px}
     @media(max-width:1280px){.akls-side{width:214px}.akls-panel{width:246px}.akls-area{padding:18px 288px 132px 256px}}
     @media(max-width:1024px){.akls-side{width:192px}.akls-panel{width:230px}.akls-area{padding:18px 268px 124px 230px}
       .akls-dock{gap:2px;padding:6px}.akls-dock .akls-ib{width:36px;height:36px}.akls-dock .akls-ib svg{width:18px;height:18px}}
     @media(prefers-reduced-motion:reduce){.akls-ov,.akls-ov *{animation:none!important;transition:none!important}}
+    /* safety net: once settled the chrome never depends on an animation to be visible */
+    .akls-ov.settled .akls-top,.akls-ov.settled .akls-side,.akls-ov.settled .akls-panel,.akls-ov.settled .akls-dock{animation:none}
+    .akld-ov.settled,.akld-ov.settled .akld-card{animation:none}
     .akls-view .akls-bento{cursor:pointer}
     .akls-bento{transition:box-shadow .25s,outline-color .2s,filter .25s;outline:0 solid transparent}
     .akls-bento:hover{outline:2px solid var(--ac,var(--accent,#E5783A));outline-offset:-2px;box-shadow:0 20px 54px -20px rgba(0,0,0,.55);filter:brightness(1.05);z-index:6}
@@ -453,9 +524,9 @@
     .akls-barr span{display:block;transition:transform .25s}
     .akls-bento:hover .akls-barr{background:var(--ac,var(--accent,#E5783A));border-color:color-mix(in srgb,var(--ac,var(--accent,#E5783A)) 55%,#fff)}
     .akls-bento:hover .akls-barr span{transform:rotate(-45deg)}
-    .akld-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(8,7,6,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:akldIn .2s ease both;font-family:'Inter',sans-serif}
+    .akld-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(8,7,6,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:akldIn .2s ease forwards;font-family:'Inter',sans-serif}
     @keyframes akldIn{from{opacity:0}to{opacity:1}}
-    .akld-card{position:relative;display:flex;width:min(1160px,96vw);height:min(860px,92vh);background:#FBF9F5;border-radius:22px;overflow:hidden;box-shadow:0 40px 120px -30px rgba(0,0,0,.7);animation:akldPop .26s cubic-bezier(.2,.8,.3,1.1) both}
+    .akld-card{position:relative;display:flex;width:min(1160px,96vw);height:min(860px,92vh);background:#FBF9F5;border-radius:22px;overflow:hidden;box-shadow:0 40px 120px -30px rgba(0,0,0,.7);animation:akldPop .26s cubic-bezier(.2,.8,.3,1.1) forwards}
     @keyframes akldPop{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
     .akld-media{position:relative;flex:1 1 52%;min-width:0;background:#E7E3DC;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:flex-basis .2s ease}
     .akld-media img,.akld-media video{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;background:#E7E3DC}
@@ -500,6 +571,12 @@
   }
 
   var ICO = {
+    alL: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 11h9M4 16h13"/></svg>',
+    alC: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M7.5 11h9M5.5 16h13"/></svg>',
+    alR: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M11 11h9M7 16h13"/></svg>',
+    alT: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 4.5h16" stroke-width="2"/><path d="M7 9.5h10M7 13.5h6" stroke-width="1.6"/></svg>',
+    alM: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 12h16" stroke-width="2"/><path d="M7 6.5h10M7 17.5h6" stroke-width="1.6"/></svg>',
+    alB: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 19.5h16" stroke-width="2"/><path d="M7 10.5h10M7 14.5h6" stroke-width="1.6"/></svg>',
     logo: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="10.6" height="10.6" rx="3" fill="currentColor"/><rect x="10.9" y="10.9" width="10.1" height="10.1" rx="3.2" stroke="currentColor" stroke-width="1.7"/></svg>',
     distV: '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="4" rx="1.2" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="10" width="16" height="4" rx="1.2" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="17" width="16" height="4" rx="1.2" stroke="currentColor" stroke-width="1.6"/></svg>',
     distH: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="4" height="16" rx="1.2" stroke="currentColor" stroke-width="1.6"/><rect x="10" y="4" width="4" height="16" rx="1.2" stroke="currentColor" stroke-width="1.6"/><rect x="17" y="4" width="4" height="16" rx="1.2" stroke="currentColor" stroke-width="1.6"/></svg>',
@@ -540,7 +617,9 @@
     group: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>',
     ungroup: '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5V5.5A1.5 1.5 0 0 1 5 4h2M10 4h1.5A1.5 1.5 0 0 1 13 5.5v1.7M13 10.4v1.1A1.5 1.5 0 0 1 11.5 13H10M7 13H5a1.5 1.5 0 0 1-1.5-1.5V10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13.5 16.8v1.7A1.5 1.5 0 0 0 15 20h1.5m4-3.2v1.7A1.5 1.5 0 0 1 19 20h-1.5m3-8.5V13a1.5 1.5 0 0 1-1.5 1.5H17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
     folder: '<svg viewBox="0 0 24 24" fill="none"><path d="M3.75 6.9A1.9 1.9 0 0 1 5.65 5h3.2a1.9 1.9 0 0 1 1.52.76l.86 1.14h7.12A1.9 1.9 0 0 1 21.25 8.8v8.3A1.9 1.9 0 0 1 19.35 19H5.65a1.9 1.9 0 0 1-1.9-1.9z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
-    caret: '<svg viewBox="0 0 24 24" fill="none"><path d="M7.25 10.25L12 15l4.75-4.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    caret: '<svg viewBox="0 0 24 24" fill="none"><path d="M7.25 10.25L12 15l4.75-4.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    sun: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.75v2.1M12 19.15v2.1M2.75 12h2.1M19.15 12h2.1M5.4 5.4l1.5 1.5M17.1 17.1l1.5 1.5M18.6 5.4l-1.5 1.5M6.9 17.1l-1.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    moon: '<svg viewBox="0 0 24 24" fill="none"><path d="M20 14.4A8.2 8.2 0 0 1 9.6 4a8.4 8.4 0 1 0 10.4 10.4z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
 
   var FONTS = [
@@ -840,14 +919,97 @@
     return { h: y + 160, bg: "#1C1A14", grid: { on: false, cols: 12, gutter: 24, margin: 84, snap: true }, els: els };
   }
 
+  /* ============================================================ LINES
+     A line is a thin box with an END SHAPE per side (start / end). Shapes:
+     flat · round · bevel (45° slant) · point (taper to a tip). Round uses
+     border-radius; bevel/point clip the box. capAmt (%) scales how big the
+     shape is relative to the line's thickness. */
+  var LINE_CAPS = [
+    ["flat", "Flat", "Square end"],
+    ["round", "Round", "Semicircle"],
+    ["bevel", "Bevel down", "45\u00b0 slant"],
+    ["bevelup", "Bevel up", "45\u00b0 slant, other way"],
+    ["chamfer", "Chamfer", "Both corners cut"],
+    ["taper", "Taper", "Blunt tip"],
+    ["point", "Point", "Sharp tip"],
+    ["notch", "Notch", "V cut inwards"],
+    ["step", "Step", "Half-thickness stub"]
+  ];
+  function capName(k) { var n = k; LINE_CAPS.forEach(function (o) { if (o[0] === k) n = o[1]; }); return n; }
+  /* Outline of one end, in (along, across) units: along 0 = the very end of the
+     line, across 0..t = its thickness. Listed from the top edge downwards. */
+  function capPts(kind, t, d) {
+    var c = Math.min(d, t / 2);
+    if (kind === "bevel") return [[d, 0], [0, t]];
+    if (kind === "bevelup") return [[0, 0], [d, t]];
+    if (kind === "chamfer") return [[c, 0], [0, c], [0, t - c], [c, t]];
+    if (kind === "taper") return [[d, 0], [0, t * 0.3], [0, t * 0.7], [d, t]];
+    if (kind === "point") return [[d, 0], [0, t / 2], [d, t]];
+    if (kind === "notch") return [[0, 0], [d, t / 2], [0, t]];
+    if (kind === "step") return [[d, 0], [d, t / 2], [0, t / 2], [0, t]];
+    return [[0, 0], [0, t]]; /* flat + round */
+  }
+  /* Mini preview of one end shape, drawn from the same geometry the canvas uses. */
+  function capSvg(kind, side, W, T) {
+    W = W || 54; T = T || 14;
+    var r = T / 2, d;
+    if (kind === "round") {
+      d = side === "s"
+        ? "M" + W + " 0H" + r + "A" + r + " " + r + " 0 0 0 " + r + " " + T + "H" + W + "Z"
+        : "M0 0H" + (W - r) + "A" + r + " " + r + " 0 0 1 " + (W - r) + " " + T + "H0Z";
+    } else {
+      var p = capPts(kind, T, Math.min(T, W * 0.45));
+      var pts = side === "s"
+        ? p.concat([[W, T], [W, 0]])
+        : [[0, 0], [0, T]].concat(p.map(function (q) { return [W - q[0], q[1]]; }).reverse());
+      d = "M" + pts.map(function (q) { return (Math.round(q[0] * 100) / 100) + " " + (Math.round(q[1] * 100) / 100); }).join("L") + "Z";
+    }
+    return '<svg width="' + W + '" height="' + T + '" viewBox="0 0 ' + W + ' ' + T + '" style="display:block"><path d="' + d + '" fill="currentColor"/></svg>';
+  }
+  function isLineEl(el) {
+    if (!el || el.content || el.kind === "ellipse") return false;
+    if (el.line) return true;
+    return Math.min(el.w, el.h) <= 8 && Math.max(el.w, el.h) >= 40;
+  }
+  function lineHoriz(el) { return el.w >= el.h; }
+  function lineCapCss(el) {
+    var S = el.capS || "flat", E = el.capE || "flat";
+    if (S === "flat" && E === "flat") return null;
+    var horiz = lineHoriz(el), W = Math.max(1, el.w), H = Math.max(1, el.h);
+    var t = horiz ? H : W, span = horiz ? W : H;
+    var amt = clamp(el.capAmt == null ? 100 : el.capAmt, 0, 100) / 100;
+    var rr = (t / 2) * amt, d = Math.min(t * amt, span / 2);
+    var r0 = S === "round" ? rr : 0, r1 = E === "round" ? rr : 0;
+    var out = {
+      radius: horiz ? r0 + "px " + r1 + "px " + r1 + "px " + r0 + "px"
+                    : r0 + "px " + r0 + "px " + r1 + "px " + r1 + "px",
+      clip: ""
+    };
+    var plain = { flat: 1, round: 1 };
+    if (!plain[S] || !plain[E]) {
+      /* left/top edge downwards, then the far edge back up */
+      var pts = capPts(S, t, d).concat(capPts(E, t, d).map(function (p) { return [span - p[0], p[1]]; }).reverse());
+      out.clip = "polygon(" + pts.map(function (p) {
+        var a = Math.round(p[0] * 100) / 100, b = Math.round(p[1] * 100) / 100;
+        return horiz ? a + "px " + b + "px" : b + "px " + a + "px";
+      }).join(",") + ")";
+    }
+    return out;
+  }
+
   /* ============================================================ ELEMENT RENDER (shared) */
   function applyBoxStyle(node, el) {
     node.style.left = el.x + "px"; node.style.top = el.y + "px";
     node.style.width = el.w + "px"; node.style.height = el.h + "px";
     node.style.borderRadius = el.kind === "ellipse" ? "50%" : (el.r || 0) + "px";
+    var lcap = isLineEl(el) ? lineCapCss(el) : null;
+    if (lcap) { node.style.borderRadius = lcap.radius; node.style.clipPath = lcap.clip || "none"; }
+    else node.style.clipPath = "";
     node.style.background = (el.fill && el.fill !== "none") ? el.fill : "transparent";
     node.style.border = (el.stroke && el.strokeW) ? el.strokeW + "px solid " + el.stroke : "none";
     node.style.opacity = el.opacity != null ? el.opacity : 1;
+    node.style.transformOrigin = "50% 50%";
+    node.style.transform = el.rot ? "rotate(" + el.rot + "deg)" : "";
     node.style.overflow = "hidden";
     var sv = clamp(el.shadow || 0, 0, 100);
     if (sv) {
@@ -867,21 +1029,78 @@
     if (z === 1 && !ox && !oy) return "";
     return "transform:translate(" + ox + "px," + oy + "px) scale(" + z + ");transform-origin:center center;";
   }
-  /* Text as a flex block. flow = grid mode (height follows the text, no clipping). */
-  function textBlock(c, flow) {
+  /* Bullet styles available on a text block. g = glyph, s = optical scale,
+     pv = picker preview, seq = auto-numbered (marker comes from the row index). */
+  var BULLETS = [
+    { k: "", n: "None", pv: "\u2298" },
+    { k: "dot", n: "Dot", g: "\u2022", s: 1 },
+    { k: "ring", n: "Hollow dot", g: "\u25E6", s: 1.1 },
+    { k: "square", n: "Square", g: "\u25AA", s: 1 },
+    { k: "dash", n: "Dash", g: "\u2013", s: 1 },
+    { k: "arrow", n: "Arrow", g: "\u2192", s: .92 },
+    { k: "chevron", n: "Chevron", g: "\u203A", s: 1.15 },
+    { k: "triangle", n: "Triangle", g: "\u25B8", s: .95 },
+    { k: "star", n: "Star \u2014 site accent mark", g: "\u2726", s: .82 },
+    { k: "check", n: "Check", g: "\u2713", s: .95 },
+    { k: "diamond", n: "Diamond", g: "\u25C6", s: .72 },
+    { k: "num", n: "Numbered \u2014 1. 2. 3.", pv: "1.", seq: 1, sm: 1 },
+    { k: "alpha", n: "Lettered \u2014 a. b. c.", pv: "a.", seq: 1, sm: 1 },
+    { k: "roman", n: "Roman \u2014 i. ii. iii.", pv: "i.", seq: 1, sm: 1 }
+  ];
+  var BUL = {}; BULLETS.forEach(function (b) { BUL[b.k] = b; });
+  var SECOPEN = {};   // inspector section → open? (persists while the studio is open)
+  function romanNum(n) {
+    var t = [[10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]], o = "";
+    while (n > 0) for (var i = 0; i < t.length; i++) if (n >= t[i][0]) { o += t[i][1]; n -= t[i][0]; break; }
+    return o;
+  }
+  function alphaNum(i) { var s = "", n = i; do { s = String.fromCharCode(97 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0); return s; }
+  function bulletMark(kind, i) {
+    if (kind === "num") return (i + 1) + ".";
+    if (kind === "alpha") return alphaNum(i) + ".";
+    if (kind === "roman") return romanNum(i + 1) + ".";
+    var b = BUL[kind]; return b && b.g ? b.g : "";
+  }
+  /* The two style strings a text block renders with — shared with the in-canvas editor. */
+  function textCss(c, flow) {
       var wrapS = "width:100%;" + (flow ? "" : "height:100%;overflow:hidden;") + "display:flex;box-sizing:border-box;" +
         "padding:" + (c.pt || 0) + "px " + (c.pr || 0) + "px " + (c.pb || 0) + "px " + (c.pl || 0) + "px;" +
         "align-items:" + ({ top: "flex-start", middle: "center", bottom: "flex-end" }[c.valign || "middle"]) + ";" +
         "justify-content:" + ({ left: "flex-start", center: "center", right: "flex-end" }[c.align || "left"]) + ";";
       var tsz = c.size || 28;
       var tS = "font-family:" + (c.font || FONTS[0][0]) + ";font-size:" + (flow ? "min(" + tsz + "px," + (tsz / 11.2).toFixed(3) + "cqw)" : tsz + "px") + ";font-weight:" + (c.weight || 600) +
-        ";color:" + (c.color || "#FFFFFF") + ";letter-spacing:" + (c.ls || 0) + "px;line-height:" + (c.lh || 1.3) +
+        ";color:" + (c.color || "#FFFFFF") + ";letter-spacing:" + (c.ls || 0) + "px;word-spacing:" + (c.ws || 0) + "px;line-height:" + (c.lh || 1.3) +
         ";text-align:" + (c.align || "left") + ";white-space:pre-wrap;word-break:break-word;max-width:100%;";
       if (c.strokeW) tS += "-webkit-text-stroke:" + c.strokeW + "px " + (c.strokeC || "#000") + ";";
       if (c.italic) tS += "font-style:italic;";
       if (c.deco) tS += "text-decoration:" + c.deco + ";";
       if (c.caseT) tS += "text-transform:" + c.caseT + ";";
-      return h("div", { style: wrapS }, [h("div", { style: tS }, [c.text || ""])]);
+      return { wrapS: wrapS, tS: tS };
+  }
+  /* Text as a flex block. flow = grid mode (height follows the text, no clipping). */
+  function textBlock(c, flow) {
+      var css = textCss(c, flow), wrapS = css.wrapS, tS = css.tS;
+      var bul = c.bullet && BUL[c.bullet] ? c.bullet : "";
+      var ps = Math.max(0, +c.ps || 0);
+      /* plain run — one node, exactly as before (keeps old layouts pixel-identical) */
+      if (!bul && !ps) return h("div", { style: wrapS }, [h("div", { style: tS }, [c.text || ""])]);
+      /* paragraph spacing and/or bullets: one row per hard line */
+      var b = BUL[bul] || {}, gap = (c.bgap == null ? 10 : Math.max(0, c.bgap));
+      var jc = ({ left: "flex-start", center: "center", right: "flex-end" })[c.align || "left"];
+      var mS = "flex:none;" + (c.bcolor ? "color:" + c.bcolor + ";" : "") + "margin-right:" + gap + "px;" +
+        (b.s && b.s !== 1 ? "font-size:" + Math.round(b.s * 100) + "%;" : "") +
+        (b.seq ? "min-width:1.9em;text-align:right;font-variant-numeric:tabular-nums;" : "") +
+        "-webkit-text-stroke:0;text-decoration:none;";
+      var rows = [], seq = 0;
+      String(c.text || "").split("\n").forEach(function (ln, i) {
+        var top = i ? "margin-top:" + ps + "px;" : "";
+        if (!ln.trim()) { rows.push(h("div", { style: top + "height:1em" })); return; }
+        var kids = [];
+        if (bul) kids.push(h("span", { style: mS }, [bulletMark(bul, seq++)]));
+        kids.push(h("div", { style: "min-width:0" }, [ln]));
+        rows.push(h("div", { style: "display:flex;align-items:baseline;justify-content:" + jc + ";" + top }, kids));
+      });
+      return h("div", { style: wrapS }, [h("div", { style: tS }, rows)]);
   }
   function renderContent(el, editing) {
     var c = el.content; if (!c) return null;
@@ -928,7 +1147,7 @@
     if (hero) ov.appendChild(h("div", { class: "akls-bhero" }, [hero]));
     else if (editing) ov.appendChild(h("div", { class: "akls-bhero ph" }, ["Add a title in the detail view"]));
     ov.appendChild(h("div", { class: "akls-bcta" }, [
-      h("span", {}, [String(d.cta || "Open prompt")]),
+      h("span", {}, [String(d.cta || "View prompt")]),
       h("span", { class: "akls-barr" }, [h("span", {}, ["\u2192"])])
     ]));
     return ov;
@@ -1461,7 +1680,7 @@
     function toast(msg) {
       ov.querySelectorAll(".akls-toast").forEach(function (n) { n.remove(); });
       var t = h("div", { class: "akls-toast" }, [msg]);
-      ov.appendChild(t);
+      ov.appendChild(t); settle(t, 400);
       setTimeout(function () { t.remove(); }, 2600);
     }
     function uiDialog(build) {
@@ -1472,7 +1691,7 @@
       bd.addEventListener("pointerdown", function (e) { if (e.target === bd) closeDlg(); });
       bd.addEventListener("keydown", function (e) { e.stopPropagation(); if (e.key === "Escape") closeDlg(); });
       build(card, closeDlg);
-      ov.appendChild(bd);
+      ov.appendChild(bd); settle(bd, 400); settle(card, 400);
       var inp = card.querySelector("input"); if (inp) { inp.focus(); inp.select(); }
     }
     function uiPrompt(title, defVal, okLabel, cb) {
@@ -1692,7 +1911,7 @@
         }));
         menuEl.appendChild(h("div", { class: "akls-mnote" }, ["Default start = the layout every new canvas opens with."]));
       }
-      ov.appendChild(menuEl);
+      ov.appendChild(menuEl); settle(menuEl, 350);
       var r = themeBtn.getBoundingClientRect();
       menuEl.style.top = (r.bottom + 6) + "px";
       menuEl.style.right = Math.max(8, innerWidth - r.right) + "px";
@@ -1754,6 +1973,27 @@
     var themeLbl = h("span", {}, ["Theme"]);
     var themeBtn = h("button", { class: "akls-btn ghost", title: "Themes \u2014 apply, save, import & export canvas layouts", onclick: openMenu }, [themeLbl]);
     themeBtn.insertAdjacentHTML("beforeend", ICO.caret);
+
+    /* ---- Light / dark switch for the editor itself. The studio reads the site's
+       theme vars, so flipping <html data-theme> restyles the whole workspace.
+       Persists to ak-theme like every other page, except while a project detail
+       is open (AK_THEME_NO_PERSIST) — then it is session-only. ---- */
+    var modeBtn = h("button", { class: "akls-ib", onclick: function () { setMode(isLight() ? "dark" : "light"); } });
+    function isLight() { return document.documentElement.dataset.theme === "light"; }
+    function paintMode() {
+      var lt = isLight();
+      modeBtn.innerHTML = lt ? ICO.moon : ICO.sun;
+      modeBtn.setAttribute("data-tip", lt ? "Dark mode" : "Light mode");
+      modeBtn.classList.toggle("on", lt);
+    }
+    function setMode(next) {
+      document.documentElement.dataset.theme = next;
+      if (!window.AK_THEME_NO_PERSIST) { try { localStorage.setItem("ak-theme", next); } catch (e) {} }
+      var k = document.getElementById("knob");
+      if (k) k.textContent = next === "light" ? "\u2600\uFE0F" : "\uD83C\uDF19";
+      paintMode();
+    }
+    paintMode();
 
     /* ---- Project info editor (optional; opts.info + opts.onInfo). Uses the
        studio's own dialog (z-430) so it sits ABOVE this overlay. ---- */
@@ -1821,19 +2061,20 @@
       h("span", { class: "sp" }),
       zoomWrap,
       vsep(),
+      modeBtn,
       themeBtn,
       h("button", { class: "akls-btn ghost", onclick: function () { close(); } }, ["Cancel"]),
       h("button", { class: "akls-btn", html: ICO.check + "<span>" + saveLbl + "</span>", onclick: function () { if (opts.onSave) opts.onSave(copy(D)); close(); } })
     ]);
 
+    /* Text tool works like Figma's: arm it, then click (auto box) or drag out a frame. */
+    var textBtn = itool(ICO.text, "Text \u2014 click to place, or drag out a text box (T)", function () { armText(!textArm); });
     /* floating tool dock */
     var dock = h("div", { class: "akls-dock" }, [
       itool(ICO.rect, "Rectangle", function () { addEl({ kind: "rect", w: 480, h: 320, fill: "#26231D", r: 16 }); }),
       itool(ICO.circ, "Circle", function () { addEl({ kind: "ellipse", w: 300, h: 300, fill: "#26231D" }); }),
-      itool(ICO.line, "Line", function () { addEl({ kind: "rect", w: 520, h: 5, fill: "#E5783A", r: 2.5 }); }),
-      itool(ICO.text, "Text", function () {
-        addEl({ kind: "rect", w: 620, h: 110, fill: "none", content: { type: "text", text: "Heading", font: FONTS[0][0], size: 48, weight: 600, color: "#FFFFFF", ls: 0, lh: 1.25, align: "left", valign: "middle", pt: 8, pr: 8, pb: 8, pl: 8, strokeW: 0, strokeC: "#000000" } });
-      }),
+      itool(ICO.line, "Line", function () { addEl({ kind: "rect", line: true, w: 520, h: 4, fill: "#E5783A", capS: "round", capE: "round", capAmt: 100 }); }),
+      textBtn,
       itool(ICO.img, "Image\u2026", function () {
         pickFile("image/*", function (data) {
           addEl({ kind: "rect", w: 640, h: 420, r: 12, fill: "none", content: { type: "image", src: data, fit: "cover" } });
@@ -1858,10 +2099,31 @@
     if (opts.accent) ov.style.setProperty("--accent", opts.accent);
     if (opts.accent2) ov.style.setProperty("--accent-2", opts.accent2);
     document.body.appendChild(ov);
+    setTimeout(function () { ov.classList.add("settled"); }, 700);
 
     /* snapshot state before any inspector edit begins */
     panel.addEventListener("pointerdown", function (e) { if (e.target.closest("input,select,textarea,button")) mark("panel"); }, true);
     panel.addEventListener("keydown", function (e) { if (e.target.closest("input,textarea,select")) mark("panel"); }, true);
+    /* while typing on canvas, inspector buttons (align, bullets, style…) must not
+       steal focus — blurring the editor would end the session mid-edit */
+    panel.addEventListener("mousedown", function (e) {
+      if (!tedit) return;
+      if (e.target.closest("input,select,textarea")) return;
+      e.preventDefault();
+    }, true);
+    /* a control that did take focus (select, colour, number) hands it back once
+       it is actually done — never on the click that opens a dropdown */
+    ["click", "change"].forEach(function (evt) {
+      panel.addEventListener(evt, function (e) {
+        if (!tedit || !tedit.refocus) return;
+        var fld = e.target.closest("input,textarea,select");
+        if (fld && evt === "click") return;
+        if (fld && fld.tagName === "SELECT" && evt !== "change") return;
+        if (fld && (fld.type === "text" || fld.type === "number" || fld.tagName === "TEXTAREA")) return;
+        var park = tedit;
+        setTimeout(function () { if (tedit === park && park.parked) { park.parked = false; park.refocus(); } }, 0);
+      });
+    });
 
     function close() {
       closeMenu(); closeCtx();
@@ -1871,7 +2133,11 @@
       removeEventListener("keydown", altMeasure);
       removeEventListener("keyup", altRelease);
       removeEventListener("paste", onPaste);
-      removeEventListener("resize", fit);
+      removeEventListener("resize", onResize);
+      removeEventListener("keydown", onSpaceDown);
+      removeEventListener("keyup", onSpaceUp);
+      removeEventListener("blur", onWinBlur);
+      try { if (window.__aklsConvertPdf === convertPdfFile) delete window.__aklsConvertPdf; } catch (e) {}
     }
 
     /* ---- zoom ---- */
@@ -1891,7 +2157,8 @@
       }
       applyZoom();
     }
-    addEventListener("resize", fit);
+    function onResize() { applySideWidth(sideW); fit(); }
+    addEventListener("resize", onResize);
     area.addEventListener("wheel", function (e) {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -1915,17 +2182,21 @@
     /* ---- Figma-style panning: middle-mouse drag, or hold Space + drag ---- */
     var spaceDown = false;
     function setPanCursor() { area.classList.toggle("pan", spaceDown); }
-    addEventListener("keydown", function (e) {
+    function onSpaceDown(e) {
+      if (detailOpen) return;
       if (e.code !== "Space" && e.key !== " ") return;
       var t = e.target && e.target.tagName;
       if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT" || (e.target && e.target.isContentEditable)) return;
       if (!spaceDown) { spaceDown = true; setPanCursor(); }
       e.preventDefault();
-    });
-    addEventListener("keyup", function (e) {
+    }
+    function onSpaceUp(e) {
       if (e.code === "Space" || e.key === " ") { spaceDown = false; setPanCursor(); }
-    });
-    addEventListener("blur", function () { spaceDown = false; setPanCursor(); });
+    }
+    function onWinBlur() { spaceDown = false; setPanCursor(); }
+    addEventListener("keydown", onSpaceDown);
+    addEventListener("keyup", onSpaceUp);
+    addEventListener("blur", onWinBlur);
     /* suppress the browser middle-click autoscroll bubble */
     area.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });
     area.addEventListener("pointerdown", function (e) {
@@ -1945,9 +2216,12 @@
     }, true);
 
     /* ---- resizable layers panel (drag its right edge) ---- */
-    var SIDE_MIN = 200, SIDE_MAX = 480;
+    var SIDE_MIN = 168, SIDE_MAX = 480, sideW = 240;
+    /* cap against the window so the panels can never squeeze the canvas away */
+    function sideCap() { return clamp(Math.round(innerWidth * 0.3), SIDE_MIN, SIDE_MAX); }
     function applySideWidth(w) {
-      w = clamp(Math.round(w), SIDE_MIN, SIDE_MAX);
+      w = clamp(Math.round(w), SIDE_MIN, sideCap());
+      sideW = w;
       side.style.width = w + "px";
       sgrip.style.left = w + "px";
       area.style.paddingLeft = (w + 24) + "px";
@@ -1994,6 +2268,7 @@
     function getSel() { for (var i = 0; i < D.els.length; i++) if (D.els[i].id === sel) return D.els[i]; return null; }
     function nodeFor(id) { return stage.querySelector('[data-el="' + id + '"]'); }
     function paintStage() {
+      endTextEdit(true);
       stage.innerHTML = "";
       if (!D.els.length) stage.appendChild(hint);
       D.els.forEach(function (el) {
@@ -2016,14 +2291,264 @@
       stage.appendChild(gridEl);
       stage.appendChild(guideV); stage.appendChild(guideH); MEAS.forEach(function (m) { stage.appendChild(m); }); hideGuides();
       paintSel(); paintLayers(); updateStatus();
+      /* grid mode renders from a separate preview — keep it in step with deletes,
+         adds, hides and z-order changes instead of waiting for a reload */
+      if (D.layout === "grid" && typeof gridPrev !== "undefined" && gridPrev) paintGridPrev();
     }
     function refreshNode(el, structural) {
       var n = nodeFor(el.id); if (!n) return;
+      /* mid-typing: never rebuild the node — that would tear out the live editor
+         and drop the caret. Re-style it in place instead. */
+      if (tedit && tedit.id === el.id && tedit.restyle) {
+        applyBoxStyle(n, el); tedit.restyle(); paintSel(); return;
+      }
       if (structural) {
         var nn = renderEl(el, true); nn.setAttribute("data-el", el.id); wireEl(nn, el); n.replaceWith(nn);
         paintLayers();
       } else applyBoxStyle(n, el);
       paintSel();
+      if (D.layout === "grid" && typeof gridPrev !== "undefined" && gridPrev) paintGridPrev();
+    }
+    /* ---- type directly on the canvas ------------------------------------
+       Double-click a text layer (or press Enter with one selected) and the
+       rendered run is swapped for a contenteditable styled identically, so
+       what you type is what the canvas shows. The right-hand Text field
+       stays in sync; Esc / clicking away finishes. ---------------------- */
+    var tedit = null, textArm = false;
+    function teditText(ed) { return String(ed.innerText || "").replace(/\u00a0/g, " ").replace(/\n$/, ""); }
+    function armText(on) {
+      textArm = !!on;
+      area.classList.toggle("place", textArm);
+      textBtn.classList.toggle("on", textArm);
+      if (textArm) { endTextEdit(); toast("Click to place text, or drag out a text box \u2014 Esc cancels"); }
+    }
+    /* drop a fresh, empty text box and start typing. box = {x,y,w,h} when the
+       user dragged a frame out; a plain click gets the default 620-wide run. */
+    var TEXT_SIZE = 18;   /* default type size for newly placed text */
+    function placeTextAt(x, y, box) {
+      armText(false);
+      snapNow();
+      var size = TEXT_SIZE, lh = 1.45, pad = 8, w = 620, minH = Math.round(size * lh) + pad * 2, hh = minH;
+      var lum = lumOf(D.bg);
+      if (box) {
+        x = Math.round(box.x); y = Math.round(box.y);
+        w = Math.max(60, Math.round(box.w)); hh = Math.max(minH, Math.round(box.h));
+      } else { x = Math.round(x); y = Math.round(y - hh / 2); }
+      if (grid.snap) { x = snapX(x); y = snapY(y); }
+      x = clamp(x, 0, Math.max(0, DW - 120)); y = Math.max(0, y);
+      if (x + w > DW) w = Math.max(140, DW - x);
+      if (D.h < y + hh + 40) D.h = y + hh + 40;   /* a dragged box may reach past the old page foot */
+      y = clamp(y, 0, Math.max(0, D.h - hh));   /* keep new text on the page, never past its foot */
+      var el = { id: uid(), kind: "rect", x: x, y: y, w: w, h: hh, r: 0, fill: "none", stroke: "", strokeW: 0, opacity: 1,
+        content: { type: "text", text: "", font: FONTS[0][0], size: size, weight: 600, color: (lum != null && lum > 0.55) ? "#1C1A14" : "#FFFFFF",
+          ls: 0, lh: lh, align: "left", valign: box ? "top" : "middle", pt: pad, pr: pad, pb: pad, pl: pad, strokeW: 0, strokeC: "#000000" } };
+      if (D.h < el.y + el.h + 40) D.h = el.y + el.h + 40;
+      D.els.push(el);
+      paintStage(); select(el.id); paintPanel();
+      beginTextEdit(el, { all: true, fresh: true });
+    }
+    function endTextEdit(silent) {
+      if (!tedit) return;
+      var t = tedit; tedit = null;
+      var el = null;
+      for (var i = 0; i < D.els.length; i++) if (D.els[i].id === t.id) el = D.els[i];
+      try { t.ed.blur(); } catch (_) {}
+      if (t.node) { t.node.classList.remove("akls-editing"); }
+      if (silent) return;
+      /* a just-placed box left empty disappears again, like Figma */
+      if (el && t.fresh && !String(el.content.text || "").trim()) {
+        D.els = D.els.filter(function (o) { return o.id !== el.id; });
+        setSel(null); paintStage(); paintPanel(); paintLayers(); return;
+      }
+      if (el && el.bento) { paintStage(); return; }   /* bento tiles carry an overlay only paintStage rebuilds */
+      if (el) refreshNode(el, true);
+      paintSel();
+    }
+    function beginTextEdit(el, opts) {
+      opts = opts || {};
+      if (!el || el.locked || el.hidden) return;
+      if (!el.content || el.content.type !== "text") return;
+      if (D.layout !== "canvas") return;
+      if (tedit && tedit.id === el.id) { tedit.ed.focus(); return; }
+      endTextEdit();
+      var node = nodeFor(el.id); if (!node) return;
+      if (sel !== el.id || selSet.size !== 1) { setSel(el.id); paintPanel(); paintLayers(); }
+      adjust = false;
+      snapNow();                                  /* one undo step for the session */
+      var c = el.content, css = textCss(c, false);
+      var wrap = h("div", { style: css.wrapS + "overflow:visible;" });
+      var ed = h("div", { class: "akls-tedit", spellcheck: "false", "data-ph": "Type\u2026", style: css.tS + "min-width:8px;" });
+      ed.setAttribute("contenteditable", "plaintext-only");
+      if (ed.contentEditable !== "plaintext-only") ed.setAttribute("contenteditable", "true");
+      var listy = false;
+      /* ---- one block per hard line, so bullets + paragraph gaps show live ---- */
+      function rowText(d) {
+        var out = "";
+        Array.prototype.forEach.call(d.childNodes, function (n) {
+          if (n.nodeName === "BR") { if (!n.getAttribute("data-f")) out += "\n"; }
+          else out += (n.textContent || "");
+        });
+        return out.replace(/\u00a0/g, " ");
+      }
+      function readText() {
+        var rs = ed.querySelectorAll(".trow");
+        /* trust the row structure only while it is intact — if the browser slipped
+           a node of its own in, fall back to innerText */
+        if (!rs.length || rs.length !== ed.children.length) return teditText(ed);
+        return Array.prototype.map.call(rs, rowText).join("\n");
+      }
+      function setRows(text) {
+        ed.innerHTML = "";
+        String(text == null ? "" : text).split("\n").forEach(function (ln) {
+          var d = h("div", { class: "trow" + (ln.trim() ? "" : " blank") });
+          if (ln) d.textContent = ln;
+          else { var br = document.createElement("br"); br.setAttribute("data-f", "1"); d.appendChild(br); }
+          ed.appendChild(d);
+        });
+      }
+      function offIn(node, r) {
+        var pre = document.createRange(); pre.selectNodeContents(node);
+        try { pre.setEnd(r.startContainer, r.startOffset); } catch (e) { return 0; }
+        return String(pre.toString() || "").length;
+      }
+      function caretOff() {
+        var s2 = window.getSelection && window.getSelection();
+        if (!s2 || !s2.rangeCount) return null;
+        var r = s2.getRangeAt(0); if (!ed.contains(r.startContainer)) return null;
+        var rs = ed.querySelectorAll(".trow");
+        if (!rs.length) return offIn(ed, r);
+        var off = 0;
+        for (var i = 0; i < rs.length; i++) {
+          if (rs[i] === r.startContainer || rs[i].contains(r.startContainer)) return off + offIn(rs[i], r);
+          off += rowText(rs[i]).length + 1;
+        }
+        return null;
+      }
+      function setCaret(off) {
+        var rs = ed.querySelectorAll(".trow");
+        var s2 = window.getSelection && window.getSelection(); if (!s2) return;
+        var rg = document.createRange();
+        if (!rs.length) { rg.selectNodeContents(ed); rg.collapse(false); s2.removeAllRanges(); s2.addRange(rg); return; }
+        var rem = (off == null) ? Infinity : off, i = 0;
+        for (i = 0; i < rs.length; i++) {
+          var len = rowText(rs[i]).length;
+          if (rem <= len) break;
+          rem -= len + 1;
+        }
+        if (i >= rs.length) { i = rs.length - 1; rem = rowText(rs[i]).length; }
+        var tn = rs[i].firstChild;
+        if (tn && tn.nodeType === 3) rg.setStart(tn, Math.max(0, Math.min(rem, tn.nodeValue.length)));
+        else rg.setStart(rs[i], 0);
+        rg.collapse(true);
+        s2.removeAllRanges(); s2.addRange(rg);
+      }
+      /* marker glyph / counter + gap come from custom props so restyle is cheap */
+      function applyList(keepCaret) {
+        var b = (c.bullet && BUL[c.bullet] && (BUL[c.bullet].g || BUL[c.bullet].seq)) ? BUL[c.bullet] : null;
+        var ps = Math.max(0, +c.ps || 0), want = !!b || ps > 0;
+        ed.classList.toggle("list", want);
+        ed.classList.toggle("bul", !!b);
+        ed.style.setProperty("--bps", ps + "px");
+        if (b) {
+          var seqT = { num: "decimal", alpha: "lower-alpha", roman: "lower-roman" }[c.bullet] || "decimal";
+          ed.style.setProperty("--bmark", b.seq ? 'counter(aklsb, ' + seqT + ') "."' : JSON.stringify(b.g || "\u2022"));
+          ed.style.setProperty("--bw", b.seq ? "1.9em" : "1em");
+          ed.style.setProperty("--balign", b.seq ? "right" : "left");
+          ed.style.setProperty("--bgap", (c.bgap == null ? 10 : Math.max(0, c.bgap)) + "px");
+          ed.style.setProperty("--bcol", c.bcolor || c.color || "inherit");
+          ed.style.setProperty("--bsz", Math.round((b.s && b.s !== 1 ? b.s : 1) * 100) + "%");
+        }
+        if (want !== listy) {
+          var off = keepCaret === false ? null : caretOff();
+          listy = want;
+          if (want) setRows(c.text);
+          else { ed.innerHTML = ""; ed.textContent = c.text || ""; }
+          if (document.activeElement === ed) setCaret(off == null ? (c.text || "").length : off);
+        }
+      }
+      ed.textContent = c.text || "";
+      applyList(false);
+      wrap.appendChild(ed);
+      Array.prototype.forEach.call(node.children, function (x) { x.style.display = "none"; });
+      node.appendChild(wrap);
+      node.classList.add("akls-editing");
+      tedit = { id: el.id, ed: ed, node: node, fresh: !!opts.fresh };
+      function restyle() {
+        var c2 = textCss(c, false);
+        wrap.style.cssText = c2.wrapS + "overflow:visible;";
+        ed.style.cssText = c2.tS + "min-width:8px;";
+        applyList();
+        grow();
+      }
+      tedit.restyle = restyle;
+      function grow() {
+        var need = Math.ceil(ed.getBoundingClientRect().height / Math.max(k, 0.05)) + (c.pt || 0) + (c.pb || 0);
+        if (need <= el.h) return;
+        el.h = need; applyBoxStyle(node, el); syncSelBox(el);
+        if (D.h < el.y + el.h + 40) { D.h = el.y + el.h + 40; fit(); }
+      }
+      ed.addEventListener("input", function () {
+        if (!tedit || tedit.ed !== ed) return;
+        mark("tedit:" + el.id);
+        c.text = readText();
+        if (listy) { var off = caretOff(); setRows(c.text); setCaret(off); }
+        tedit.caret = caretOff();
+        var ta = panel.querySelector("textarea[data-ak-text]");
+        if (ta && ta.value !== c.text) ta.value = c.text;
+        var lrow = layersList.querySelector('[data-lid="' + el.id + '"] .nm');
+        if (lrow) lrow.textContent = layerName(el);
+        grow(); updateStatus();
+      });
+      ed.addEventListener("keydown", function (e) {
+        e.stopPropagation();
+        var mod = e.metaKey || e.ctrlKey;
+        if (e.key === "Escape" || e.key === "Tab" || (e.key === "Enter" && mod)) {
+          e.preventDefault(); endTextEdit(); paintPanel(); return;
+        }
+        if (mod && !e.altKey && /^[biu]$/i.test(e.key)) {   /* block-level bold / italic / underline */
+          e.preventDefault();
+          mark("tstyle:" + el.id);
+          if (/b/i.test(e.key)) c.weight = (+c.weight >= 700) ? 400 : 700;
+          else if (/i/i.test(e.key)) c.italic = !c.italic;
+          else c.deco = c.deco === "underline" ? "" : "underline";
+          restyle(); paintPanel();
+        }
+      });
+      /* remember where the caret is so inspector round-trips can restore it */
+      ["keyup", "mouseup", "click"].forEach(function (t) {
+        ed.addEventListener(t, function () { if (tedit && tedit.ed === ed) tedit.caret = caretOff(); });
+      });
+      tedit.refocus = function () {
+        if (!tedit || tedit.ed !== ed) return;
+        ed.focus(); setCaret(tedit.caret == null ? (c.text || "").length : tedit.caret);
+      };
+      /* focus moving into the studio chrome (inspector, top bar, dock) keeps the
+         editing session alive — only clicking away on the canvas ends it */
+      ed.addEventListener("blur", function (e) {
+        if (!tedit || tedit.ed !== ed) return;
+        var to = e.relatedTarget || document.activeElement;
+        if (to && to !== document.body && ov.contains(to) && !stage.contains(to)) { tedit.parked = true; return; }
+        endTextEdit(); paintPanel();
+      });
+      ["pointerdown", "mousedown", "click", "dblclick", "contextmenu"].forEach(function (t) {
+        wrap.addEventListener(t, function (e) { e.stopPropagation(); });
+      });
+      paintSel();
+      ed.focus();
+      var s = window.getSelection && window.getSelection();
+      if (s) {
+        var r = null;
+        if (!opts.all && opts.x != null && document.caretRangeFromPoint) {
+          var cr = document.caretRangeFromPoint(opts.x, opts.y);
+          if (cr && ed.contains(cr.startContainer)) r = cr;
+        }
+        var word = false;
+        if (!r) { r = document.createRange(); r.selectNodeContents(ed); if (!opts.all) r.collapse(false); } else word = true;
+        s.removeAllRanges(); s.addRange(r);
+        /* double-click lands on a word — select it, the way Figma does */
+        if (word && s.modify) { try { s.modify("move", "backward", "word"); s.modify("extend", "forward", "word"); } catch (_) {} }
+      }
+      grow();
     }
     function paintSel() {
       stage.querySelectorAll(".akls-selbox").forEach(function (n) { n.remove(); });
@@ -2035,11 +2560,19 @@
         if (o.id === el.id || o.hidden) return;
         var mb = h("div", { class: "akls-selbox multi", "data-selbox": o.id, style: "left:" + o.x + "px;top:" + o.y + "px;width:" + o.w + "px;height:" + o.h + "px" });
         mb.style.outlineWidth = (2 / Math.max(k, 0.05)) + "px";
+        mb.style.transformOrigin = "50% 50%";
+        if (o.rot) mb.style.transform = "rotate(" + o.rot + "deg)";
         stage.appendChild(mb);
       });
       var box = h("div", { class: "akls-selbox", "data-selbox": el.id, style: "left:" + el.x + "px;top:" + el.y + "px;width:" + el.w + "px;height:" + el.h + "px" });
       box.style.outlineWidth = (2 / Math.max(k, 0.05)) + "px";
-      if (!el.hidden && !el.locked) {
+      box.style.transformOrigin = "50% 50%";
+      if (el.rot) box.style.transform = "rotate(" + el.rot + "deg)";
+      if (tedit && tedit.id === el.id) {
+        box.classList.add("editing");
+        box.appendChild(h("div", { class: "akls-cropbadge", style: "font-size:" + Math.round(clamp(10.5 / k, 9, 20)) + "px" },
+          ["Typing \u2014 Esc when done"]));
+      } else if (!el.hidden && !el.locked) {
         var hs = Math.round(clamp(12 / k, 8, 28));
         ["nw", "n", "ne", "e", "se", "s", "sw", "w"].forEach(function (dir) {
           var hd = h("div", { class: "akls-hd " + dir });
@@ -2051,6 +2584,12 @@
         sg.style.setProperty("--hs", Math.round(clamp(14 / k, 9, 32)) + "px");
         wireScale(sg, el);
         box.appendChild(sg);
+        if (selEls().length < 2) {
+          var rg = h("div", { class: "akls-hd rot", title: "Drag to rotate \u00b7 \u21e7 snaps to 15\u00b0" });
+          rg.style.setProperty("--hs", Math.round(clamp(13 / k, 9, 30)) + "px");
+          wireRot(rg, el);
+          box.appendChild(rg);
+        }
       }
       if (adjust && pannable(el)) {
         box.classList.add("crop");
@@ -2063,13 +2602,9 @@
       if (!box) return;
       box.style.left = el.x + "px"; box.style.top = el.y + "px";
       box.style.width = el.w + "px"; box.style.height = el.h + "px";
+      box.style.transform = el.rot ? "rotate(" + el.rot + "deg)" : "";
     }
     function select(id) { if (sel === id && selSet.size === 1) return; setSel(id); paintSel(); paintPanel(); paintLayers(); }
-    function toggleSel(id) {
-      if (selSet.has(id)) { selSet.delete(id); if (sel === id) sel = selSet.size ? Array.from(selSet)[selSet.size - 1] : null; }
-      else { selSet.add(id); sel = id; }
-      adjust = false; paintSel(); paintPanel(); paintLayers();
-    }
     function selectAll() {
       if (!D.els.length) return;
       selSet = new Set(D.els.map(function (x) { return x.id; }));
@@ -2081,6 +2616,28 @@
       if (e.button != null && e.button > 0) return;
       var r = stage.getBoundingClientRect();
       var sx = (e.clientX - r.left) / k, sy = (e.clientY - r.top) / k;
+      /* text tool: click drops a default run, drag rubber-bands a fixed text frame */
+      if (textArm) {
+        e.preventDefault();
+        var tpv = null, tdrag = false, tbox = null;
+        try { area.setPointerCapture(e.pointerId); } catch (er0) {}
+        var tmv = function (ev) {
+          var x2 = (ev.clientX - r.left) / k, y2 = (ev.clientY - r.top) / k;
+          if (!tdrag && Math.abs(x2 - sx) + Math.abs(y2 - sy) < 4 / k) return;
+          if (!tdrag) { tdrag = true; tpv = h("div", { class: "akls-marq" }); stage.appendChild(tpv); }
+          tbox = { x: Math.min(sx, x2), y: Math.min(sy, y2), w: Math.abs(x2 - sx), h: Math.abs(y2 - sy) };
+          tpv.style.cssText = "left:" + tbox.x + "px;top:" + tbox.y + "px;width:" + tbox.w + "px;height:" + tbox.h +
+            "px;border-width:" + Math.max(1, 1 / k) + "px";
+        };
+        var tup = function (ev) {
+          try { area.releasePointerCapture(ev.pointerId); } catch (er0) {}
+          area.removeEventListener("pointermove", tmv); area.removeEventListener("pointerup", tup); area.removeEventListener("pointercancel", tup);
+          if (tpv) tpv.remove();
+          placeTextAt(sx, sy, (tdrag && tbox && tbox.w > 24) ? tbox : null);
+        };
+        area.addEventListener("pointermove", tmv); area.addEventListener("pointerup", tup); area.addEventListener("pointercancel", tup);
+        return;
+      }
       var base = e.shiftKey ? new Set(selSet) : new Set();
       var marq = null, moved = false;
       try { area.setPointerCapture(e.pointerId); } catch (er) {}
@@ -2116,7 +2673,7 @@
         return { image: "Image", media: (c.mime || "").indexOf("audio") === 0 ? "Audio" : "Video", pdf: "PDF", model: "3D model", prototype: "Prototype" }[c.type] || "Shape";
       }
       if (el.kind === "ellipse") return "Ellipse";
-      if (el.h <= 8 && el.w > 40) return "Line";
+      if (isLineEl(el)) return "Line";
       return "Rectangle";
     }
     function layerIcon(el) {
@@ -2268,7 +2825,7 @@
         if (it.warn) b.classList.add("warn");
         ctxEl.appendChild(b);
       });
-      ov.appendChild(ctxEl);
+      ov.appendChild(ctxEl); settle(ctxEl, 350);
       ctxEl.style.left = "0px"; ctxEl.style.top = "0px";
       var r = ctxEl.getBoundingClientRect();
       ctxEl.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
@@ -2473,11 +3030,7 @@
         if (!pannable(el) && !isText) return;
         e.preventDefault(); e.stopPropagation();
         if (sel !== el.id) setSel(el.id);
-        if (isText) {
-          adjust = false; paintSel(); paintPanel(); paintLayers();
-          var ta = panel.querySelector("textarea"); if (ta) { ta.focus(); ta.select(); }
-          return;
-        }
+        if (isText) { beginTextEdit(el, { x: e.clientX, y: e.clientY }); return; }
         adjust = !adjust; paintSel(); paintPanel(); paintLayers();
       });
       node.addEventListener("wheel", function (e) {
@@ -2491,6 +3044,13 @@
       node.addEventListener("pointerdown", function (e) {
         if (e.button != null && e.button > 0) return;
         e.preventDefault(); e.stopPropagation();
+        if (textArm) {
+          var isT2 = el.content && el.content.type === "text";
+          armText(false);
+          if (isT2) beginTextEdit(el, { x: e.clientX, y: e.clientY });
+          else { var fr2 = stage.getBoundingClientRect(); placeTextAt((e.clientX - fr2.left) / k, (e.clientY - fr2.top) / k); }
+          return;
+        }
         var additive = e.shiftKey || e.metaKey || e.ctrlKey;
         if (additive) { selectElement(el, { additive: true, alt: e.altKey }); if (!selSet.has(el.id)) return; }
         else if (!selSet.has(el.id)) selectElement(el, { alt: e.altKey });
@@ -2611,6 +3171,37 @@
       });
     }
 
+    /* ---- rotate grip (single selection) ---- */
+    function wireRot(hd, el) {
+      hd.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var r = stage.getBoundingClientRect();
+        var cx = el.x + el.w / 2, cy = el.y + el.h / 2;
+        function ang(ev) { return Math.atan2((ev.clientY - r.top) / k - cy, (ev.clientX - r.left) / k - cx) * 180 / Math.PI; }
+        var a0 = ang(e), r0 = el.rot || 0;
+        var pre = copyDesign(D), rMoved = false;
+        var badge = h("div", { class: "akls-cropbadge", style: "font-size:" + Math.round(clamp(10.5 / k, 9, 20)) + "px" }, [(r0 || 0) + "\u00b0"]);
+        var bx = stage.querySelector('[data-selbox="' + el.id + '"]');
+        if (bx) bx.appendChild(badge);
+        function mv(ev) {
+          ev.preventDefault();
+          if (!rMoved) { pushPre(pre); rMoved = true; }
+          var v = r0 + (ang(ev) - a0);
+          v = ev.shiftKey ? Math.round(v / 15) * 15 : Math.round(v);
+          while (v > 180) v -= 360; while (v < -180) v += 360;
+          el.rot = v;
+          var n = nodeFor(el.id); if (n) applyBoxStyle(n, el);
+          syncSelBox(el);
+          badge.textContent = v + "\u00b0";
+        }
+        function up() {
+          removeEventListener("pointermove", mv); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
+          paintSel(); paintPanel();
+        }
+        addEventListener("pointermove", mv); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+      });
+    }
+
     /* ---- uniform scale grip ---- */
     function wireScale(hd, el) {
       hd.addEventListener("pointerdown", function (e) {
@@ -2643,6 +3234,11 @@
     }
 
     /* ---- element ops ---- */
+    /* grow the page so a just-added / pasted layer keeps its bottom margin */
+    function growPage(bottom) {
+      var need = Math.min(HMAXCAP, Math.round(bottom) + 40);
+      if (D.h < need) { D.h = need; fit(); }
+    }
     /* lowest occupied y across visible content (0 when empty) */
     function bottomOfContent() {
       var b = 0;
@@ -2683,6 +3279,8 @@
       D.els.push(el);
       paintStage(); select(el.id); paintPanel();
       revealEl(el);
+      /* a fresh text layer opens ready to type over its placeholder */
+      if (el.content && el.content.type === "text") requestAnimationFrame(function () { beginTextEdit(el, { all: true }); });
     }
     /* bring a just-added element into view so it is never "added somewhere off-screen" */
     function revealEl(el) {
@@ -2727,7 +3325,9 @@
           detail: { eyebrow: b.name, title: "", body: "", tags: [], refs: [] }
         });
       });
-      var need = 1260 + delta + 40;
+      var need = 0;
+      boxes.forEach(function (b) { need = Math.max(need, b.y + b.h); });
+      need += delta + 40;
       if (D.h < need) { D.h = need; fit(); }
       selSet = new Set(made); sel = made[made.length - 1]; adjust = false;
       paintStage(); paintPanel();
@@ -2735,25 +3335,36 @@
     function removeEl(el) {
       snapNow();
       D.els = D.els.filter(function (x) { return x.id !== el.id; });
-      setSel(null); paintStage(); paintPanel();
+      setSel(null); pruneGroups(); dropDeleted([el]); paintStage(); paintPanel();
+    }
+    /* nothing deleted may survive anywhere on screen: a detail overlay showing a
+       just-deleted tile closes, and its hover card is pulled out of every view */
+    function dropDeleted(gone) {
+      (gone || []).forEach(function (e) {
+        if (!e) return;
+        document.querySelectorAll('[data-el-id="' + e.id + '"]').forEach(function (n) { n.remove(); });
+      });
+      if (gone && gone.some(function (e) { return e && e.bento; })) closeBentoDetails();
     }
     function removeSel() {
       if (!selSet.size) return;
       snapNow();
+      var gone = D.els.filter(function (x) { return selSet.has(x.id) && !x.locked; });
       D.els = D.els.filter(function (x) { return !(selSet.has(x.id) && !x.locked); });
-      setSel(null); pruneGroups(); paintStage(); paintPanel();
+      setSel(null); pruneGroups(); dropDeleted(gone); paintStage(); paintPanel();
     }
     function dupEl(el) {
       snapNow();
       var c = copy(el); c.id = uid(); c.x += 24; c.y += 24; delete c.grp; clampBoxToGrid(c);
-      D.els.push(c); paintStage(); select(c.id);
+      D.els.push(c); growPage(c.y + c.h); paintStage(); select(c.id);
     }
     function dupSel() {
       if (selSet.size < 2) { var el = getSel(); if (el) dupEl(el); return; }
       snapNow();
-      var made = [], gmap = {};
+      var made = [], gmap = {}, dupB = 0;
       selEls().forEach(function (o) {
         var c2 = copy(o); c2.id = uid(); c2.x += 10; c2.y += 10; clampBoxToGrid(c2);
+        dupB = Math.max(dupB, c2.y + c2.h);
         if (o.grp) {
           if (!gmap[o.grp]) { var ng = newGrpId(); gmap[o.grp] = ng; D.groups[ng] = { name: groupName(o.grp) + " copy" }; }
           c2.grp = gmap[o.grp];
@@ -2761,6 +3372,7 @@
         D.els.push(c2); made.push(c2.id);
       });
       reclusterGroups();
+      growPage(dupB);
       selSet = new Set(made); sel = made[made.length - 1]; adjust = false;
       paintStage(); paintPanel();
     }
@@ -2799,7 +3411,7 @@
         D.els.push(c2); made.push(c2.id); maxB = Math.max(maxB, c2.y + c2.h);
       });
       reclusterGroups();
-      if (D.h < maxB + 40) { D.h = maxB + 40; fit(); }
+      growPage(maxB);
       selSet = new Set(made); sel = made[made.length - 1]; adjust = false;
       paintStage(); paintPanel();
       toast(made.length + (made.length > 1 ? " layers pasted" : " pasted"));
@@ -2826,6 +3438,7 @@
       im.src = data;
     }
     function onPaste(e) {
+      if (detailOpen) return;
       var t = e.target && e.target.tagName;
       if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
       var cd = e.clipboardData;
@@ -2867,8 +3480,9 @@
 
     /* ---- keyboard ---- */
     function onKey(e) {
+      if (detailOpen) return;
       var t = e.target && e.target.tagName;
-      if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
+      if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT" || (e.target && e.target.isContentEditable)) return;
       if (D.layout === "grid") {
         /* grid mode is a generated stack — only history + escape apply */
         if (e.key === "Escape") { if (sel) { setSel(null); paintPanel(); paintLayers(); } return; }
@@ -2881,6 +3495,7 @@
       if (mod && e.key === "-") { e.preventDefault(); zoomMode = "manual"; k = clamp(k / 1.2, 0.08, 4); applyZoom(); return; }
       if (mod && e.key === "0") { e.preventDefault(); zoomMode = "fit"; fit(); return; }
       if (mod && e.key === "1") { e.preventDefault(); zoomMode = "manual"; k = 1; applyZoom(); return; }
+      if (!mod && !e.altKey && (e.key === "t" || e.key === "T")) { e.preventDefault(); armText(!textArm); return; }
       if (!mod && !e.altKey && (e.key === "g" || e.key === "G")) { e.preventDefault(); toggleGrid(); return; }
       if (!mod && !e.altKey && (e.key === "l" || e.key === "L")) { e.preventDefault(); toggleLock(); return; }
       if (!mod && !e.altKey && (e.key === "m" || e.key === "M")) { e.preventDefault(); toggleMeas(); return; }
@@ -2895,11 +3510,15 @@
       if (mod && !e.shiftKey && (e.key === "x" || e.key === "X")) { e.preventDefault(); cutSel(); return; }
       var el = getSel();
       if (e.key === "Escape") {
-        if (adjust) { adjust = false; paintSel(); paintPanel(); }
+        if (textArm) { armText(false); }
+        else if (adjust) { adjust = false; paintSel(); paintPanel(); }
         else if (sel) { setSel(null); paintSel(); paintPanel(); paintLayers(); }
         return;
       }
       if (!el) return;
+      if (!mod && !e.altKey && (e.key === "Enter" || e.key === "F2") && el.content && el.content.type === "text") {
+        e.preventDefault(); beginTextEdit(el, { all: true }); return;
+      }
       if (mod && (e.key === "d" || e.key === "D")) { e.preventDefault(); dupSel(); return; }
       if (mod && e.key === "]") { e.preventDefault(); zMove(el, 1); return; }
       if (mod && e.key === "[") { e.preventDefault(); zMove(el, -1); return; }
@@ -2915,7 +3534,7 @@
     addEventListener("keydown", onKey);
     /* hold Alt/Option \u2014 measure the selected layer against its neighbours without moving it */
     function altMeasure(e) {
-      if (!e.altKey || !sel) return;
+      if (detailOpen || !e.altKey || !sel) return;
       var el = D.els.filter(function (o) { return o.id === sel; })[0];
       if (el) { clearTimeout(gapTimer); paintGaps(el, null); }
     }
@@ -2958,6 +3577,52 @@
     }
     function keyRow(l, kk) { return h("div", { class: "akls-key" }, [h("span", {}, [l]), h("span", { class: "k" }, [kk])]); }
     function note(txt) { return h("p", { class: "akls-note" }, [txt]); }
+    /* a row of icon actions (segment styling, no sticky state) */
+    function arow(items) {
+      var w = h("div", { class: "akls-seg" });
+      items.forEach(function (it) { w.appendChild(h("button", { type: "button", title: it[1], html: it[0], onclick: it[2] })); });
+      return w;
+    }
+    /* Align section — shared by single and multi selection */
+    var alignTo = "auto", alignInset = 24;
+    function alignSection(single) {
+      var arr = editableEls(); if (!arr.length) return;
+      var cont = containerOf(arr);
+      if (!cont && alignTo !== "sel") alignTo = "auto";
+      panel.appendChild(sec("Align"));
+      if (cont) {
+        var nm = layerName(cont); if (nm.length > 11) nm = nm.slice(0, 10) + "\u2026";
+        var opts = [["auto", nm]];
+        if (!single) opts.push(["sel", "Selection"]);
+        opts.push(["canvas", "Page"]);
+        panel.appendChild(fw("Align inside", seg(opts, alignTo, function (v) { alignTo = v; })));
+      }
+      panel.appendChild(cols(
+        fw("Horizontal", arow([
+          [ICO.alL, "Align left edges", function () { alignSel("l", alignTo); }],
+          [ICO.alC, "Center horizontally", function () { alignSel("cx", alignTo); }],
+          [ICO.alR, "Align right edges", function () { alignSel("r", alignTo); }]
+        ])),
+        fw("Vertical", arow([
+          [ICO.alT, "Align top edges", function () { alignSel("t", alignTo); }],
+          [ICO.alM, "Center vertically", function () { alignSel("cy", alignTo); }],
+          [ICO.alB, "Align bottom edges", function () { alignSel("b", alignTo); }]
+        ]))
+      ));
+      panel.appendChild(h("button", { class: "akls-sm w100", html: ICO.fit + "<span>Center both ways</span>",
+        onclick: function () { alignSel("both", alignTo); } }));
+      if (single) {
+        var insIn = numRaw(alignInset, function (v) { alignInset = Math.max(0, v); }, 1, 0, 600);
+        panel.appendChild(grid2(
+          pin("INSET", insIn, "Equal margin on all four sides"),
+          h("button", { class: "akls-sm", html: "<span>Fit inside</span>", title: "Fill the container, same margin on all four sides",
+            onclick: function () { insetSel(parseFloat(insIn.value) || 0, alignTo); } })
+        ));
+      }
+      panel.appendChild(note(cont
+        ? "Measured against the shape behind this one \u2014 switch to Page above to align to the whole canvas."
+        : "Nothing encloses this selection, so alignment uses " + (single ? "the whole page" : "the selection bounds") + "."));
+    }
     function seg(opts2, cur, cb) {
       var wrap = h("div", { class: "akls-seg" });
       opts2.forEach(function (o) {
@@ -2968,6 +3633,130 @@
         wrap.appendChild(b);
       });
       return wrap;
+    }
+    /* icon flavour of seg() — opts: [value, iconHTML, tooltip] */
+    function segI(opts2, cur, cb) {
+      var wrap = h("div", { class: "akls-seg" });
+      opts2.forEach(function (o) {
+        var b = h("button", { type: "button", title: o[2] || null, html: o[1], class: o[0] === cur ? "on" : "", onclick: function () {
+          wrap.querySelectorAll("button").forEach(function (x) { x.classList.remove("on"); });
+          b.classList.add("on"); cb(o[0]);
+        } });
+        wrap.appendChild(b);
+      });
+      return wrap;
+    }
+    /* dropdown twin of seg() — for choices whose labels won't fit a 236px row */
+    function drop(opts2, cur, cb, tip) {
+      var s = h("select", {}, opts2.map(function (o) {
+        var op = h("option", { value: o[0] }, [o[1]]);
+        if (String(o[0]) === String(cur == null ? "" : cur)) op.setAttribute("selected", "");
+        return op;
+      }));
+      s.addEventListener("change", function () { cb(s.value); });
+      return pin(null, s, tip || null);
+    }
+    /* two labelled fields side by side (each child brings its own bottom margin) */
+    function cols(a, b) { return h("div", { class: "akls-grid2", style: "margin-bottom:0" }, [a, b]); }
+
+    /* a row of small preset chips — [label, value] pairs */
+    function chips(items, cb) {
+      var w = h("div", { class: "akls-bgrid" });
+      items.forEach(function (it) {
+        w.appendChild(h("button", { type: "button", class: "akls-bbtn sm", title: it[2] || null,
+          onclick: function () { cb(it[1]); } }, [it[0]]));
+      });
+      return w;
+    }
+
+    /* ---- line-end shape picker: a dropdown whose options show the real shape ---- */
+    var capPop = null;
+    function closeCapPop() { if (capPop) { capPop.remove(); capPop = null; removeEventListener("pointerdown", capOut, true); } }
+    function capOut(e) { if (capPop && !capPop.parentNode.contains(e.target)) closeCapPop(); }
+    function capPicker(side, cur, cb) {
+      var wrap = h("div", { class: "akls-cpw" });
+      var btn = h("button", { type: "button", class: "akls-cp",
+        html: '<span class="cpv">' + capSvg(cur, side, 46, 12) + '</span><span class="cpl">' + capName(cur) + '</span><span class="cpc">\u25be</span>' });
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var open = capPop && capPop.parentNode === wrap;
+        closeCapPop();
+        if (open) return;
+        capPop = h("div", { class: "akls-cpop" }, LINE_CAPS.map(function (o) {
+          return h("button", { type: "button", class: "akls-cprow" + (o[0] === cur ? " on" : ""), title: o[2],
+            html: '<span class="cpv">' + capSvg(o[0], side, 46, 12) + '</span><span class="cpl">' + o[1] + '</span>',
+            onclick: function (ev) { ev.stopPropagation(); closeCapPop(); cb(o[0]); } });
+        }));
+        wrap.appendChild(capPop);
+        setTimeout(function () { addEventListener("pointerdown", capOut, true); }, 0);
+      });
+      wrap.appendChild(btn);
+      return wrap;
+    }
+
+    /* ---- LINE: orientation, size presets and a per-end shape picker ---- */
+    function lineSections(el) {
+      var horiz = lineHoriz(el);
+      var thick = Math.max(1, horiz ? el.h : el.w);
+      /* legacy line (plain corner radius, no cap data): convert once, pixel-identical */
+      if (el.capS == null && el.capE == null && el.r) {
+        el.capS = el.capE = "round";
+        el.capAmt = clamp(Math.round(el.r / (thick / 2) * 100), 1, 100);
+        el.r = 0; el.line = true; refreshNode(el);
+      }
+      var full = 1200 - 2 * (grid.margin || 0);
+      function setLen(v) { v = Math.max(4, Math.round(v)); if (horiz) el.w = v; else el.h = v; el.line = true; clampBoxToGrid(el); refreshNode(el); paintPanel(); }
+      function setThick(v) { v = clamp(Math.round(v), 1, 200); if (horiz) el.h = v; else el.w = v; el.line = true; clampBoxToGrid(el); refreshNode(el); paintPanel(); }
+
+      panel.appendChild(sec("Line size"));
+      panel.appendChild(fw("Direction", seg([["h", "Horizontal"], ["v", "Vertical"]], horiz ? "h" : "v", function (v) {
+        if ((v === "h") === horiz) return;
+        var cx = el.x + el.w / 2, cy = el.y + el.h / 2, w0 = el.w;
+        el.w = el.h; el.h = w0; el.line = true;
+        el.x = Math.round(cx - el.w / 2); el.y = Math.round(cy - el.h / 2);
+        clampBoxToGrid(el); refreshNode(el); paintPanel();
+      })));
+      panel.appendChild(lab("Length"));
+      panel.appendChild(grid2(
+        pin("L", numRaw(horiz ? el.w : el.h, setLen, 1, 4), "Line length"),
+        h("span", {})
+      ));
+      panel.appendChild(chips([["80", 80], ["160", 160], ["320", 320], ["520", 520], ["800", 800],
+        ["\u00bd", Math.round(full / 2), "Half the grid width"], ["Full", full, "Full grid width"]], setLen));
+      panel.appendChild(lab("Thickness"));
+      panel.appendChild(mixRow(1, 64, 1, clamp(horiz ? el.h : el.w, 1, 64), "px", function (v) {
+        if (horiz) el.h = Math.round(v); else el.w = Math.round(v);
+        el.line = true; clampBoxToGrid(el); refreshNode(el);
+      }));
+      panel.appendChild(chips([["1", 1, "Hairline"], ["2", 2], ["3", 3], ["4", 4], ["6", 6], ["8", 8], ["12", 12, "Heavy"]], setThick));
+
+      /* --- end shapes: one side at a time, or both at once --- */
+      var linked = el.capLink != null ? !!el.capLink : (el.capS || "flat") === (el.capE || "flat");
+      function setCap(side, v) {
+        el.line = true; el.r = 0;
+        if (linked) { el.capS = v; el.capE = v; } else if (side === "s") el.capS = v; else el.capE = v;
+        if (el.capAmt == null) el.capAmt = 100;
+        refreshNode(el); paintPanel();
+      }
+      panel.appendChild(sec("Line ends"));
+      var lk = h("input", { type: "checkbox" }); lk.checked = linked;
+      lk.addEventListener("change", function () {
+        el.capLink = lk.checked;
+        if (lk.checked) { el.capE = el.capS || "flat"; refreshNode(el); }
+        paintPanel();
+      });
+      panel.appendChild(chkRow(lk, "Both ends match"));
+      panel.appendChild(lab(horiz ? "Left end" : "Top end"));
+      panel.appendChild(capPicker("s", el.capS || "flat", function (v) { setCap("s", v); }));
+      panel.appendChild(lab(horiz ? "Right end" : "Bottom end"));
+      panel.appendChild(capPicker("e", el.capE || "flat", function (v) { setCap("e", v); }));
+      if ((el.capS || "flat") !== "flat" || (el.capE || "flat") !== "flat") {
+        panel.appendChild(lab("End size"));
+        panel.appendChild(mixRow(0, 100, 1, el.capAmt == null ? 100 : el.capAmt, "%", function (v) {
+          el.capAmt = Math.round(v); el.line = true; refreshNode(el);
+        }));
+        panel.appendChild(note("End size scales the shape against the line\u2019s thickness \u2014 100% gives a full semicircle, a 45\u00b0 bevel, or a tip as long as the line is thick."));
+      }
     }
 
     /* ---- equal pixel gaps across a multi-selection ----------------------------
@@ -3070,8 +3859,63 @@
       return bandsOf(arr, "y", "h").length > 1 ? "y" : "x";
     }
 
+    /* ---- align inside a container (Figma-style) ---------------------------
+       The reference box is the shape the selection sits inside — the card or
+       panel behind it — otherwise the selection's own bounds, or the canvas. */
+    function bboxOf(list) {
+      var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+      list.forEach(function (o) { x1 = Math.min(x1, o.x); y1 = Math.min(y1, o.y); x2 = Math.max(x2, o.x + o.w); y2 = Math.max(y2, o.y + o.h); });
+      return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+    function containerOf(list) {
+      if (!list.length) return null;
+      var b = bboxOf(list), ids = {}, best = null;
+      list.forEach(function (o) { ids[o.id] = 1; });
+      D.els.forEach(function (o) {
+        if (ids[o.id] || o.hidden) return;
+        if (o.content && o.content.type === "text") return;
+        if (o.x - 0.6 <= b.x && o.y - 0.6 <= b.y && o.x + o.w + 0.6 >= b.x + b.w && o.y + o.h + 0.6 >= b.y + b.h) {
+          if (!best || o.w * o.h < best.w * best.h) best = o;
+        }
+      });
+      return best;
+    }
+    function alignBox(list, to) {
+      if (to === "canvas") return { x: 0, y: 0, w: DW, h: D.h };
+      var p = to === "sel" ? null : containerOf(list);
+      if (p) return { x: p.x, y: p.y, w: p.w, h: p.h };
+      if (list.length > 1) return bboxOf(list);
+      return { x: 0, y: 0, w: DW, h: D.h };
+    }
+    function alignSel(mode, to) {
+      var arr = editableEls(); if (!arr.length) return;
+      var box = alignBox(arr, to);
+      snapNow();
+      arr.forEach(function (o) {
+        if (mode === "l") o.x = Math.round(box.x);
+        else if (mode === "r") o.x = Math.round(box.x + box.w - o.w);
+        else if (mode === "t") o.y = Math.round(box.y);
+        else if (mode === "b") o.y = Math.round(box.y + box.h - o.h);
+        if (mode === "cx" || mode === "both") o.x = Math.round(box.x + (box.w - o.w) / 2);
+        if (mode === "cy" || mode === "both") o.y = Math.round(box.y + (box.h - o.h) / 2);
+        refreshNode(o); syncSelBox(o);
+      });
+      paintSel(); paintPanel();
+    }
+    /* one shape, equal margin on all four sides of its container */
+    function insetSel(m, to) {
+      var arr = editableEls(); if (arr.length !== 1) return;
+      var box = alignBox(arr, to), o = arr[0];
+      m = Math.max(0, m || 0);
+      snapNow();
+      o.x = Math.round(box.x + m); o.y = Math.round(box.y + m);
+      o.w = Math.max(14, Math.round(box.w - 2 * m)); o.h = Math.max(4, Math.round(box.h - 2 * m));
+      refreshNode(o); syncSelBox(o); paintSel(); paintPanel();
+    }
+
     /* ---- inspector ---- */
     function paintPanel() {
+      closeCapPop();
       panel.innerHTML = "";
       var el = getSel();
 
@@ -3086,6 +3930,7 @@
           act(ICO.ungroup, "Ungroup", "Ungroup (Ctrl+Shift+G)", ungroupSelection)
         ));
         if (anyGrp) panel.appendChild(note("A group keeps its layers together \u2014 click any member to select the whole group."));
+        alignSection(false);
         panel.appendChild(sec("Equal spacing"));
         var gapAx = selAxis();
         var gapPx = avgGap(gapAx);
@@ -3181,6 +4026,7 @@
         panel.appendChild(keyRow("Hide / lock", "Ctrl \u21e7 H / Ctrl \u21e7 L"));
         panel.appendChild(keyRow("Rename layer", "dbl-click its row"));
         panel.appendChild(keyRow("Uniform scale", "\u21e7 + corner"));
+        panel.appendChild(keyRow("Rotate", "top grip \u00b7 \u21e7 = 15\u00b0"));
         panel.appendChild(keyRow("Edit text / adjust image", "double-click"));
         panel.appendChild(keyRow("Grid show / lock", "G / L"));
         panel.appendChild(keyRow("Duplicate", "Ctrl D"));
@@ -3198,7 +4044,8 @@
       }
 
       /* --- selected element --- */
-      var typeName = el.content && el.content.type === "text" ? "Text" : el.kind === "ellipse" ? "Ellipse" : (el.h <= 8 && !el.content ? "Line" : "Rectangle");
+      var isLn = !el.content && isLineEl(el);
+      var typeName = el.content && el.content.type === "text" ? "Text" : el.kind === "ellipse" ? "Ellipse" : (isLn ? "Line" : "Rectangle");
       panel.appendChild(sec(typeName));
       panel.appendChild(grid2(
         pin("X", numRaw(el.x, function (v) { el.x = v; clampBoxToGrid(el); refreshNode(el); })),
@@ -3209,9 +4056,16 @@
         pin("H", numRaw(el.h, function (v) { if (v >= 4) { el.h = v; clampBoxToGrid(el); refreshNode(el); } }, 1, 4))
       ));
       panel.appendChild(note("Scale uniformly: drag the round corner grip on canvas, or \u21e7-drag a corner."));
+      if (isLn) lineSections(el);
+      alignSection(true);
 
       panel.appendChild(sec("Appearance"));
-      if (el.kind !== "ellipse") {
+      panel.appendChild(lab("Rotation"));
+      panel.appendChild(mixRow(-180, 180, 1, Math.round(el.rot || 0), "\u00b0", function (v) { el.rot = Math.round(v); refreshNode(el); }));
+      panel.appendChild(chips([["0\u00b0", 0], ["15\u00b0", 15], ["30\u00b0", 30], ["45\u00b0", 45], ["90\u00b0", 90], ["-45\u00b0", -45], ["-90\u00b0", -90]],
+        function (v) { el.rot = v; refreshNode(el); paintPanel(); }));
+      panel.appendChild(note("Or drag the round grip above the selection \u2014 hold \u21e7 to snap to 15\u00b0."));
+      if (el.kind !== "ellipse" && !isLn) {
         var rMax = Math.max(1, Math.ceil(Math.min(el.w, el.h) / 2));
         panel.appendChild(lab("Corner radius"));
         panel.appendChild(mixRow(0, rMax, 1, Math.min(el.r || 0, rMax), "R", function (v) { el.r = Math.round(v); refreshNode(el); }));
@@ -3263,7 +4117,7 @@
         var v = cSel.value;
         if (!v) { el.content = null; refreshNode(el, true); paintPanel(); return; }
         if (v === "text") {
-          el.content = { type: "text", text: "Your text", font: FONTS[0][0], size: 28, weight: 500, color: "#FFFFFF", ls: 0, lh: 1.4, align: "left", valign: "middle", pt: 14, pr: 14, pb: 14, pl: 14, strokeW: 0, strokeC: "#000000" };
+          el.content = { type: "text", text: "Your text", font: FONTS[0][0], size: 18, weight: 500, color: "#FFFFFF", ls: 0, lh: 1.4, align: "left", valign: "middle", pt: 14, pr: 14, pb: 14, pl: 14, strokeW: 0, strokeC: "#000000" };
           refreshNode(el, true); paintPanel(); return;
         }
         if (v === "prototype") { el.content = { type: "prototype", src: "", raw: "" }; refreshNode(el, true); paintPanel(); return; }
@@ -3306,27 +4160,46 @@
       }
 
       if (c && c.type === "text") {
-        panel.appendChild(sec("Text"));
-        var ta = h("textarea", {}); ta.value = c.text || "";
+        /* No tabs: every text control stays open, grouped under section headers.
+           Choices whose labels won't fit a shared row become dropdowns. */
+        panel.appendChild(sec("Text \u2014 content"));
+        var ta = h("textarea", { "data-ak-text": "1" }); ta.value = c.text || "";
         ta.addEventListener("input", function () { c.text = ta.value; refreshNode(el, true); });
-        panel.appendChild(fw("Content", ta));
+        panel.appendChild(fw("Text", ta));
+        panel.appendChild(h("div", { class: "akls-note" }, ["Or type straight on the canvas \u2014 double-click the text (or press Enter with it selected)."]));
+        panel.appendChild(cols(
+          fw("Align", segI([["left", ICO.alL, "Left"], ["center", ICO.alC, "Center"], ["right", ICO.alR, "Right"]], c.align || "left", function (v) { c.align = v; refreshNode(el, true); })),
+          fw("Vertical", segI([["top", ICO.alT, "Top"], ["middle", ICO.alM, "Middle"], ["bottom", ICO.alB, "Bottom"]], c.valign || "middle", function (v) { c.valign = v; refreshNode(el, true); }))
+        ));
+
+        /* --- Typeface: face, size, weight, style, colour, stroke --- */
+        panel.appendChild(sec("Typeface"));
         var fSel = h("select", {}, FONTS.map(function (f) { var o = h("option", { value: f[0] }, [f[1]]); if (f[0] === c.font) o.setAttribute("selected", ""); return o; }));
         fSel.addEventListener("change", function () { c.font = fSel.value; refreshNode(el, true); });
         panel.appendChild(fw("Font", pin(null, fSel)));
-        var wSel = h("select", {}, [300, 400, 500, 600, 700, 800].map(function (w) { var o = h("option", { value: w }, [String(w)]); if (w === (c.weight || 600)) o.setAttribute("selected", ""); return o; }));
-        wSel.addEventListener("change", function () { c.weight = parseInt(wSel.value, 10); refreshNode(el, true); });
-        panel.appendChild(grid2(
-          pin("px", numRaw(c.size || 28, function (v) { c.size = Math.max(6, v); refreshNode(el, true); }, 1, 6), "Font size"),
-          pin(null, wSel, "Weight")
-        ));
-        panel.appendChild(fw("Style", seg([["reg", "Regular"], ["italic", "Italic"]], c.italic ? "italic" : "reg", function (v) { c.italic = v === "italic"; refreshNode(el, true); })));
+        panel.appendChild(fw("Size", pin("px", numRaw(c.size || 28, function (v) { c.size = Math.max(6, v); refreshNode(el, true); }, 1, 6), "Font size")));
+        /* one menu for the whole face: nine weights, upright and italic */
+        var WEIGHTS = [[100, "Thin"], [200, "Extra Light"], [300, "Light"], [400, "Regular"], [500, "Medium"],
+                       [600, "Semi Bold"], [700, "Bold"], [800, "Extra Bold"], [900, "Black"]];
+        var curStyle = String(c.weight || 600) + (c.italic ? "i" : "");
+        var wSel = h("select", {});
+        [["Upright", ""], ["Italic", "i"]].forEach(function (g) {
+          var og = h("optgroup", { label: g[0] });
+          WEIGHTS.forEach(function (w) {
+            var v = w[0] + g[1];
+            var o = h("option", { value: v }, [g[1] ? (w[0] === 400 ? "Italic" : w[1] + " Italic") : w[1]]);
+            if (v === curStyle) o.setAttribute("selected", "");
+            og.appendChild(o);
+          });
+          wSel.appendChild(og);
+        });
+        wSel.addEventListener("change", function () {
+          c.italic = /i$/.test(wSel.value); c.weight = parseInt(wSel.value, 10); refreshNode(el, true);
+        });
+        panel.appendChild(fw("Font style", pin(null, wSel, "Weight \u2014 Thin to Black, upright or italic")));
+        panel.appendChild(fw("Case", drop([["", "As typed"], ["uppercase", "UPPERCASE"], ["capitalize", "Capitalize Each Word"], ["lowercase", "lowercase"]], c.caseT || "", function (v) { c.caseT = v; refreshNode(el, true); }, "Letter case applied on render")));
         panel.appendChild(fw("Decoration", seg([["", "None"], ["underline", "Under"], ["line-through", "Strike"]], c.deco || "", function (v) { c.deco = v; refreshNode(el, true); })));
-        panel.appendChild(fw("Case", seg([["", "As typed"], ["uppercase", "AA"], ["capitalize", "Aa"]], c.caseT || "", function (v) { c.caseT = v; refreshNode(el, true); })));
         panel.appendChild(fw("Color", colorRow(c.color || "#FFFFFF", function (v) { c.color = v; refreshNode(el, true); })));
-        panel.appendChild(grid2(
-          pin("LS", numRaw(c.ls || 0, function (v) { c.ls = v; refreshNode(el, true); }, 0.5), "Letter spacing"),
-          pin("LH", numRaw(c.lh || 1.3, function (v) { c.lh = Math.max(0.7, v); refreshNode(el, true); }, 0.05, 0.7), "Line height")
-        ));
         var tsWIn = numRaw(c.strokeW || 0, function (v) { c.strokeW = Math.max(0, v); refreshNode(el, true); }, 0.5, 0);
         var tsWBox = pin("W", tsWIn); tsWBox.classList.add("wsm");
         panel.appendChild(fw("Text stroke", colorRow(c.strokeC || "#000000", function (v) {
@@ -3334,15 +4207,72 @@
           if (!c.strokeW) { c.strokeW = 1; tsWIn.value = 1; }
           refreshNode(el, true);
         }, tsWBox)));
-        panel.appendChild(fw("Align", seg([["left", "Left"], ["center", "Center"], ["right", "Right"]], c.align || "left", function (v) { c.align = v; refreshNode(el, true); })));
-        panel.appendChild(fw("Vertical", seg([["top", "Top"], ["middle", "Middle"], ["bottom", "Bottom"]], c.valign || "middle", function (v) { c.valign = v; refreshNode(el, true); })));
+
+        /* --- Spacing: between letters, lines, and the frame edge --- */
+        panel.appendChild(sec("Spacing"));
+        panel.appendChild(fw("Horizontal \u2014 letter / word", grid2(
+          pin("LS", numRaw(c.ls || 0, function (v) { c.ls = v; refreshNode(el, true); }, 0.5), "Letter spacing (px)"),
+          pin("WS", numRaw(c.ws || 0, function (v) { c.ws = v; refreshNode(el, true); }, 0.5), "Word spacing (px)")
+        )));
+        panel.appendChild(fw("Vertical \u2014 line / paragraph", grid2(
+          pin("LH", numRaw(c.lh || 1.3, function (v) { c.lh = Math.max(0.7, v); refreshNode(el, true); }, 0.05, 0.7), "Line height (\u00d7 font size)"),
+          pin("PS", numRaw(c.ps || 0, function (v) { c.ps = Math.max(0, v); refreshNode(el, true); }, 2, 0), "Extra gap between lines / paragraphs (px)")
+        )));
         panel.appendChild(fw("Inner padding \u2014 T R B L", h("div", { class: "akls-grid4" }, [
           pin("T", numRaw(c.pt || 0, function (v) { c.pt = Math.max(0, v); refreshNode(el, true); }, 1, 0)),
           pin("R", numRaw(c.pr || 0, function (v) { c.pr = Math.max(0, v); refreshNode(el, true); }, 1, 0)),
           pin("B", numRaw(c.pb || 0, function (v) { c.pb = Math.max(0, v); refreshNode(el, true); }, 1, 0)),
           pin("L", numRaw(c.pl || 0, function (v) { c.pl = Math.max(0, v); refreshNode(el, true); }, 1, 0))
         ])));
+
+        /* --- Bullets: one marker per hard line of the text --- */
+        panel.appendChild(sec("Bullets"));
+        var bOpts = h("div", { style: "display:none" });
+        function paintBul() { bOpts.style.display = (c.bullet || "") ? "" : "none"; }
+        var bSel = h("select", {}, BULLETS.map(function (b) {
+          var o = h("option", { value: b.k }, [b.k ? (b.pv || b.g) + "   " + b.n : b.n]);
+          if (b.k === (c.bullet || "")) o.setAttribute("selected", "");
+          return o;
+        }));
+        function setBullet(k) {
+          c.bullet = k;
+          if (k && c.bgap == null) c.bgap = 10;
+          bSel.value = k;
+          paintBul(); refreshNode(el, true);
+        }
+        bSel.addEventListener("change", function () { setBullet(bSel.value); });
+        panel.appendChild(fw("Bullet style", pin(null, bSel, "Marker placed before every line")));
+        bOpts.appendChild(fw("Bullet gap", pin("px", numRaw(c.bgap == null ? 10 : c.bgap, function (v) { c.bgap = Math.max(0, v); refreshNode(el, true); }, 1, 0), "Space between the marker and the text")));
+        bOpts.appendChild(fw("Bullet color", colorRow(c.bcolor || c.color || "#FFFFFF", function (v) { c.bcolor = v; refreshNode(el, true); })));
+        bOpts.appendChild(note("Each line you type becomes one bullet \u2014 markers show live on the canvas. Leave a blank line for a gap; paragraph spacing (PS) sets how big it is."));
+        panel.appendChild(bOpts);
+        paintBul();
       }
+      groupSections();
+    }
+    /* Figma-style collapsible inspector: every sec() header gets a +/− toggle and
+       swallows the fields that follow it into its own body. */
+    function groupSections() {
+      var body = null;
+      [].slice.call(panel.children).forEach(function (n) {
+        if (!n.classList.contains("akls-sec")) { if (body) body.appendChild(n); return; }
+        var key = n.textContent.trim(), open = SECOPEN[key] !== false;
+        var tog = h("button", { type: "button" , class: "akls-sectog" }, [open ? "\u2212" : "+"]);
+        n.classList.add("akls-sech");
+        n.classList.toggle("cl", !open);
+        n.appendChild(tog);
+        body = h("div", { class: "akls-secbody", style: open ? "" : "display:none" });
+        panel.insertBefore(body, n.nextSibling);
+        (function (hdr, bd, k) {
+          hdr.addEventListener("click", function () {
+            var nowOpen = bd.style.display === "none";
+            bd.style.display = nowOpen ? "" : "none";
+            tog.textContent = nowOpen ? "\u2212" : "+";
+            hdr.classList.toggle("cl", !nowOpen);
+            SECOPEN[k] = nowOpen;
+          });
+        })(n, body, key);
+      });
     }
 
     reclusterGroups(); pruneGroups();
@@ -3368,13 +4298,27 @@
     sibs = (sibs && sibs.length) ? sibs : [el];
     var idx = sibs.indexOf(el); if (idx < 0) idx = 0;
     var lock = document.body.style.overflow; document.body.style.overflow = "hidden";
+    detailOpen++;
+    var closed = false;
     var ov = h("div", { class: "akld-ov" });
     var card = h("div", { class: "akld-card" });
     ov.appendChild(card);
-    function close() { ov.remove(); document.body.style.overflow = lock; document.removeEventListener("keydown", onKey); }
+    function close() {
+      if (closed) return; closed = true;
+      detailOpen = Math.max(0, detailOpen - 1);
+      var ix = detailClosers.indexOf(close); if (ix >= 0) detailClosers.splice(ix, 1);
+      ov.remove(); document.body.style.overflow = lock; document.removeEventListener("keydown", onKey);
+    }
     function go(dir) { idx = (idx + dir + sibs.length) % sibs.length; paint(); }
-    function onKey(e) { if (e.key === "Escape") close(); else if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1); }
+    function onKey(e) {
+      var t = e.target;
+      var typing = !!(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "")));
+      if (e.key === "Escape") { if (typing && t.blur) { t.blur(); return; } close(); return; }
+      if (typing) return;   /* arrows move the caret while editing, never the deck */
+      if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1);
+    }
     document.addEventListener("keydown", onKey);
+    detailClosers.push(close);
     ov.addEventListener("pointerdown", function (e) { if (e.target === ov) close(); });
     var closeBtn = h("button", { class: "akld-x", title: "Close (Esc)", html: ICO.xsm, onclick: close });
     function commit(kind) {
@@ -3502,6 +4446,7 @@
       card.appendChild(closeBtn);
     }
     document.body.appendChild(ov); paint();
+    setTimeout(function () { ov.classList.add("settled"); }, 600);
   }
   window.AKLayout = { openEditor: openEditor, render: render, renderGrid: renderGrid, renderCover: renderCover, openBentoDetail: openBentoDetail, _pdfCaseTheme: pdfCaseTheme };
 })();

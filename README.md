@@ -17,7 +17,11 @@ to GitHub and Vercel serves it as-is.
 | `resume.html` | Résumé page (+ downloadable PDF) |
 | `portfolio-data.json` | **All case-study content** — visitors load this automatically |
 | `media/` | Every image / PDF / video / 3D model the content points to |
-| `admin.js` | Built-in content editor (password-protected; visitors never see it) |
+| `admin.js` | Case-study editor (password-protected; visitors never see it) |
+| `site-content.json` | **All other page content you've edited** — text, photos, links, colours, SEO |
+| `site-content.js` | Applies `site-content.json` on every page (tiny; always loaded) |
+| `site-edit.js` | The on-page site editor — downloaded only when an admin unlocks |
+| `site-package.js` | Builds the publish ZIP (changes-only or whole website) — loaded on demand by the editor and the admin export |
 | `layout-studio.js`, `studio-templates.js` | Loaded on demand by the editor's Layout Studio |
 | `theme-ripple.js` | Shared light/dark toggle transition |
 | `scroll-progress.js` | Reading-progress bar inside an opened project |
@@ -49,7 +53,55 @@ So: **editing ≠ publishing.** Your edits aren't live until you Export and push
 
 ---
 
-## Updating your site (no coding)
+## Editing the whole site yourself (no code, no help)
+
+Everything outside the case studies — headings, paragraphs, buttons, nav labels,
+photos, link destinations, section order, colours, SEO — is editable **on the page
+itself**, on phone, tablet or desktop.
+
+**Get in:** add `#edit` to the end of any page URL (e.g. `yoursite.com/resume#edit`),
+enter your admin password. A small bar appears bottom-right. Once unlocked it appears
+on every page for the rest of the browser session.
+
+| Bar button | What it does |
+|---|---|
+| **Edit** | Turns edit mode on. Tap any text to retype it, tap any photo to swap it. Tap Edit again to preview exactly what visitors see. |
+| **Undo** | Steps back through your changes (⌘Z / Ctrl-Z also works). |
+| **Settings** | Sections · Theme · SEO · Links · Files · Versions · Publish. |
+| **Publish** | The badge counts unpublished changes. |
+
+**The Settings panel**
+
+- **Sections** — hide a section from visitors, or move it up/down. This page only.
+- **Theme** — every colour, dark and light. Scoped to the current page unless you turn
+  on *Apply to every page*. (The home page deliberately runs a darker palette.)
+- **SEO** — page title, description and the social-preview image.
+- **Links** — every link on the page with its destination, in one list.
+- **Files** — replace a downloadable PDF (e.g. the résumé).
+- **Versions** — your last 10 saved states, one tap to restore, plus
+  *Discard all my local changes*.
+- **Publish** — a summary of exactly what changed, then the ZIP.
+
+**Publishing (same idea as the case studies):**
+
+1. Settings → **Publish** → *Download publish ZIP* → re-enter your password.
+2. Unzip. Copy **site-content.json** and the **media** folder into this repo,
+   replacing what's there.
+3. Push to GitHub. Vercel redeploys in ~1 minute. ✅
+
+Until you do step 3 your edits live only in your own browser — the live site is untouched.
+
+**How it works, in one line:** `site-content.js` (~3 KB, on every page) reads
+`site-content.json` and applies your overrides. `site-edit.js` — the whole editor —
+is only downloaded once an admin session is unlocked, so visitors never pay for it.
+
+> Two separate exports, on purpose: **Admin → Export site data** publishes case studies
+> (`portfolio-data.json`); the **Publish** button above publishes everything else
+> (`site-content.json`). They never overwrite each other.
+
+---
+
+## Updating case studies (no coding)
 
 1. Open any project page → **Admin** → make your changes.
 2. **Admin → Export site data** → downloads `portfolio-site-data.zip`.
