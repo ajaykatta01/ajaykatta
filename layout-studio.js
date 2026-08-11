@@ -1102,17 +1102,25 @@
       });
       return h("div", { style: wrapS }, [h("div", { style: tS }, rows)]);
   }
+  /* A canvas can hold 40+ images. Firing them all at once starves the first screen,
+     which reads as "slow to open" even though each file is small. Elements near the
+     top of the canvas load eagerly at high priority; everything further down is
+     lazy + low priority, so it arrives just before it is scrolled into view. */
+  function loadHints(el, editing) {
+    var far = (el && el.y || 0) > 1500;
+    return { loading: (far && !editing) ? "lazy" : "eager", fetchpriority: far ? "low" : "high", decoding: "async" };
+  }
   function renderContent(el, editing) {
     var c = el.content; if (!c) return null;
     if (c.type === "text") return textBlock(c, false);
     var common = "width:100%;height:100%;border:0;display:block;";
-    if (c.type === "image") return h("img", { src: blobURL(c.src), draggable: "false", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) });
+    if (c.type === "image") return h("img", Object.assign({ src: blobURL(c.src), draggable: "false", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) }, loadHints(el, editing)));
     if (c.type === "media") {
       if ((c.mime || "").indexOf("audio") === 0) {
         if (editing) return h("div", { class: "akls-audio", style: "color:var(--muted,#999)", html: ICO.audio });
         return h("div", { class: "akls-audio" }, [h("audio", { src: blobURL(c.src), controls: "", style: "width:100%" })]);
       }
-      var v = h("video", { src: blobURL(c.src), playsinline: "", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) });
+      var v = h("video", { src: blobURL(c.src), playsinline: "", preload: (el && el.y || 0) > 1500 ? "none" : "metadata", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) });
       if (!editing) v.setAttribute("controls", "");
       return v;
     }
@@ -1190,9 +1198,9 @@
   function gridAspect(el) { return Math.max(1, Math.round(el.w || 16)) + "/" + Math.max(1, Math.round(el.h || 10)); }
   function gridMedia(el) {
     var c = el.content;
-    if (c.type === "image") return h("img", { src: blobURL(c.src), draggable: "false", alt: "", style: "width:100%;height:auto;display:block" });
+    if (c.type === "image") return h("img", Object.assign({ src: blobURL(c.src), draggable: "false", alt: "", style: "width:100%;height:auto;display:block" }, loadHints(el, false)));
     if (c.type === "media" && (c.mime || "").indexOf("audio") !== 0)
-      return h("video", { src: blobURL(c.src), playsinline: "", controls: "", style: "width:100%;height:auto;display:block;background:#000" });
+      return h("video", { src: blobURL(c.src), playsinline: "", controls: "", preload: (el.y || 0) > 1500 ? "none" : "metadata", style: "width:100%;height:auto;display:block;background:#000" });
     var inner = renderContent(el, false);
     if (c.type === "media") return h("div", { style: "padding:16px" }, [inner]); /* audio */
     /* prototype / PDF / 3D: keep the card's own aspect so the frame stays usable */

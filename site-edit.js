@@ -1073,6 +1073,46 @@
     return out;
   }
   function pendingTotal() { var n = 0; diffList().forEach(function (g) { n += g.items.length; }); return n; }
+  /* Published images larger than IMG_MAX_EDGE on their long edge are the main cause of a
+     slow-feeling site — surfaced here so nothing oversized gets pushed live unnoticed.
+     The fixing lives in admin.js (a category page → Admin → Optimise images). */
+  var IMG_MAX_EDGE = 2592, _imgVerdict = null;   /* rebuilt files land on 2560±1 — only flag what is really bigger */
+  function checkImageSizes(note) {
+    function say(html) { note.innerHTML = html; }
+    if (_imgVerdict) return say(_imgVerdict);
+    fetch("portfolio-data.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (pub) {
+        var seen = {};
+        (function walk(v) {
+          if (!v) return;
+          if (typeof v === "string") { if (/^media\/.+\.(webp|jpe?g|png)$/i.test(v)) seen[v] = 1; return; }
+          if (typeof v !== "object") return;
+          if (Array.isArray(v)) return v.forEach(walk);
+          Object.keys(v).forEach(function (k) { walk(v[k]); });
+        })(pub || {});
+        var list = Object.keys(seen);
+        if (!list.length) { _imgVerdict = "Nothing published to check yet."; return say(_imgVerdict); }
+        var i = 0, live = 0, over = 0, checked = 0;
+        function step() { live--; checked++; say("Checking image " + checked + " of " + list.length + "\u2026"); next(); }
+        function next() {
+          if (i >= list.length && !live) {
+            _imgVerdict = over
+              ? "<b>\u26A0 " + over + " of " + list.length + " published images are oversized.</b> They are what makes a case study slow to open. Fix them first: open a category page \u2192 <b>Admin \u2192 Optimise images</b>, pick a scope, then push the ZIP it hands you."
+              : "<b>All " + list.length + " published images are the right size.</b> Nothing to optimise.";
+            return say(_imgVerdict);
+          }
+          while (live < 4 && i < list.length) {
+            live++;
+            var im = new Image();
+            im.onload = function () { if (Math.max(this.naturalWidth, this.naturalHeight) > IMG_MAX_EDGE) over++; step(); };
+            im.onerror = step;
+            im.src = list[i++];
+          }
+        }
+        next();
+      });
+  }
   function tabPublish(box) {
     var d = diffList(), total = 0;
     d.forEach(function (g) { total += g.items.length; });
@@ -1081,6 +1121,10 @@
     if (!total) box.appendChild(h("div", { class: "aks-note", html: PUBAT
       ? "<b>No unpublished changes.</b> Last downloaded " + ago(PUBAT) + " — if you haven't pushed that ZIP to GitHub yet, do that to make it live."
       : "<b>No unpublished changes.</b> Everything on this device matches the live site." }));
+    box.appendChild(h("div", { class: "aks-sec" }, ["Image sizes"]));
+    var imgNote = h("div", { class: "aks-note" }, ["Checking published images\u2026"]);
+    box.appendChild(imgNote);
+    checkImageSizes(imgNote);
     box.appendChild(h("div", { class: "aks-sec" }, ["Choose a download"]));
     box.appendChild(h("div", { class: "aks-note", html: "<b>Only my changes</b> — a small ZIP with just the files that differ from the live site. Quickest to drop in and push.<br><br><b>Whole website</b> — every page, script, photo and file, with your edits written into the pages. Use it for a fresh deploy, a backup, or when you want to open it and check the site first." }));
     box.appendChild(h("button", { class: "aks-b pri", style: "width:100%;height:50px", onclick: function () { doExportFull("delta"); } },

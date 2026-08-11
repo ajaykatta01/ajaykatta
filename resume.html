@@ -140,8 +140,19 @@ header{
 .foot{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:.8rem}
 .foot a{color:var(--accent-2);text-decoration:none}
 
+@media (pointer:coarse){
+  .nav-right a{padding-top:11px;padding-bottom:11px}
+  /* the résumé's own links (email, phone, footer) need finger-sized rows too */
+  .logo{position:relative}
+  .logo::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
+  .contact-col .row{padding:5px 0}
+  .foot a{display:inline-block;padding:7px 2px}
+}
+/* touch targets: header actions need ~44px of tappable height — tablets included (iPad portrait = 768) */
+@media(max-width:900px){
+  .nav-right a{padding-top:11px;padding-bottom:11px}
+}
 @media(max-width:720px){
-  /* touch targets: header actions need ~44px of tappable height */
   .nav-right a{padding-top:11px;padding-bottom:11px}
   .comp-grid,.cols{grid-template-columns:1fr}
   .metrics{grid-template-columns:repeat(2,1fr)}

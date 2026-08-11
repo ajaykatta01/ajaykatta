@@ -121,6 +121,37 @@ is only downloaded once an admin session is unlocked, so visitors never pay for 
 
 ---
 
+## Speed — how the site stays fast
+
+**Images are capped at 2560px on the long edge.** Anything you drop into the editor is
+downscaled to that before it is stored, so a 7000px Figma export can't reach the live site.
+At those sizes the phone spends longer *decoding* the picture than downloading it, and the
+very biggest ones simply fail to paint on iOS. 2560px is still full-bleed sharp on a retina
+screen — nothing visible is lost.
+
+**Admin → Optimise images** re-checks what is already published: it downscales any file over
+the cap and downloads `optimised-images.zip` with just those files. Copy the `media` folder
+from it into the repo and push. Run it any time the site feels slow.
+
+You choose the scope: **Everything**, one category (UI/UX · Gen AI · 3D), or a single
+project — so a newly added project can be optimised on its own. Each row shows how many of
+its images are oversized before you commit to anything, and the **Publish** tab and the
+**Export site data** dialog both show the same check, so nothing oversized ships unnoticed.
+
+Two files still need this pass — they were too large to convert here:
+
+```
+media/ui-ux/motocare-image-15.webp   5684×16383  2.4 MB
+media/ui-ux/motocare-image-17.webp   5684×11676  4.9 MB
+```
+
+Also in place: covers on the category pages are `<link rel="preload">`ed in the HTML so they
+start downloading before `admin.js` and `portfolio-data.json` have even arrived; three.js and
+GSAP load *after* the homepage paints instead of blocking it; `portfolio-data.json` is
+revalidated (a 304) instead of re-downloaded on every visit; `media/` is cached for 30 days.
+
+---
+
 ## Missing media (as of this snapshot)
 
 `portfolio-data.json` references these 9 files that are **not** in `media/`. Each renders as a

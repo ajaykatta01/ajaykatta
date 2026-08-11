@@ -174,8 +174,9 @@ header.nav-hidden{transform:translateY(-100%)}
   .pgrid.view-grid{grid-template-columns:repeat(2,1fr);gap:12px}
   .pgrid.view-grid .ptile{grid-column:auto !important;grid-row:auto !important}
 }
-@media(max-width:760px){
-  /* touch targets: header links + view toggle need ~44px of tappable height */
+@media(max-width:900px){
+  /* touch targets: header links + view toggle need ~44px of tappable height.
+     Runs to 900px so iPad portrait (768) is covered, not just phones. */
   .back,.home{padding:11px 2px}
   .seg{padding:4px}
   .seg-btn{padding:10px 13px;font-size:.76rem}
@@ -226,6 +227,24 @@ header.nav-hidden{transform:translateY(-100%)}
   .pgrid.view-grid .ptile-go{width:38px;height:38px;right:14px;bottom:14px}
   .pgrid.view-grid .ptile-go .arr{font-size:1.02rem}
   .pgrid.view-grid .ptile-empty .ptile-body{left:16px;right:16px;bottom:14px}
+}
+/* Tablet canvas: narrow tall/small tiles need the label above the arrow too. At 621-900px a
+   ~215px tile left only ~120px of label width, so longer titles were clipped mid-word. */
+/* Any touch device (iPad landscape at 1024 is still a finger) gets the same tap sizes. */
+@media (pointer:coarse){
+  .back,.home{padding:11px 2px}
+  .seg{padding:4px}
+  .seg-btn{padding:10px 13px}
+}
+@media(min-width:621px) and (max-width:900px){
+  .pgrid:not(.view-grid) .ptile-s .ptile-body,
+  .pgrid:not(.view-grid) .ptile-t .ptile-body{left:16px;right:16px;bottom:52px;gap:3px}
+  .pgrid:not(.view-grid) .ptile-s h3,
+  .pgrid:not(.view-grid) .ptile-t h3{font-size:1rem;line-height:1.28}
+  .pgrid:not(.view-grid) .ptile-s .ptile-tag,
+  .pgrid:not(.view-grid) .ptile-t .ptile-tag{font-size:.58rem}
+  .pgrid:not(.view-grid) .ptile-s .ptile-go,
+  .pgrid:not(.view-grid) .ptile-t .ptile-go{width:38px;height:38px;right:14px;bottom:14px}
 }
 /* Grid view reads cover-first: lighter scrim than the bento canvas */
 @media(max-width:900px){
@@ -304,7 +323,7 @@ const root=document.documentElement, knob=document.getElementById('knob');
 })();
 </script>
 <script>window.AK_ADMIN={page:'gen-ai',noun:'project',gridSelector:'.pgrid',tileTag:'article'};</script>
-<script src="admin.js?v=47"></script>
+<script src="admin.js?v=49"></script>
 <script src="theme-ripple.js"></script>
 <script src="scroll-progress.js"></script>
 </body>

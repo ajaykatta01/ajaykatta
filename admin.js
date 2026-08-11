@@ -75,8 +75,37 @@
       return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
     });
   }
+  /* Every image is capped at IMG_MAX_EDGE on its long edge before it is stored, so a 7000px
+     export can never reach the live site: at that size the browser spends longer DECODING the
+     picture than downloading it. 2560px still covers a full-bleed block on a retina screen. */
+  var IMG_MAX_EDGE = 2560, IMG_OVER_EDGE = 2592;   /* rebuilt files land on 2560±1 — only flag what is really bigger */
   function readFileAsDataURL(file) {
-    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(file); });
+    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(file); })
+      .then(function (d) { return shrinkImageDataURL(d, file && file.type); });
+  }
+  function shrinkImageDataURL(d, mime) {
+    if (typeof d !== "string" || d.indexOf("data:image/") !== 0) return d;
+    mime = mime || d.slice(5).split(";")[0];
+    if (mime === "image/gif" || mime.indexOf("image/svg") === 0) return d;   // animation / vector: leave alone
+    return new Promise(function (res) {
+      var im = new Image();
+      im.onload = function () {
+        var w = im.naturalWidth, hh = im.naturalHeight, m = Math.max(w, hh);
+        if (!m || m <= IMG_OVER_EDGE) return res(d);
+        var k = IMG_MAX_EDGE / m, cv = document.createElement("canvas");
+        cv.width = Math.round(w * k); cv.height = Math.round(hh * k);
+        try {
+          var cx = cv.getContext("2d");
+          cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+          cx.drawImage(im, 0, 0, cv.width, cv.height);
+          var o = cv.toDataURL("image/webp", 0.92);
+          if (o.indexOf("data:image/webp") !== 0) o = cv.toDataURL("image/jpeg", 0.92);
+          res(o.length < d.length ? o : d);
+        } catch (e) { res(d); }
+      };
+      im.onerror = function () { res(d); };
+      im.src = d;
+    });
   }
   /* ---- cover crop editor: pan + zoom, outputs a cropped data URL at the cover aspect ---- */
   function makeCropper(aspect, onChange) {
@@ -158,6 +187,51 @@
       var url = URL.createObjectURL(new Blob([arr], { type: mime })); _blobCache[d] = url; return url;
     } catch (e) { return d; }
   }
+  /* ---- media warm-up ------------------------------------------------------------
+     Opening a project used to fire every image request in one burst, so the first
+     screen competed for bandwidth with images twenty screens down — that is the
+     "small images, still slow" lag. warmSrcs() pulls files into the HTTP cache at
+     LOW priority, three at a time, and never requests the same file twice. Hovering
+     a tile warms that project, so the click opens from cache. */
+  var _warmed = {}, _warmQ = [], _warmLive = 0;
+  function _warmNext() {
+    while (_warmLive < 6 && _warmQ.length) {
+      var src = _warmQ.shift(); _warmLive++;
+      var im = new Image();
+      try { im.fetchPriority = "low"; } catch (e) {}
+      im.decoding = "async";
+      im.onload = im.onerror = function () { _warmLive--; _warmNext(); };
+      im.src = src;
+    }
+  }
+  function warmSrcs(list, limit) {
+    (list || []).slice(0, limit || 8).forEach(function (s) {
+      if (!s || typeof s !== "string" || s.slice(0, 5) === "data:" || _warmed[s]) return;
+      _warmed[s] = 1; _warmQ.push(s);
+    });
+    _warmNext();
+  }
+  /* every image a project will paint, in the order the visitor meets them */
+  function itemImageSrcs(it) {
+    var out = [];
+    if (!it) return out;
+    if (it.homeBg && it.homeBg.image) out.push(it.homeBg.image);
+    if (it.cover) out.push(it.cover);
+    ((it.studio && it.studio.els) || []).filter(function (e) {
+      return e && !e.hidden && e.content && e.content.type === "image" && e.content.src;
+    }).sort(function (x, y) { return (x.y || 0) - (y.y || 0); })
+      .forEach(function (e) { out.push(e.content.src); });
+    (it.blocks || []).forEach(function (b) { if (b && b.type === "image" && b.src) out.push(b.src); });
+    return out;
+  }
+  function whenIdle(fn, t) {
+    if (window.requestIdleCallback) requestIdleCallback(fn, { timeout: t || 1500 });
+    else setTimeout(fn, 200);
+  }
+  function saveData() {
+    var c = navigator.connection || {};
+    return !!c.saveData || /2g/.test(c.effectiveType || "");
+  }
 
   /* ---------- IndexedDB ---------- */
   var DB;
@@ -188,7 +262,7 @@
   // EDIT_FLAG. This stops a stale/empty local copy from shadowing the published content.
   var EDIT_FLAG = "ak-local-edits:" + CFG.page;
   function load() {
-    return fetch("portfolio-data.json", { cache: "no-store" })
+    return fetch("portfolio-data.json", { cache: "no-cache" }) /* always fresh, but a 304 instead of a full re-download */
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; })
       .then(function (pub) {
@@ -567,6 +641,21 @@
       .ak-d-bar .title{display:none}
       .ak-d-bar .tabbar{flex:1 1 auto;min-width:0;justify-content:flex-start}
       .ak-item-actions{flex:0 0 auto}}
+    /* touch targets inside an open project: the sticky bar + in-hero view switch were
+       24-31px tall on phones and tablets. Grow the padding (not the type) up to 900px. */
+    @media(max-width:900px){
+      .ak-d-bar .tab{padding:11px 16px}
+      .ak-d-bar .cs-back{padding:11px 14px}
+      .ak-d-bar .tabnav{width:38px;height:38px}
+      .ak-d-hero .view-bar .seg-btn,.ak-detail .view-bar .seg-btn{padding:10px 12px}
+    }
+    @media(max-width:640px){.ak-d-bar .cs-back{padding:11px 13px}}
+    @media (pointer:coarse){
+      .ak-d-bar .tab{padding:11px 16px}
+      .ak-d-bar .cs-back{padding:11px 14px}
+      .ak-d-bar .tabnav{width:38px;height:38px}
+      .ak-d-hero .view-bar .seg-btn,.ak-detail .view-bar .seg-btn{padding:10px 12px}
+    }
 
     /* full-bleed media (matches FinTrack gallery dimensions) */
     .ak-wide{width:min(1600px,93vw);margin-left:50%;transform:translateX(-50%)}
@@ -1152,6 +1241,7 @@
     menuEl.appendChild(h("div", { class: "ak-label" }, ["Publish & account"]));
     menuEl.appendChild(mi(I.dl, "Export site data", exportData));
     menuEl.appendChild(mi(I.ul, "Import site data", importData));
+    menuEl.appendChild(mi(I.img, "Optimise images", optimiseMedia));
     menuEl.appendChild(mi(I.lock, "Change password", changePassword));
     menuEl.appendChild(mi(I.lock, "Lock admin", function () { sessionStorage.removeItem(SESSION_KEY); UNLOCKED = false; syncMode(); }, true));
   }
@@ -1293,6 +1383,10 @@
         ])
       ]);
       tile.addEventListener("click", function () { openDetail(it.id); });
+      var warmTile = function () { warmSrcs(itemImageSrcs(it), 6); };
+      tile.addEventListener("pointerenter", warmTile);
+      tile.addEventListener("focus", warmTile);
+      tile.addEventListener("touchstart", warmTile, { passive: true });
       tile.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); openDetail(it.id); } });
       // a cover whose file is missing would render as a blank tile — degrade to the placeholder look
       if (it.cover && String(it.cover).slice(0, 5) !== "data:") {
@@ -1318,6 +1412,9 @@
     /* let the page's Canvas/Grid toggle re-measure the new tiles (grid view sizes each to its file) */
     document.dispatchEvent(new CustomEvent("ak-tiles-rendered"));
     renderItemTabs();
+    if (!saveData()) whenIdle(function () {   /* first screens of the likeliest opens, after the wall itself is done */
+      DATA.items.slice(0, 2).forEach(function (x) { warmSrcs(itemImageSrcs(x), 3); });
+    }, 2500);
   }
 
   /* ---- built-in (non-removed) case-study tabs declared in the page ---- */
@@ -1690,6 +1787,10 @@
     renderDetail();
     window.scrollTo(0, 0);
     initBarHide();
+    if (!saveData()) whenIdle(function () {   /* rest of this project, low priority — kills scroll stutter */
+      var it = DATA.items.filter(function (x) { return x.id === id; })[0];
+      warmSrcs(itemImageSrcs(it), 40);
+    }, 2000);
   }
   // hide the "All projects / All case studies" sticky bar on scroll down, reveal on scroll up
   var barHideInit = false;
@@ -1847,7 +1948,7 @@
       var b = en.b, badge = null;
       var thumb = h("div", { class: "ps-thumb" });
       if (b.type === "image") {
-        thumb.appendChild(h("img", { src: dataURLtoBlobURL(b.src), alt: b.caption || "", loading: "lazy", decoding: "async" }));
+        thumb.appendChild(h("img", { src: dataURLtoBlobURL(b.src), alt: b.caption || "", loading: "lazy", fetchpriority: "low", decoding: "async" }));
       } else if (b.type === "media") {
         if ((b.mime || "").indexOf("audio") === 0) { thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u266B"])); badge = "Audio"; }
         else {
@@ -1984,7 +2085,7 @@
       setTimeout(function () { try { var p = bgv.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }, 0);
     }
     var hero = h("div", { class: "ak-d-hero" }, [
-      hb.image ? h("img", { class: "bgi", style: hbMedia, src: dataURLtoBlobURL(hb.image), alt: "", decoding: "async", "aria-hidden": "true" }) : null,
+      hb.image ? h("img", { class: "bgi", style: hbMedia, src: dataURLtoBlobURL(hb.image), alt: "", decoding: "async", fetchpriority: "high", "aria-hidden": "true" }) : null,
       bgv,
       hb.text ? h("div", { class: "bgt", style: "opacity:" + hbOp, "aria-hidden": "true" }, [hb.text]) : null,
       (hb.image || hb.video || hb.text) ? h("div", { class: "scrim", "aria-hidden": "true" }) : null,
@@ -2481,15 +2582,13 @@
     var i = h("input", { type: "file", accept: accept, style: "display:none" });
     i.addEventListener("change", function () {
       var f = i.files[0]; if (!f) return;
-      var r = new FileReader();
-      r.onload = function () {
-        b.src = r.result;
-        if (b.type === "media") b.mime = (String(r.result).match(/^data:(.*?);/) || [])[1] || "";
+      readFileAsDataURL(f).then(function (data) {
+        b.src = data;
+        if (b.type === "media") b.mime = (String(data).match(/^data:(.*?);/) || [])[1] || "";
         if (b.type === "model") b.format = modelFormat(f.name);
         delete b.pos; // reset framing for the new file
         save().then(keepScroll(rerender || renderDetail));
-      };
-      r.readAsDataURL(f);
+      });
     });
     document.body.appendChild(i); i.click();
     setTimeout(function () { i.remove(); }, 120000);
@@ -2532,13 +2631,15 @@
     var inner;
     if (b.type === "image") {
       var imgHold = h("div", { class: "ak-wide ak-imghold", style: rad });
-      var buildImg = function () {
-        var im = h("img", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), alt: b.caption || "", loading: "lazy", decoding: "async" });
-        im.addEventListener("load", function () { imgHold.classList.add("loaded"); });
-        im.addEventListener("error", function () { imgHold.classList.add("loaded"); imgHold.innerHTML = ""; imgHold.appendChild(mediaMissing(I.img, "Image unavailable", rad)); });
-        imgHold.appendChild(im);
-      };
-      if (idx === 0) buildImg(); else lazyMount(imgHold, buildImg, 600); // first image eager (instant top), rest deferred
+      /* every image is in the DOM from the start (no observer + idle-callback delay);
+         the top two load eagerly at high priority, the rest ride native lazy-loading
+         at low priority so they can never starve the first screen. */
+      var eagerImg = idx < 2;
+      var im = h("img", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), alt: b.caption || "",
+        loading: eagerImg ? "eager" : "lazy", fetchpriority: eagerImg ? "high" : "low", decoding: "async" });
+      im.addEventListener("load", function () { imgHold.classList.add("loaded"); });
+      im.addEventListener("error", function () { imgHold.classList.add("loaded"); imgHold.innerHTML = ""; imgHold.appendChild(mediaMissing(I.img, "Image unavailable", rad)); });
+      imgHold.appendChild(im);
       inner = h("div", {}, [imgHold, b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else if (b.type === "pdf") {
       var pdfHold = h("div", { class: "ak-pdf", style: rad });
@@ -3338,6 +3439,240 @@
     var end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cs), u32(offset), u16(0)));
     return new Blob(parts.concat(central, [end]), { type: "application/zip" });
   }
+  /* ---- one-click image optimiser ------------------------------------------------
+     Re-encodes anything already live in media/ that is wider or taller than
+     IMG_MAX_EDGE, in this browser, and hands the fixed files back as a small ZIP to
+     drop into media/. An oversized export (5000–8000px) is the single biggest cause
+     of a slow case study: the phone spends longer DECODING the picture than
+     downloading it, and the biggest ones fail outright on iOS. New uploads are capped
+     automatically (see readFileAsDataURL) — this is for files published before that. */
+  function _mediaImagePaths(o) {
+    var out = {};
+    (function walk(v) {
+      if (!v) return;
+      if (typeof v === "string") { if (/^media\/.+\.(webp|jpe?g|png)$/i.test(v)) out[v] = 1; return; }
+      if (typeof v !== "object") return;
+      if (Array.isArray(v)) { v.forEach(walk); return; }
+      Object.keys(v).forEach(function (k) { walk(v[k]); });
+    })(o);
+    return Object.keys(out);
+  }
+  function _optImage(url) {
+    return fetch(url, { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.blob() : null; })
+      .then(function (blob) {
+        if (!blob || blob.type.indexOf("image/") !== 0 || blob.type === "image/gif" || blob.type.indexOf("svg") > -1) return null;
+        return createImageBitmap(blob).then(function (bm) {
+          var long = Math.max(bm.width, bm.height), from = bm.width + "\u00d7" + bm.height;
+          if (bm.close) bm.close();
+          if (long <= IMG_OVER_EDGE) return null;
+          return createImageBitmap(blob, { resizeWidth: Math.round(bm.width * IMG_MAX_EDGE / long), resizeQuality: "high" }).then(function (sm) {
+            var cv = document.createElement("canvas");
+            cv.width = sm.width; cv.height = sm.height;
+            var cx = cv.getContext("2d");
+            cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+            cx.drawImage(sm, 0, 0);
+            if (sm.close) sm.close();
+            return new Promise(function (res) { cv.toBlob(res, "image/webp", 0.92); }).then(function (out) {
+              if (!out || out.size >= blob.size) return null;
+              return out.arrayBuffer().then(function (ab) {
+                return { bytes: new Uint8Array(ab), was: blob.size, now: out.size, from: from, to: cv.width + "\u00d7" + cv.height };
+              });
+            });
+          });
+        });
+      })
+      .catch(function () { return null; });
+  }
+  var _optMeas = {}, _optLastIx = null;
+  var _OPT_LABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
+  function _optMeasure(url) {
+    if (_optMeas[url]) return Promise.resolve(_optMeas[url]);
+    return fetch(url).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) {
+      if (!b || b.type.indexOf("image/") !== 0 || b.type === "image/gif" || b.type.indexOf("svg") > -1) return (_optMeas[url] = { skip: true });
+      return createImageBitmap(b).then(function (bm) {
+        var m = { w: bm.width, h: bm.height, size: b.size };
+        m.over = Math.max(m.w, m.h) > IMG_OVER_EDGE;
+        if (bm.close) bm.close();
+        return (_optMeas[url] = m);
+      });
+    }).catch(function () { return (_optMeas[url] = { skip: true }); });
+  }
+  /* measures every path once, four at a time, so a 130-file check stays quick */
+  function _optScan(paths, onEach) {
+    var i = 0, live = 0;
+    return new Promise(function (done) {
+      function next() {
+        if (i >= paths.length && !live) return done();
+        while (live < 4 && i < paths.length) {
+          live++;
+          _optMeasure(paths[i++]).then(function () { live--; if (onEach) onEach(); next(); });
+        }
+      }
+      next();
+    });
+  }
+  /* the scopes the owner can act on: everything · a category · one project · the home page */
+  function _optGroups(pub) {
+    var gs = [], all = {};
+    ["ui-ux", "gen-ai", "3d"].forEach(function (k) {
+      var page = pub && pub[k]; if (!page) return;
+      var pagePaths = _mediaImagePaths(page); if (!pagePaths.length) return;
+      pagePaths.forEach(function (p) { all[p] = 1; });
+      gs.push({ key: "page:" + k, label: (_OPT_LABEL[k] || k), kind: "page", paths: pagePaths });
+      (page.items || []).forEach(function (it) {
+        var ip = _mediaImagePaths(it);
+        if (ip.length) gs.push({ key: "item:" + it.id, label: it.title || "Untitled", kind: "item", paths: ip });
+      });
+    });
+    if (pub && pub.home) {
+      var hp = _mediaImagePaths(pub.home);
+      if (hp.length) { hp.forEach(function (p) { all[p] = 1; }); gs.push({ key: "home", label: "Home page", kind: "page", paths: hp }); }
+    }
+    return { all: Object.keys(all), groups: gs };
+  }
+  function _optStat(paths) {
+    var s = { total: paths.length, known: 0, over: 0, zipped: 0, bytes: 0 };
+    paths.forEach(function (p) {
+      var m = _optMeas[p]; if (!m) return;
+      s.known++;
+      if (m.zipped) s.zipped++;
+      else if (m.over) { s.over++; s.bytes += m.size; }
+    });
+    return s;
+  }
+  function _optSizeLabel(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
+  function optimiseMedia() {
+    var ov = h("div", { class: "ak-ov" });
+    var status = h("div", { class: "sub" }, ["Reading what's published\u2026"]);
+    var rowsWrap = h("div", {});
+    var steps = h("div", {});
+    ov.appendChild(h("div", { class: "ak-modal", style: "width:min(580px,100%)" }, [
+      h("h3", {}, ["Optimise images"]),
+      status, rowsWrap, steps,
+      h("div", { class: "ak-hint", style: "margin-top:10px" }, ["Anything wider or taller than " + IMG_MAX_EDGE + "px is re-saved at " + IMG_MAX_EDGE + "px \u2014 same visible quality, a fraction of the weight. Files you upload from now on are capped automatically."]),
+      h("div", { class: "ak-acts" }, [h("button", { class: "ak-btn ghost", onclick: function () { ov.remove(); } }, ["Close"])])
+    ]));
+    ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+
+    fetch("portfolio-data.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (pub) {
+        var ix = _optGroups(pub || {}); _optLastIx = ix;
+        if (!ix.all.length) { status.textContent = "Nothing published to check yet."; return; }
+        var rowFor = {};
+        function mkRow(g) {
+          var val = h("span", { class: "v" }, ["\u2026"]);
+          var btn = h("button", { class: "ak-btn ghost", style: "display:none;padding:4px 10px;font-size:.7rem;flex:0 0 auto", onclick: function () { run(g); } }, ["Optimise"]);
+          rowFor[g.key] = { val: val, btn: btn, g: g };
+          return h("div", { class: "ak-xrow" }, [
+            h("span", { class: "k", style: g.kind === "item" ? "padding-left:16px;opacity:.86" : (g.kind === "all" ? "font-weight:600" : "") }, [g.label]),
+            h("span", { style: "display:flex;align-items:center;gap:9px;justify-content:flex-end" }, [val, btn])
+          ]);
+        }
+        var allG = { key: "all", label: "Everything", kind: "all", paths: ix.all };
+        rowsWrap.appendChild(h("div", { class: "ak-xsec" }, ["What to optimise"]));
+        rowsWrap.appendChild(h("div", { class: "ak-xrows" }, [mkRow(allG)].concat(ix.groups.map(mkRow))));
+        function paint() {
+          Object.keys(rowFor).forEach(function (k) {
+            var e = rowFor[k], s = _optStat(e.g.paths);
+            if (s.known < s.total) { e.val.textContent = s.known + " / " + s.total + " checked"; return; }
+            if (s.over) { e.val.textContent = s.over + " of " + s.total + " oversized \u00b7 " + _optSizeLabel(s.bytes); e.btn.style.display = ""; return; }
+            e.btn.style.display = "none";
+            e.val.textContent = s.zipped ? (s.zipped + " fixed \u2014 in your ZIP \u2713") : (s.total + " image" + (s.total === 1 ? "" : "s") + " \u00b7 all good \u2713");
+          });
+        }
+        paint();
+        var n = 0;
+        _optScan(ix.all, function () {
+          n++; status.textContent = "Checking " + n + " of " + ix.all.length + "\u2026";
+          if (n % 3 === 0) paint();
+        }).then(function () {
+          paint();
+          var s = _optStat(ix.all);
+          status.textContent = s.over
+            ? (s.over + " of " + s.total + " images are oversized \u2014 pick a scope below.")
+            : ("All " + s.total + " images are already the right size \u2014 nothing to do.");
+        });
+        function run(g) {
+          var queue = g.paths.filter(function (p) { var m = _optMeas[p]; return m && m.over && !m.zipped; });
+          if (!queue.length) return;
+          var count = queue.length, done = 0, fixed = [], saved = 0;
+          steps.innerHTML = "";
+          var detail = h("div", { class: "ak-xrows" });
+          steps.appendChild(h("div", { class: "ak-xsec" }, [g.label]));
+          steps.appendChild(detail);
+          (function nextOne() {
+            if (!document.body.contains(ov)) return;
+            if (!queue.length) return finish();
+            var p = queue.shift();
+            status.textContent = "Optimising " + (done + 1) + " of " + count + "\u2026";
+            _optImage(p).then(function (r) {
+              done++;
+              if (r) {
+                fixed.push({ name: p, bytes: r.bytes }); saved += (r.was - r.now);
+                var m = _optMeas[p]; if (m) { m.zipped = true; m.size = r.now; }
+                detail.appendChild(h("div", { class: "ak-xrow" }, [
+                  h("span", { class: "k" }, [p.split("/").pop()]),
+                  h("span", { class: "v" }, [r.from + " \u2192 " + r.to + " \u00b7 " + Math.round(r.was / 1024) + " \u2192 " + Math.round(r.now / 1024) + " KB"])
+                ]));
+              }
+              paint(); nextOne();
+            });
+          })();
+          function finish() {
+            if (!fixed.length) { status.textContent = "Nothing needed changing in " + g.label + "."; return; }
+            var zip = makeZip(fixed.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; }));
+            var a2 = h("a", { href: URL.createObjectURL(zip), download: "optimised-images.zip" });
+            document.body.appendChild(a2); a2.click(); a2.remove();
+            status.textContent = fixed.length + " image" + (fixed.length === 1 ? "" : "s") + " shrunk \u00b7 " + _optSizeLabel(saved) + " lighter \u00b7 optimised-images.zip downloaded";
+            steps.appendChild(h("div", { class: "ak-xsec" }, ["To publish"]));
+            steps.appendChild(h("ol", { class: "ak-xsteps" }, [
+              h("li", {}, ["Unzip optimised-images.zip."]),
+              h("li", {}, ["From Ajaykatta_Website / GitRepo, copy the media folder into your repo \u2014 replace the old files."]),
+              h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
+            ]));
+          }
+        }
+      });
+  }
+  /* the size check shown in the Export / Publish pre-flight, so nothing oversized ships by accident */
+  function optCheckRow() {
+    var val = h("span", { class: "v" }, []);
+    var row = h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Image sizes"]), val]);
+    function txt(t) { val.innerHTML = ""; val.appendChild(document.createTextNode(t)); }
+    function render() {
+      if (!_optLastIx) {
+        val.innerHTML = "";
+        val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem", onclick: check }, ["Check now"]));
+        return;
+      }
+      var s = _optStat(_optLastIx.all);
+      if (s.known < s.total) return txt("checking " + s.known + " / " + s.total + "\u2026");
+      if (s.over) {
+        val.innerHTML = "";
+        val.appendChild(h("strong", { style: "color:var(--accent)" }, ["\u26A0 " + s.over + " oversized"]));
+        val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem;margin-left:8px", onclick: function () { optimiseMedia(); } }, ["Optimise"]));
+        return;
+      }
+      txt(s.zipped ? (s.zipped + " fixed \u2014 drop your ZIP in first") : ("All " + s.total + " optimised \u2713"));
+    }
+    function check() {
+      txt("Reading\u2026");
+      fetch("portfolio-data.json", { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+        .then(function (pub) {
+          _optLastIx = _optGroups(pub || {});
+          if (!_optLastIx.all.length) return txt("nothing published yet");
+          var n = 0;
+          _optScan(_optLastIx.all, function () { n++; txt("Checking " + n + " of " + _optLastIx.all.length + "\u2026"); }).then(render);
+        });
+    }
+    render();
+    return row;
+  }
+  window.AK_OPTIMISE = optimiseMedia;   /* so the site editor can deep-link the fixer */
   /* ---- media extraction helpers ---- */
   function _slug(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
   function _extFor(mime, fallback) {
@@ -3565,7 +3900,7 @@
                 row("R\u00e9sum\u00e9 PDF", resumeIncluded ? "Updated \u2014 in ZIP" : "Unchanged")
               ]),
               h("div", { class: "ak-xsec" }, ["Bundle"]),
-              h("div", { class: "ak-xrows" }, [row("Media files", mediaCount)]),
+              h("div", { class: "ak-xrows" }, [row("Media files", mediaCount), optCheckRow()]),
               warn.length ? h("div", { class: "ak-xwarn" }, [
                 h("strong", {}, ["\u26A0 This export has FEWER projects than your live site."]),
                 h("div", { style: "margin-top:6px" }, warn.map(function (w) { return h("div", {}, ["\u2022 " + w]); })),

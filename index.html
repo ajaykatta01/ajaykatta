@@ -22,9 +22,34 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<link rel="preload" as="image" href="media/home/profile-photo.webp" fetchpriority="high">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<script>
+/* three.js + GSAP used to be three blocking <script> tags in <head> — ~700KB that had to
+   land before the browser painted anything or started a single image. They now load after
+   the page has parsed, in order, and the two blocks that use them re-run themselves once
+   the globals exist (see akAfterLibs below). Decorative motion, so it costs nothing to wait. */
+(function () {
+  var SRC = [
+    "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"
+  ];
+  var waiting = [], done = false;
+  function flush() { done = true; var q = waiting; waiting = []; q.forEach(function (fn) { try { fn(); } catch (e) {} }); }
+  window.akAfterLibs = function (fn) { if (done) { try { fn(); } catch (e) {} } else waiting.push(fn); };
+  function one(src, next) {
+    var s = document.createElement("script");
+    s.src = src; s.async = false;
+    s.onload = s.onerror = next;
+    document.head.appendChild(s);
+  }
+  function chain(i) { if (i >= SRC.length) return flush(); one(SRC[i], function () { chain(i + 1); }); }
+  function start() { chain(0); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+  else start();
+})();
+</script>
 <template id="__bundler_thumbnail" data-bg-color="#1C1A14">
   <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
     <rect width="1200" height="800" fill="#1C1A14"/>
@@ -1092,6 +1117,11 @@ footer{border-top:1px solid var(--line);padding:64px 0 36px;background:var(--bg-
 .mp-done h4{font-family:'Inter',sans-serif;font-size:1.02rem;margin:0 0 6px;color:var(--text)}
 .mp-done p{color:var(--muted);font-size:.86rem;margin:0}
 @media(max-width:430px){.mp-row{grid-template-columns:1fr}}
+/* touch: 16px fields stop iOS Safari zooming the page in on focus; taller fields + actions */
+@media(max-width:760px){
+  .mp-field input,.mp-field textarea{font-size:16px;padding:12px}
+  .mp-acts button{min-height:44px}
+}
 .scard::before{
   content:'';position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .4s;
   background:radial-gradient(120% 120% at 0% 0%, color-mix(in srgb,var(--sc) 26%, transparent), transparent 60%);
@@ -1638,7 +1668,7 @@ const root=document.documentElement, knob=document.getElementById('knob');
     if(saved!=null){ apply(saved); }
     else{
       apply(null);
-      (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
+      (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
         .then(function(pub){ var pc=pub&&pub.home&&pub.home.covers&&pub.home.covers[card.dataset.cover]; if(pc) apply(pc); });
     }
 
@@ -1693,7 +1723,7 @@ const root=document.documentElement, knob=document.getElementById('knob');
   if(saved!=null){ apply(saved); }
   else{
     apply(null);
-    (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
+    (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
       .then(function(pub){ var pp=pub&&pub.home&&pub.home.profile; if(pp) apply(pp); });
   }
 
@@ -2022,9 +2052,9 @@ function hexToRgb(h){
 }
 
 /* ============ HERO — Three.js / WebGL ambient particle drift + parallax ============ */
-(function(){
+(function akHero(){
   const cv=document.getElementById('heroCanvas');
-  if(!window.THREE){ console.warn('three.js failed to load'); return; }
+  if(!window.THREE){ if(!akHero.t){ akHero.t=1; akAfterLibs(akHero); } return; }
 
   const mob = Math.min(window.innerWidth, window.innerHeight) < 760 || matchMedia('(pointer:coarse)').matches;
   const renderer=new THREE.WebGLRenderer({canvas:cv, alpha:true, antialias:!mob, preserveDrawingBuffer:true});
@@ -2300,9 +2330,9 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
 
 <script>
 /* ============ GSAP scroll-driven section transitions (Skills + Experience) ============ */
-(function(){
+(function akScroll(){
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  if(!window.gsap || !window.ScrollTrigger) return;
+  if(!window.gsap || !window.ScrollTrigger){ if(!akScroll.t){ akScroll.t=1; akAfterLibs(akScroll); } return; }
   gsap.registerPlugin(ScrollTrigger);
 
   // viewport frame: fades in as you scroll down; corners stay square
@@ -2576,7 +2606,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   var certs=localCerts()||DEFAULTS.slice();   // synchronous baseline (avoids flash of empty)
   // No local edits on this device? Prefer the published certificates (what was last deployed).
   if(!localCerts()){
-    (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
+    (window.__akPub=window.__akPub||fetch('portfolio-data.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}))
       .then(function(pub){ if(pub&&pub.home&&Array.isArray(pub.home.certs)&&pub.home.certs.length){ certs=fixCerts(pub.home.certs.slice()); render(); } });
   }
   function persist(){try{localStorage.setItem(CERT_KEY,JSON.stringify(certs));return true;}catch(e){alert("Storage is full — use a smaller image or remove a certificate.");return false;}}
@@ -2939,6 +2969,15 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  /* safety net: a page opened in a background tab can go a long time without a single rAF tick,
+     which would leave the card parked 580px above the hero (an empty-looking hero). If no frame
+     has run by then, drop it into place outright. */
+  setTimeout(function(){
+    if(dropping && lastTY === null){
+      dropY = 0; dropV = 0; dropping = false; landed = true;
+      sw.style.transform = 'translateY(0px) rotate(0rad)'; lastTY = 0; lastRot = 0;
+    }
+  }, 2600);
   window.addEventListener('resize', wake);
   // a page opened in a background tab gets no rAF ticks — resume the drop-in when it becomes visible
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) wake(); });

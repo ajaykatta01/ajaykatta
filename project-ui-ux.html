@@ -22,6 +22,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
+<!-- Covers start downloading with the HTML instead of waiting for admin.js + portfolio-data.json. -->
+<link rel="preload" as="image" href="media/ui-ux/motocare-cover.webp" fetchpriority="high">
+<link rel="preload" as="image" href="media/ui-ux/coinwave-cover.webp" fetchpriority="high">
+<link rel="preload" as="image" href="media/ui-ux/fintrack-cover.webp" fetchpriority="high">
 <template id="__bundler_thumbnail" data-bg-color="#1C1A14">
   <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
     <rect width="1200" height="800" fill="#1C1A14"/>
@@ -321,8 +325,9 @@ body.detail .cs-detail{display:block}
   .ov{padding:44px 0 60px}
   .proto-frame{height:min(72vh,600px)}
 }
-@media (max-width:760px){
-  /* touch targets: header links + view toggle need ~44px of tappable height */
+@media (max-width:900px){
+  /* touch targets: header links + view toggle need ~44px of tappable height.
+     Runs to 900px so iPad portrait (768) is covered, not just phones. */
   .back,.home{padding:11px 2px}
   .seg{padding:4px}
   .seg-btn{padding:10px 13px;font-size:.76rem}
@@ -371,6 +376,24 @@ body.detail .cs-detail{display:block}
   .pgrid.view-grid .ptile-go{width:38px;height:38px;right:14px;bottom:14px}
   .pgrid.view-grid .ptile-go .arr{font-size:1.02rem}
   .pgrid.view-grid .ptile-empty .ptile-body{left:16px;right:16px;bottom:14px}
+}
+/* Tablet canvas: narrow tall/small tiles need the label above the arrow too. At 621-900px a
+   ~215px tile left only ~120px of label width, so longer titles were clipped mid-word. */
+/* Any touch device (iPad landscape at 1024 is still a finger) gets the same tap sizes. */
+@media (pointer:coarse){
+  .back,.home{padding:11px 2px}
+  .seg{padding:4px}
+  .seg-btn{padding:10px 13px}
+}
+@media(min-width:621px) and (max-width:900px){
+  .pgrid:not(.view-grid) .ptile-s .ptile-body,
+  .pgrid:not(.view-grid) .ptile-t .ptile-body{left:16px;right:16px;bottom:52px;gap:3px}
+  .pgrid:not(.view-grid) .ptile-s h3,
+  .pgrid:not(.view-grid) .ptile-t h3{font-size:1rem;line-height:1.28}
+  .pgrid:not(.view-grid) .ptile-s .ptile-tag,
+  .pgrid:not(.view-grid) .ptile-t .ptile-tag{font-size:.58rem}
+  .pgrid:not(.view-grid) .ptile-s .ptile-go,
+  .pgrid:not(.view-grid) .ptile-t .ptile-go{width:38px;height:38px;right:14px;bottom:14px}
 }
 /* Grid view reads cover-first: lighter scrim than the bento canvas */
 @media(max-width:900px){
@@ -452,7 +475,7 @@ const root=document.documentElement, knob=document.getElementById('knob');
 })();
 </script>
 <script>window.AK_ADMIN={page:'ui-ux',noun:'case study',gridSelector:'.index-view .pgrid',tileTag:'article'};</script>
-<script src="admin.js?v=47"></script>
+<script src="admin.js?v=49"></script>
 <script src="theme-ripple.js"></script>
 <script src="scroll-progress.js"></script>
 </body>
