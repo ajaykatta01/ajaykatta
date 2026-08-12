@@ -3963,6 +3963,132 @@
     return "other";
   }
   function _sizeLabel(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+
+  /* ---- canvas images: ship them at the size they are actually shown --------------------
+     A reference photo dropped on a canvas at 280 units wide was still a full-size file — the
+     visitor downloaded roughly ten times the pixels the browser drew. The canvas is 1200
+     units fitted to the column, so 2.5× the element's own box covers a retina screen at any
+     realistic column width; the floor keeps a small thumbnail from turning to mush. Only
+     images ON A CANVAS are touched — covers and full-width blocks keep their full size. */
+  var CANVAS_PX_PER_UNIT = 2.5, CANVAS_MIN_EDGE = 1280;
+  function _canvasTarget(el) {
+    var long = Math.max(+el.w || 0, +el.h || 0);
+    if (!long) return 0;
+    return Math.min(IMG_MAX_EDGE, Math.max(CANVAS_MIN_EDGE, Math.round(long * CANVAS_PX_PER_UNIT)));
+  }
+  function _refit(src, target) {
+    return fetch(src).then(function (r) { return r.ok ? r.blob() : null; }).then(function (blob) {
+      if (!blob || blob.type.indexOf("image/") !== 0 || blob.type === "image/gif" || blob.type.indexOf("svg") > -1) return null;
+      return _optDecode(blob).then(function (dec) {
+        var long = Math.max(dec.w, dec.h);
+        if (!long || (long <= target * 1.15 && blob.type === "image/webp")) { dec.release(); return null; }
+        var k = Math.min(1, target / long);
+        var w = Math.max(1, Math.round(dec.w * k)), hh = Math.max(1, Math.round(dec.h * k)), cv;
+        try { cv = _optScaleTo(dec, w, hh); } catch (e) { dec.release(); return null; }
+        dec.release();
+        var out = null;
+        try { out = cv.toDataURL("image/webp", 0.86); } catch (e) {}
+        cv.width = cv.height = 1;
+        if (!out || out.indexOf("data:image/webp") !== 0) return null;
+        var bytes = (out.length - out.indexOf(",") - 1) * 0.75;
+        if (bytes > blob.size * 0.9) return null;          // no real saving — keep the original
+        return { src: out, saved: blob.size - bytes };
+      });
+    })["catch"](function () { return null; });
+  }
+  function _rightSizeCanvas(bundle, showUI) {
+    var jobs = [];    (function walk(node, depth) {
+      if (!node || typeof node !== "object" || depth > 12) return;
+      if (Array.isArray(node)) { node.forEach(function (v) { walk(v, depth + 1); }); return; }
+      var c = node.content;
+      if (c && c.type === "image" && typeof c.src === "string" && c.src && (+node.w || +node.h)) {
+        var t = _canvasTarget(node);
+        if (t) jobs.push({ c: c, t: t });
+      }
+      Object.keys(node).forEach(function (k) { if (node[k] && typeof node[k] === "object") walk(node[k], depth + 1); });
+    })(bundle, 0);
+    if (!jobs.length) return Promise.resolve(0);
+    /* The same picture placed in several spots is ONE file: group by source and re-encode
+       once, at the largest size any of those spots needs. */
+    var byS = {};
+    jobs.forEach(function (j) {
+      var g = byS[j.c.src] || (byS[j.c.src] = { src: j.c.src, t: 0, cs: [] });
+      g.t = Math.max(g.t, j.t); g.cs.push(j.c);
+    });
+    jobs = Object.keys(byS).map(function (k) { return byS[k]; });
+
+    var ov = null, line = null;
+    if (showUI && jobs.length > 3) {
+      line = h("div", { class: "sub" }, ["0 of " + jobs.length]);
+      ov = h("div", { class: "ak-ov", style: "z-index:2147483600" }, [
+        h("div", { class: "ak-modal", style: "width:min(380px,100%)" }, [h("h3", {}, ["Right-sizing canvas photos…"]), line])
+      ]);
+      document.body.appendChild(ov);
+    }
+    var i = 0, done = 0, saved = 0;
+    function next() {
+      if (i >= jobs.length) return Promise.resolve();
+      var j = jobs[i++];
+      return _refit(j.src, j.t).then(function (out) {
+        if (out) { j.cs.forEach(function (c) { c.src = out.src; }); saved += out.saved; }
+        done++;
+        if (line) line.textContent = done + " of " + jobs.length;
+        return next();
+      });
+    }
+    /* two at a time — decoding several large photos at once is what makes an iPad give up */
+    return Promise.all([next(), next()]).then(function () {
+      if (ov) ov.remove();
+      return saved;
+    }, function () { if (ov) ov.remove(); return 0; });
+  }
+  /* ---- one file per picture -----------------------------------------------------------
+     The same photo can arrive by several routes: uploaded twice, on a canvas AND in a block,
+     already published under two names. Identical bytes are written once and every reference
+     points at that one file — the ZIP, the repo and the visitor's browser all carry it once. */
+  function _fnv(b) { var x = 2166136261; for (var i = 0; i < b.length; i++) { x ^= b[i]; x = (x * 16777619) >>> 0; } return "f" + x.toString(36); }
+  function _hashBytes(b) {
+    try {
+      if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+        var buf = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+        return crypto.subtle.digest("SHA-1", buf).then(function (d) {
+          var a = new Uint8Array(d), s = "";
+          for (var i = 0; i < a.length; i++) s += ("0" + a[i].toString(16)).slice(-2);
+          return s;
+        })["catch"](function () { return _fnv(b); });
+      }
+    } catch (e) {}
+    return Promise.resolve(_fnv(b));
+  }
+  function _dedupeFiles(files, bundle) {
+    if (files.length < 2) return Promise.resolve(0);
+    var i = 0, byHash = {}, remap = {}, keep = [], saved = 0, dropped = 0;
+    function step() {
+      if (i >= files.length) return Promise.resolve();
+      var f = files[i++];
+      return _hashBytes(f.bytes).then(function (hx) {
+        var key = f.bytes.length + ":" + hx;
+        if (byHash[key]) { remap[f.name] = byHash[key]; saved += f.bytes.length; dropped++; }
+        else { byHash[key] = f.name; keep.push(f); }
+        return step();
+      });
+    }
+    return step().then(function () {
+      if (!dropped) return 0;
+      files.length = 0;
+      keep.forEach(function (f) { files.push(f); });
+      (function walk(node, depth) {
+        if (!node || typeof node !== "object" || depth > 14) return;
+        Object.keys(node).forEach(function (k) {
+          var v = node[k];
+          if (typeof v === "string") { if (remap[v]) node[k] = remap[v]; return; }
+          if (v && typeof v === "object") walk(v, depth + 1);
+        });
+      })(bundle, 0);
+      return saved;
+    })["catch"](function () { return 0; });
+  }
+
   /* ---- export: tiny JSON + media/ folder, zipped (GitHub & Vercel ready) ---- */
   function exportData(silent) {
     silent = (silent === true);
@@ -4012,6 +4138,8 @@
         if (home.certs || home.covers || home.profile) { bundle.home = home; }
 
         bundle = JSON.parse(JSON.stringify(bundle)); // clone — never corrupt live data
+
+        return _rightSizeCanvas(bundle, !silent).then(function (canvasSaved) {
 
         var files = [], used = {}, seen = {}, made = {}, fetches = [];
         var resumeIncluded = false;
@@ -4127,9 +4255,12 @@
         }
 
         return Promise.all(fetches).then(function () {
+          return _dedupeFiles(files, bundle);
+        }).then(function (dupSaved) {
           var jsonText = JSON.stringify(bundle, null, 2);
           if (silent) return { json: jsonText, files: files };
           var mediaCount = files.length; // media only — JSON not added yet
+          var mediaBytes = 0; files.forEach(function (f) { mediaBytes += f.bytes.length; });
           // Nothing big should be left inline: a data: URL still in here means a file the ZIP does not
           // carry. Tiny ones are deliberate (see INLINE_MIN) and must not raise a false alarm.
           var leftInline = (jsonText.match(/"data:[^"]*"/g) || []).filter(function (s) { return s.length >= INLINE_MIN; }).length;
@@ -4233,7 +4364,9 @@
                 mstat.audio ? row("Audio", mstat.audio) : null,
                 mstat.pdf ? row("PDFs", mstat.pdf) : null,
                 mstat.model ? row("3D models", mstat.model) : null,
-                row("Files in media/", mediaCount + " \u00b7 " + _sizeLabel(mstat.bytes)),
+                row("Files in media/", mediaCount + " \u00b7 " + _sizeLabel(mediaBytes)),
+                canvasSaved ? row("Canvas photos right-sized", _sizeLabel(canvasSaved) + " lighter") : null,
+                dupSaved ? row("Duplicates merged", _sizeLabel(dupSaved) + " saved") : null,
                 row("Data file", _sizeLabel(jsonText.length)),
                 optCheckRow()
               ].filter(Boolean)),
@@ -4250,7 +4383,7 @@
               ]) : null,
               h("div", { class: "ak-xsec" }, ["Download"]),
               h("div", { class: "ak-xrows" }, [
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Only my changes"]), h("span", { class: "v" }, ["about " + _sizeLabel(mstat.bytes + jsonText.length)])]),
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Only my changes"]), h("span", { class: "v" }, ["about " + _sizeLabel(mediaBytes + jsonText.length)])]),
                 h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Whole website"]), h("span", { class: "v" }, ["much larger \u2014 every page and photo"])])
               ]),
               h("div", { class: "ak-hint", style: "margin-top:8px" }, ["\u201CWhole website\u201D also re-downloads every photo already on your live site, so it is always the bigger file. Both publish the same content \u2014 pick \u201COnly my changes\u201D unless you want a full backup."]),
@@ -4263,6 +4396,7 @@
             ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
             document.body.appendChild(ov);
           });
+        });
         });
       });
     });

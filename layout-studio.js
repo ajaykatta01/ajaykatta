@@ -635,6 +635,22 @@
     .akls-bento:hover .akls-barr span{transform:rotate(-45deg)}
     .akld-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(8,7,6,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:akldIn .2s ease forwards;font-family:'Inter',sans-serif}
     @keyframes akldIn{from{opacity:0}to{opacity:1}}
+    /* click-to-enlarge for plain images on a canvas */
+    .akls-view .akls-el[data-img="1"],.akls-gridview [data-img="1"]{cursor:zoom-in}
+    .aklb-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:clamp(16px,4vw,48px);
+      background:rgba(8,7,6,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);animation:akldIn .18s ease}
+    .aklb-ov img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px;box-shadow:0 40px 120px -30px rgba(0,0,0,.8);animation:akldIn .22s ease}
+    .aklb-btn{position:absolute;border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;
+      width:44px;height:44px;border-radius:999px;background:rgba(14,12,10,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+      color:#fff;font:400 22px/1 'Inter',system-ui,sans-serif;transition:background .18s,transform .18s}
+    .aklb-btn:hover{background:#1C1A14;transform:scale(1.06)}
+    .aklb-x{top:clamp(12px,3vw,26px);right:clamp(12px,3vw,26px);font-size:19px}
+    .aklb-prev{left:clamp(10px,2.5vw,26px);top:50%;margin-top:-22px}
+    .aklb-next{right:clamp(10px,2.5vw,26px);top:50%;margin-top:-22px}
+    .aklb-n{position:absolute;left:50%;transform:translateX(-50%);bottom:clamp(12px,3vw,26px);
+      font:500 12px/1 'Inter',system-ui,sans-serif;letter-spacing:.06em;color:rgba(255,255,255,.72);
+      background:rgba(14,12,10,.6);padding:8px 13px;border-radius:999px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+    @media (pointer:coarse){.aklb-btn{width:48px;height:48px}}
     .akld-card{position:relative;display:flex;width:min(1160px,96vw);height:min(860px,92vh);background:#FBF9F5;border-radius:22px;overflow:hidden;box-shadow:0 40px 120px -30px rgba(0,0,0,.7);animation:akldPop .26s cubic-bezier(.2,.8,.3,1.1) forwards}
     @keyframes akldPop{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
     .akld-media{position:relative;flex:1 1 52%;min-width:0;background:#E7E3DC;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:flex-basis .2s ease}
@@ -1359,6 +1375,22 @@
     var col = h("div", { class: "akls-gcol", style: "--ggap:" + (design.gridGap != null ? design.gridGap : 34) + "px" });
     items.forEach(function (el) { col.appendChild(gridRow(el, design)); });
     if (!items.length) col.appendChild(h("div", { class: "akls-gempty" }, ["Nothing to stack yet \u2014 add bento cards or media on the canvas and they show up here, full width."]));
+    /* same click-to-enlarge as the canvas — grid is the default view on phones, which is
+       exactly where a small reference image most needs to open full-screen */
+    var zoomable = items.filter(function (el) {
+      return el && !el.bento && el.content && el.content.type === "image" && el.content.src;
+    });
+    zoomable.forEach(function (el) {
+      var n = col.querySelector('[data-el-id="' + el.id + '"]');
+      if (n) n.setAttribute("data-img", "1");
+    });
+    col.addEventListener("click", function (e) {
+      var im = e.target && e.target.closest ? e.target.closest('[data-img="1"]') : null;
+      if (!im || !col.contains(im)) return;
+      var iid = im.getAttribute("data-el-id"), at = 0;
+      zoomable.forEach(function (x, ix) { if (x.id === iid) at = ix; });
+      openImageLightbox(zoomable.map(function (x) { return x.content.src; }), at);
+    });
     col.addEventListener("click", function (e) {
       var t = e.target && e.target.closest ? e.target.closest(".akls-bento") : null;
       if (!t || !col.contains(t)) return;
@@ -1393,6 +1425,21 @@
     holder.innerHTML = "";
     var stage = h("div", { class: "akls-stage", style: "width:" + DW + "px;height:" + DH + "px;background:" + (design.bg || "transparent") });
     (design.els || []).forEach(function (el) { if (el.hidden) return; stage.appendChild(renderEl(el, false)); });
+    /* plain images (not bento cards) enlarge on click, in reading order */
+    var zoomable = (design.els || []).filter(function (el) {
+      return !el.hidden && !el.bento && el.content && el.content.type === "image" && el.content.src;
+    }).sort(function (a, b) { return ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)); });
+    zoomable.forEach(function (el) {
+      var n = stage.querySelector('[data-el-id="' + el.id + '"]');
+      if (n) n.setAttribute("data-img", "1");
+    });
+    stage.addEventListener("click", function (e) {
+      var im = e.target && e.target.closest ? e.target.closest('[data-img="1"]') : null;
+      if (!im || !stage.contains(im)) return;
+      var iid = im.getAttribute("data-el-id"), at = 0;
+      zoomable.forEach(function (x, ix) { if (x.id === iid) at = ix; });
+      openImageLightbox(zoomable.map(function (x) { return x.content.src; }), at);
+    });
     stage.addEventListener("click", function (e) {
       var t = e.target && e.target.closest ? e.target.closest(".akls-bento") : null; if (!t || !stage.contains(t)) return;
       var id = t.getAttribute("data-el-id"), list = (design.els || []).filter(function (x) { return x.bento; }), el = null;
@@ -4482,6 +4529,43 @@
     return d;
   }
   /* Shared bento detail overlay — editor (editable) + published viewer (read-only). */
+  /* Plain images on a canvas open full-screen when clicked. They are stored at the size the
+     canvas draws them, so a reference shot stays light — this is what lets a visitor still
+     read the detail in it. Bento cards keep their own richer detail card. */
+  function openImageLightbox(list, idx) {
+    injectCSS();
+    if (!list || !list.length) return;
+    idx = Math.max(0, Math.min(idx || 0, list.length - 1));
+    var lock = document.body.style.overflow; document.body.style.overflow = "hidden";
+    var img = h("img", { alt: "" });
+    var ov = h("div", { class: "aklb-ov" }, [img]);
+    var count = list.length > 1 ? h("div", { class: "aklb-n" }, []) : null;
+    function paint() {
+      img.src = blobURL(list[idx]);
+      if (count) count.textContent = (idx + 1) + " / " + list.length;
+    }
+    function close() {
+      document.body.style.overflow = lock;
+      removeEventListener("keydown", onKey);
+      ov.remove();
+    }
+    function go(d) { idx = (idx + d + list.length) % list.length; paint(); }
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "ArrowRight" && list.length > 1) go(1);
+      else if (e.key === "ArrowLeft" && list.length > 1) go(-1);
+    }
+    ov.appendChild(h("button", { class: "aklb-btn aklb-x", title: "Close", onclick: close }, ["\u2715"]));
+    if (list.length > 1) {
+      ov.appendChild(h("button", { class: "aklb-btn aklb-prev", title: "Previous", onclick: function (e) { e.stopPropagation(); go(-1); } }, ["\u2039"]));
+      ov.appendChild(h("button", { class: "aklb-btn aklb-next", title: "Next", onclick: function (e) { e.stopPropagation(); go(1); } }, ["\u203A"]));
+      ov.appendChild(count);
+    }
+    ov.addEventListener("click", function (e) { if (e.target === ov || e.target === img) close(); });
+    addEventListener("keydown", onKey);
+    paint();
+    document.body.appendChild(ov);
+  }
   function openBentoDetail(el, sibs, editable, onChange) {
     injectCSS();
     sibs = (sibs && sibs.length) ? sibs : [el];
