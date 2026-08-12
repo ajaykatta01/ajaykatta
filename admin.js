@@ -79,33 +79,136 @@
      export can never reach the live site: at that size the browser spends longer DECODING the
      picture than downloading it. 2560px still covers a full-bleed block on a retina screen. */
   var IMG_MAX_EDGE = 2560, IMG_OVER_EDGE = 2592;   /* rebuilt files land on 2560±1 — only flag what is really bigger */
-  function readFileAsDataURL(file) {
-    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(file); })
-      .then(function (d) { return shrinkImageDataURL(d, file && file.type); });
+  /* This site ships WebP and nothing else: same picture, roughly a third of a JPEG's weight,
+     and one format to reason about. Nothing is converted behind the owner's back though —
+     drop in a PNG or a JPEG and the editor asks first, with both file sizes on screen. */
+  var _webpOK = null;
+  function canMakeWebp() {
+    if (_webpOK === null) {
+      try { var c = document.createElement("canvas"); c.width = c.height = 1; _webpOK = c.toDataURL("image/webp").indexOf("data:image/webp") === 0; }
+      catch (e) { _webpOK = false; }
+    }
+    return _webpOK;
   }
-  function shrinkImageDataURL(d, mime) {
+  function canvasToWebp(cv, q) {
+    q = (q == null ? 0.92 : q);
+    if (canMakeWebp()) { var o = cv.toDataURL("image/webp", q); if (o.indexOf("data:image/webp") === 0) return o; }
+    return cv.toDataURL("image/jpeg", q);
+  }
+  function fmtName(m) {
+    return ({ "image/jpeg": "JPEG", "image/jpg": "JPEG", "image/png": "PNG", "image/gif": "GIF", "image/webp": "WebP",
+      "image/svg+xml": "SVG", "image/avif": "AVIF", "image/heic": "HEIC", "image/heif": "HEIC", "image/tiff": "TIFF", "image/bmp": "BMP" })[m]
+      || String(m || "").replace("image/", "").toUpperCase() || "that file";
+  }
+  function dataKB(u) {
+    var b = Math.round((String(u).length - (String(u).indexOf(",") + 1)) * 0.75);
+    return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB";
+  }
+  function encodeAt(im, w, hgt, type, q) {
+    var cv = document.createElement("canvas");
+    cv.width = w; cv.height = hgt;
+    var cx = cv.getContext("2d");
+    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+    cx.drawImage(im, 0, 0, w, hgt);
+    var o = cv.toDataURL(type, q);
+    cv.width = cv.height = 1;
+    return o.slice(5).split(";")[0] === type ? o : null;
+  }
+  function readFileAsDataURL(file) {
+    var rep = {};
+    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(file); })
+      .then(function (d) { return shrinkImageDataURL(d, file && file.type, rep, file && file.name); })
+      .then(function (out) { webpNote(file, rep); return out; });
+  }
+  /* Shared with Layout Studio, so a picture dropped on the canvas gets the same size cap and
+     the same Convert-to-WebP question as one added to a block. */
+  window.AK_IMG = { fromFile: readFileAsDataURL, shrink: shrinkImageDataURL };
+  function shrinkImageDataURL(d, mime, rep, name) {
+    rep = rep || {};
     if (typeof d !== "string" || d.indexOf("data:image/") !== 0) return d;
     mime = mime || d.slice(5).split(";")[0];
-    if (mime === "image/gif" || mime.indexOf("image/svg") === 0) return d;   // animation / vector: leave alone
+    rep.from = mime;
+    if (mime === "image/gif" || mime.indexOf("image/svg") === 0) { rep.kept = true; return d; }   // animation / vector: leave alone
     return new Promise(function (res) {
       var im = new Image();
       im.onload = function () {
         var w = im.naturalWidth, hh = im.naturalHeight, m = Math.max(w, hh);
-        if (!m || m <= IMG_OVER_EDGE) return res(d);
-        var k = IMG_MAX_EDGE / m, cv = document.createElement("canvas");
-        cv.width = Math.round(w * k); cv.height = Math.round(hh * k);
-        try {
-          var cx = cv.getContext("2d");
-          cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
-          cx.drawImage(im, 0, 0, cv.width, cv.height);
-          var o = cv.toDataURL("image/webp", 0.92);
-          if (o.indexOf("data:image/webp") !== 0) o = cv.toDataURL("image/jpeg", 0.92);
-          res(o.length < d.length ? o : d);
-        } catch (e) { res(d); }
+        if (!m) { rep.failed = true; return res(d); }
+        var over = m > IMG_OVER_EDGE, k = over ? IMG_MAX_EDGE / m : 1;
+        var tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(hh * k));
+        if (over) rep.resized = w + "\u00d7" + hh + " \u2192 " + tw + "\u00d7" + th;
+        var sameType = mime === "image/png" ? "image/png" : "image/jpeg";
+        if (mime === "image/webp") {                       // already the site format: only the size cap applies
+          rep.to = mime;
+          if (!over) return res(d);
+          var re = null; try { re = encodeAt(im, tw, th, "image/webp", 0.92); } catch (e) {}
+          return res(re && re.length < d.length ? re : d);
+        }
+        var webp = null;
+        try { webp = encodeAt(im, tw, th, "image/webp", 0.92); } catch (e) {}
+        var keep = d;
+        if (over) { try { keep = encodeAt(im, tw, th, sameType, 0.92) || d; } catch (e) {} }
+        if (!webp) { rep.failed = true; rep.to = mime; return res(keep); }   // this browser cannot write WebP
+        askConvert({ name: name, from: mime, webp: webp, keep: keep, dim: tw + "\u00d7" + th }).then(function (choice) {
+          if (choice === "webp") { rep.to = "image/webp"; return res(webp); }
+          rep.to = mime; rep.declined = true; res(keep);
+        });
       };
-      im.onerror = function () { res(d); };
+      im.onerror = function () { rep.failed = true; res(d); };
       im.src = d;
     });
+  }
+  /* One question at a time even when a dozen files are dropped at once, with a "do the same
+     for the rest" so a batch is never a dozen taps. */
+  var _askChain = Promise.resolve(), _askAll = null, _askAllTimer;
+  function askConvert(info) {
+    var p = _askChain.then(function () {
+      if (_askAll) return _askAll;
+      return new Promise(function (done) {
+        var nm = String(info.name || "This image");
+        if (nm.length > 30) nm = nm.slice(0, 28) + "\u2026";
+        var remember = h("input", { type: "checkbox", style: "width:16px;height:16px;accent-color:var(--accent);cursor:pointer" });
+        /* Layout Studio and the detail viewer are full-screen overlays of their own, and an
+           upload can start from inside either. This question has to sit above everything or the
+           upload looks frozen behind a dialog nobody can see. */
+        var ov = h("div", { class: "ak-ov", style: "z-index:2147483600" });
+        function pick(choice) {
+          if (remember.checked) _askAll = choice;
+          clearTimeout(_askAllTimer);
+          _askAllTimer = setTimeout(function () { _askAll = null; }, 8000);
+          document.removeEventListener("keydown", onKey);
+          ov.remove(); done(choice);
+        }
+        function onKey(e) { if (e.key === "Escape") pick("keep"); }
+        var keepBtn = h("button", { class: "ak-btn ghost", onclick: function () { pick("keep"); } }, ["Keep " + fmtName(info.from)]);
+        var convBtn = h("button", { class: "ak-btn", onclick: function () { pick("webp"); } }, ["Convert to WebP"]);
+        ov.appendChild(h("div", { class: "ak-modal", style: "width:min(440px,100%)" }, [
+          h("h3", {}, ["Convert to WebP?"]),
+          h("div", { class: "sub" }, [nm + " \u00b7 " + fmtName(info.from) + " \u00b7 " + info.dim]),
+          h("div", { class: "ak-xrows", style: "margin-top:14px" }, [
+            h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["As WebP"]), h("span", { class: "v" }, [dataKB(info.webp)])]),
+            h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["As " + fmtName(info.from)]), h("span", { class: "v" }, [dataKB(info.keep)])])
+          ]),
+          h("div", { class: "ak-hint", style: "margin-top:10px" }, ["The rest of the site is WebP \u2014 same picture, a fraction of the weight. Keeping " + fmtName(info.from) + " leaves one odd file in media/."]),
+          h("label", { class: "ak-hint", style: "display:flex;align-items:center;gap:9px;margin-top:12px;cursor:pointer" }, [remember, h("span", {}, ["Do the same for the rest of this upload"])]),
+          h("div", { class: "ak-acts" }, [keepBtn, convBtn])
+        ]));
+        document.addEventListener("keydown", onKey);
+        document.body.appendChild(ov);
+        setTimeout(function () { convBtn.focus(); }, 30);
+      });
+    });
+    _askChain = p.then(function () {}, function () {});
+    return p;
+  }
+  function webpNote(file, rep) {
+    if (!rep || !rep.from || rep.from.indexOf("image/") !== 0) return;
+    var name = (file && file.name) || "That image", short = name.length > 26 ? name.slice(0, 24) + "\u2026" : name;
+    if (rep.kept) return showNoteToast("\u26A0 " + short + " stays " + fmtName(rep.from) + ". This site uses WebP \u2014 keep " + fmtName(rep.from) + " only if you need the " + (rep.from.indexOf("svg") > -1 ? "vector" : "animation") + ".", true);
+    if (rep.declined) return showNoteToast("\u26A0 " + short + " kept as " + fmtName(rep.from) + (rep.resized ? " \u00b7 " + rep.resized : "") + " \u2014 the rest of the site is WebP.", true);
+    if (rep.to === "image/webp" && rep.from !== "image/webp") return showNoteToast(fmtName(rep.from) + " converted to WebP" + (rep.resized ? " \u00b7 " + rep.resized : "") + " \u2713");
+    if (rep.failed && rep.from !== "image/webp") return showNoteToast("\u26A0 " + short + " is still " + fmtName(rep.from) + " \u2014 this browser could not write WebP. Re-upload it in Chrome or Edge.", true);
+    if (rep.resized) showNoteToast("Resized \u00b7 " + rep.resized + " \u2713");
   }
   /* ---- cover crop editor: pan + zoom, outputs a cropped data URL at the cover aspect ---- */
   function makeCropper(aspect, onChange) {
@@ -134,7 +237,7 @@
       var k = outW / s.w; // output px per stage px
       var sx = (-ox) / scale, sy = (-oy) / scale, sw = s.w / scale, sh = s.h / scale;
       try { cx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH); } catch (e) { return; }
-      onChange(cv.toDataURL("image/jpeg", 0.9));
+      onChange(canvasToWebp(cv, 0.9));
     }
     function fit() {
       var s = stageSize();
@@ -276,12 +379,23 @@
         });
       });
   }
+  var _saveWarned = false;
   function save() {
     try { if (typeof isUnlocked === "function" && isUnlocked()) localStorage.setItem(EDIT_FLAG, "1"); } catch (e) {}
     return idbSet("data:" + CFG.page, DATA).then(function (r) {
+      _saveWarned = false;
       // keeps Settings → Projects / Draft in step with newly added projects and files
       try { document.dispatchEvent(new CustomEvent("ak-cases-changed", { detail: { page: CFG.page } })); } catch (e) {}
       return r;
+    }, function () {
+      /* A failed write — a full storage quota on a project heavy with photos and video is the
+         usual reason — means what is on screen is no longer what is on disk. Reload and the
+         work is gone. It must never pass silently. */
+      if (!_saveWarned) {
+        _saveWarned = true;
+        try { showNoteToast("Couldn't save to this browser \u2014 its storage is full. Export your site data now (Settings \u2192 Export), and don't reload this tab until you have.", true); } catch (e) {}
+      }
+      return null;   // the copy in memory is still complete, so editing and exporting carry on
     });
   }
 
@@ -704,7 +818,7 @@
     body:not(.ak-on) .ak-case-head{display:none}
 
     /* undo toast */
-    .ak-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:400;
+    .ak-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:2147483500;
       display:flex;align-items:center;gap:14px;padding:11px 13px 11px 18px;border-radius:13px;
       background:var(--surface);border:1px solid var(--line);box-shadow:0 24px 60px -22px rgba(0,0,0,.55);
       opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:min(92vw,460px)}
@@ -718,6 +832,8 @@
     .ak-toast .x{background:none;border:none;color:var(--muted);cursor:pointer;display:flex;padding:5px;border-radius:7px;transition:.15s}
     .ak-toast .x:hover{color:var(--text);background:color-mix(in srgb,var(--text) 8%,transparent)}
     .ak-toast .x svg{width:15px;height:15px}
+    .ak-toast.warn{border-color:color-mix(in srgb,var(--accent) 58%,var(--line));box-shadow:0 24px 60px -22px rgba(0,0,0,.55),0 0 0 1px color-mix(in srgb,var(--accent) 18%,transparent)}
+    .ak-toast.warn .msg{color:var(--text)}
     ` }));
   }
 
@@ -1656,6 +1772,7 @@
     if (!_toastEl) { _toastEl = h("div", { class: "ak-toast" }); document.body.appendChild(_toastEl); }
     clearTimeout(_toastTimer);
     _toastEl.innerHTML = "";
+    _toastEl.classList.remove("warn");
     var dismiss = function () { _toastEl.classList.remove("on"); clearTimeout(_toastTimer); };
     var undoBtn = h("button", { class: "undo", html: UNDO_ICO + "<span>Undo</span>" });
     undoBtn.addEventListener("click", function () { dismiss(); if (undoFn) undoFn(); });
@@ -1666,6 +1783,21 @@
     _toastEl.appendChild(xBtn);
     requestAnimationFrame(function () { _toastEl.classList.add("on"); });
     _toastTimer = setTimeout(dismiss, 6500);
+  }
+  /* same toast, no Undo — for things that just happened to a file the owner dropped in */
+  function showNoteToast(message, warn) {
+    var X_ICO = '<svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    if (!_toastEl) { _toastEl = h("div", { class: "ak-toast" }); document.body.appendChild(_toastEl); }
+    clearTimeout(_toastTimer);
+    _toastEl.innerHTML = "";
+    _toastEl.classList.toggle("warn", !!warn);
+    var dismiss = function () { _toastEl.classList.remove("on"); clearTimeout(_toastTimer); };
+    var xBtn = h("button", { class: "x", title: "Dismiss", html: X_ICO });
+    xBtn.addEventListener("click", dismiss);
+    _toastEl.appendChild(h("span", { class: "msg" }, [message]));
+    _toastEl.appendChild(xBtn);
+    requestAnimationFrame(function () { _toastEl.classList.add("on"); });
+    _toastTimer = setTimeout(dismiss, warn ? 9000 : 5000);
   }
 
   function deleteItem(it) {
@@ -3457,32 +3589,110 @@
     })(o);
     return Object.keys(out);
   }
+  /* Decoding and re-encoding both differ per browser (Safari has ignored createImageBitmap's
+     resize options, iPad throws on very large decodes, older engines refuse image/webp from
+     toBlob). Every step below therefore has a fallback, and anything that still fails comes
+     back with a reason so the owner sees which file to handle by hand instead of a silent
+     "nothing needed changing". */
+  function _optDecodeImg(blob) {
+    return new Promise(function (res, rej) {
+      var u = URL.createObjectURL(blob), im = new Image();
+      im.onload = function () {
+        if (!im.naturalWidth) { URL.revokeObjectURL(u); return rej(new Error("empty")); }
+        res({ w: im.naturalWidth, h: im.naturalHeight, src: im, release: function () { URL.revokeObjectURL(u); } });
+      };
+      im.onerror = function () { URL.revokeObjectURL(u); rej(new Error("decode")); };
+      im.src = u;
+    });
+  }
+  function _optDecode(blob) {
+    if (typeof createImageBitmap === "function") {
+      return createImageBitmap(blob).then(function (bm) {
+        return { w: bm.width, h: bm.height, src: bm, release: function () { if (bm.close) bm.close(); } };
+      }, function () { return _optDecodeImg(blob); });
+    }
+    return _optDecodeImg(blob);
+  }
+  /* halve repeatedly before the final draw — one big downscale in a single drawImage is what
+     makes re-saved photos look soft */
+  function _optScaleTo(dec, w, h) {
+    var src = dec.src, curW = dec.w, curH = dec.h, guard = 0;
+    while (curW > w * 2 && guard++ < 8) {
+      var t = document.createElement("canvas");
+      t.width = Math.max(w, Math.round(curW / 2)); t.height = Math.max(h, Math.round(curH / 2));
+      var tx = t.getContext("2d");
+      tx.imageSmoothingEnabled = true; tx.imageSmoothingQuality = "high";
+      tx.drawImage(src, 0, 0, t.width, t.height);
+      src = t; curW = t.width; curH = t.height;
+    }
+    var cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    var cx = cv.getContext("2d");
+    if (!cx) throw new Error("no canvas");
+    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+    cx.drawImage(src, 0, 0, w, h);
+    return cv;
+  }
+  /* keep transparency where the original had it; otherwise prefer the format already on disk */
+  function _optTargets(p) {
+    /* WebP first everywhere — the site ships WebP only; the others exist purely as a fallback
+       for a browser that refuses to write it */
+    if (/\.png$/i.test(p)) return [["image/webp", 0.92], ["image/png", undefined], ["image/jpeg", 0.88]];
+    return [["image/webp", 0.92], ["image/jpeg", 0.88]];
+  }
+  function _optToBlob(cv, type, q) {
+    return new Promise(function (res) {
+      var done = false, t = setTimeout(function () { if (!done) { done = true; res(null); } }, 20000);
+      function give(b) { if (done) return; done = true; clearTimeout(t); res(b); }
+      try {
+        if (cv.toBlob) return cv.toBlob(give, type, q);
+        var d = cv.toDataURL(type, q), bin = atob(d.split(",")[1]), u8 = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        give(new Blob([u8], { type: (d.slice(5).split(";")[0] || type) }));
+      } catch (e) { give(null); }
+    });
+  }
+  function _optEncode(cv, list, origSize) {
+    var best = null, i = 0;
+    function step() {
+      if (i >= list.length) return Promise.resolve(best);
+      var t = list[i++];
+      return _optToBlob(cv, t[0], t[1]).then(function (b) {
+        if (b && b.size && (!best || b.size < best.size)) best = b;
+        if (best && best.size < origSize) return best;
+        return step();
+      });
+    }
+    return step();
+  }
   function _optImage(url) {
     return fetch(url, { cache: "no-store" })
-      .then(function (r) { return r.ok ? r.blob() : null; })
+      .then(function (r) { if (!r.ok) throw new Error("not on the server (" + r.status + ")"); return r.blob(); })
       .then(function (blob) {
-        if (!blob || blob.type.indexOf("image/") !== 0 || blob.type === "image/gif" || blob.type.indexOf("svg") > -1) return null;
-        return createImageBitmap(blob).then(function (bm) {
-          var long = Math.max(bm.width, bm.height), from = bm.width + "\u00d7" + bm.height;
-          if (bm.close) bm.close();
-          if (long <= IMG_OVER_EDGE) return null;
-          return createImageBitmap(blob, { resizeWidth: Math.round(bm.width * IMG_MAX_EDGE / long), resizeQuality: "high" }).then(function (sm) {
-            var cv = document.createElement("canvas");
-            cv.width = sm.width; cv.height = sm.height;
-            var cx = cv.getContext("2d");
-            cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
-            cx.drawImage(sm, 0, 0);
-            if (sm.close) sm.close();
-            return new Promise(function (res) { cv.toBlob(res, "image/webp", 0.92); }).then(function (out) {
-              if (!out || out.size >= blob.size) return null;
-              return out.arrayBuffer().then(function (ab) {
-                return { bytes: new Uint8Array(ab), was: blob.size, now: out.size, from: from, to: cv.width + "\u00d7" + cv.height };
-              });
+        if (!blob || !blob.size) throw new Error("empty file");
+        var t = blob.type || "";
+        if (t === "image/gif" || t.indexOf("svg") > -1 || (t && t.indexOf("image/") !== 0)) return { skip: "not a resizable image" };
+        return _optDecode(blob).then(function (dec) {
+          var long = Math.max(dec.w, dec.h), from = dec.w + "\u00d7" + dec.h;
+          if (long <= IMG_OVER_EDGE) { dec.release(); return { skip: "already " + from }; }
+          var w = Math.max(1, Math.round(dec.w * IMG_MAX_EDGE / long)),
+              hh = Math.max(1, Math.round(dec.h * IMG_MAX_EDGE / long)), cv;
+          try { cv = _optScaleTo(dec, w, hh); }
+          catch (e) { dec.release(); return { fail: "too big for this browser to redraw — try a desktop browser" }; }
+          dec.release();
+          return _optEncode(cv, _optTargets(url), blob.size).then(function (out) {
+            cv.width = cv.height = 1;   /* release the backing store on iOS */
+            if (!out || !out.size) return { fail: "this browser could not re-save it" };
+            /* a smaller file is the goal, but halving the pixels already cuts decode time —
+               accept a near-identical size, reject only a genuinely worse one */
+            if (out.size > blob.size * 1.15) return { skip: "already efficient at " + from };
+            return out.arrayBuffer().then(function (ab) {
+              return { bytes: new Uint8Array(ab), was: blob.size, now: out.size, from: from, to: w + "\u00d7" + hh };
             });
           });
-        });
+        }, function () { return { fail: "could not open this file — it may be damaged" }; });
       })
-      .catch(function () { return null; });
+      .catch(function (e) { return { fail: (e && e.message) || "could not be read" }; });
   }
   var _optMeas = {}, _optLastIx = null;
   var _OPT_LABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
@@ -3491,8 +3701,9 @@
     return fetch(url).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) {
       if (!b || b.type.indexOf("image/") !== 0 || b.type === "image/gif" || b.type.indexOf("svg") > -1) return (_optMeas[url] = { skip: true });
       return createImageBitmap(b).then(function (bm) {
-        var m = { w: bm.width, h: bm.height, size: b.size };
+        var m = { w: bm.width, h: bm.height, size: b.size, fmt: b.type };
         m.over = Math.max(m.w, m.h) > IMG_OVER_EDGE;
+        m.notWebp = b.type !== "image/webp";
         if (bm.close) bm.close();
         return (_optMeas[url] = m);
       });
@@ -3532,10 +3743,11 @@
     return { all: Object.keys(all), groups: gs };
   }
   function _optStat(paths) {
-    var s = { total: paths.length, known: 0, over: 0, zipped: 0, bytes: 0 };
+    var s = { total: paths.length, known: 0, over: 0, zipped: 0, bytes: 0, notWebp: 0, other: [] };
     paths.forEach(function (p) {
       var m = _optMeas[p]; if (!m) return;
       s.known++;
+      if (m.notWebp && !m.skip) { s.notWebp++; if (s.other.length < 8) s.other.push(p + " \u00b7 " + fmtName(m.fmt)); }
       if (m.zipped) s.zipped++;
       else if (m.over) { s.over++; s.bytes += m.size; }
     });
@@ -3578,9 +3790,10 @@
           Object.keys(rowFor).forEach(function (k) {
             var e = rowFor[k], s = _optStat(e.g.paths);
             if (s.known < s.total) { e.val.textContent = s.known + " / " + s.total + " checked"; return; }
-            if (s.over) { e.val.textContent = s.over + " of " + s.total + " oversized \u00b7 " + _optSizeLabel(s.bytes); e.btn.style.display = ""; return; }
+            var fmtTail = s.notWebp ? " \u00b7 " + s.notWebp + " not WebP" : "";
+            if (s.over) { e.val.textContent = s.over + " of " + s.total + " oversized \u00b7 " + _optSizeLabel(s.bytes) + fmtTail; e.btn.style.display = ""; return; }
             e.btn.style.display = "none";
-            e.val.textContent = s.zipped ? (s.zipped + " fixed \u2014 in your ZIP \u2713") : (s.total + " image" + (s.total === 1 ? "" : "s") + " \u00b7 all good \u2713");
+            e.val.textContent = (s.zipped ? (s.zipped + " fixed \u2014 in your ZIP \u2713") : (s.total + " image" + (s.total === 1 ? "" : "s") + " \u00b7 all good \u2713")) + fmtTail;
           });
         }
         paint();
@@ -3594,11 +3807,24 @@
           status.textContent = s.over
             ? (s.over + " of " + s.total + " images are oversized \u2014 pick a scope below.")
             : ("All " + s.total + " images are already the right size \u2014 nothing to do.");
+          if (s.notWebp) {
+            var box = h("div", { style: "margin-top:12px" }, [
+              h("div", { class: "ak-xsec" }, [s.notWebp + " published image" + (s.notWebp === 1 ? " is" : "s are") + " not WebP"])
+            ]);
+            box.appendChild(h("div", { class: "ak-xrows" }, s.other.map(function (t) {
+              var bits = t.split(" \u00b7 ");
+              return h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, [bits[0]]), h("span", { class: "v", style: "color:var(--accent)" }, [bits[1]])]);
+            })));
+            box.appendChild(h("div", { class: "ak-hint", style: "margin-top:8px" }, [
+              "This site is WebP-only. Re-upload " + (s.notWebp === 1 ? "this one" : "these") + " through the editor \u2014 anything you drop in is converted to WebP automatically \u2014 then publish."
+            ]));
+            rowsWrap.appendChild(box);
+          }
         });
         function run(g) {
           var queue = g.paths.filter(function (p) { var m = _optMeas[p]; return m && m.over && !m.zipped; });
-          if (!queue.length) return;
-          var count = queue.length, done = 0, fixed = [], saved = 0;
+          if (!queue.length) { status.textContent = "Nothing left to optimise in " + g.label + "."; return; }
+          var count = queue.length, done = 0, fixed = [], saved = 0, failed = [];
           steps.innerHTML = "";
           var detail = h("div", { class: "ak-xrows" });
           steps.appendChild(h("div", { class: "ak-xsec" }, [g.label]));
@@ -3610,19 +3836,39 @@
             status.textContent = "Optimising " + (done + 1) + " of " + count + "\u2026";
             _optImage(p).then(function (r) {
               done++;
-              if (r) {
+              r = r || { fail: "could not be read" };
+              if (r.bytes) {
                 fixed.push({ name: p, bytes: r.bytes }); saved += (r.was - r.now);
                 var m = _optMeas[p]; if (m) { m.zipped = true; m.size = r.now; }
                 detail.appendChild(h("div", { class: "ak-xrow" }, [
                   h("span", { class: "k" }, [p.split("/").pop()]),
                   h("span", { class: "v" }, [r.from + " \u2192 " + r.to + " \u00b7 " + Math.round(r.was / 1024) + " \u2192 " + Math.round(r.now / 1024) + " KB"])
                 ]));
+              } else {
+                var why = r.fail || r.skip;
+                if (r.skip) { var mm = _optMeas[p]; if (mm) mm.over = false; }
+                else failed.push(p);
+                detail.appendChild(h("div", { class: "ak-xrow" }, [
+                  h("span", { class: "k" }, [p.split("/").pop()]),
+                  h("span", { class: "v", style: r.fail ? "color:var(--accent)" : "" }, [(r.fail ? "\u26A0 " : "") + why])
+                ]));
               }
               paint(); nextOne();
             });
           })();
+          function failNote() {
+            steps.appendChild(h("div", { class: "ak-hint", style: "margin-top:8px" }, [
+              failed.length + " file" + (failed.length === 1 ? " was" : "s were") + " skipped above. Re-run this on a desktop Chrome or Edge window \u2014 it handles the very large ones \u2014 or resize " + (failed.length === 1 ? "it" : "them") + " to " + IMG_MAX_EDGE + "px in Preview/Photos and re-upload."
+            ]));
+          }
           function finish() {
-            if (!fixed.length) { status.textContent = "Nothing needed changing in " + g.label + "."; return; }
+            if (!fixed.length) {
+              status.textContent = failed.length
+                ? (failed.length + " image" + (failed.length === 1 ? "" : "s") + " could not be re-saved here \u2014 see below.")
+                : ("Nothing needed changing in " + g.label + ".");
+              if (failed.length) failNote();
+              return;
+            }
             var zip = makeZip(fixed.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; }));
             var a2 = h("a", { href: URL.createObjectURL(zip), download: "optimised-images.zip" });
             document.body.appendChild(a2); a2.click(); a2.remove();
@@ -3633,6 +3879,7 @@
               h("li", {}, ["From Ajaykatta_Website / GitRepo, copy the media folder into your repo \u2014 replace the old files."]),
               h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
             ]));
+            if (failed.length) failNote();
           }
         }
       });
@@ -3652,11 +3899,17 @@
       if (s.known < s.total) return txt("checking " + s.known + " / " + s.total + "\u2026");
       if (s.over) {
         val.innerHTML = "";
-        val.appendChild(h("strong", { style: "color:var(--accent)" }, ["\u26A0 " + s.over + " oversized"]));
+        val.appendChild(h("strong", { style: "color:var(--accent)" }, ["\u26A0 " + s.over + " oversized" + (s.notWebp ? " \u00b7 " + s.notWebp + " not WebP" : "")]));
         val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem;margin-left:8px", onclick: function () { optimiseMedia(); } }, ["Optimise"]));
         return;
       }
-      txt(s.zipped ? (s.zipped + " fixed \u2014 drop your ZIP in first") : ("All " + s.total + " optimised \u2713"));
+      if (s.notWebp) {
+        val.innerHTML = "";
+        val.appendChild(h("strong", { style: "color:var(--accent)" }, ["\u26A0 " + s.notWebp + " not WebP"]));
+        val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem;margin-left:8px", onclick: function () { optimiseMedia(); } }, ["Show"]));
+        return;
+      }
+      txt(s.zipped ? (s.zipped + " fixed \u2014 drop your ZIP in first") : ("All " + s.total + " optimised \u00b7 WebP \u2713"));
     }
     function check() {
       txt("Reading\u2026");
@@ -3688,6 +3941,28 @@
     else { bytes = new TextEncoder().encode(decodeURIComponent(body)); }
     return { mime: (meta.split(";")[0] || ""), bytes: bytes };
   }
+  /* Same result, but the browser does the base64 for us. atob() + a per-character loop over a
+     100 MB video is where the export used to stall or run the tab out of memory — and a video
+     that never finished decoding was a video missing from the ZIP. */
+  function _dataBytesAsync(d) {
+    var mime = (d.slice(5).split(";")[0] || "").split(",")[0];
+    if (typeof fetch === "function") {
+      return fetch(d).then(function (r) { return r.arrayBuffer(); })
+        .then(function (b) { return { mime: mime, bytes: new Uint8Array(b) }; })
+        ["catch"](function () { return _dataURLBytes(d); });
+    }
+    return Promise.resolve(_dataURLBytes(d));
+  }
+  function _kindOf(mime, ext) {
+    var m = String(mime || "").toLowerCase(), e = String(ext || "").toLowerCase();
+    if (m.indexOf("image/") === 0 || /^(webp|jpe?g|png|gif|svg|avif)$/.test(e)) return "photo";
+    if (m.indexOf("video/") === 0 || /^(mp4|webm|mov|m4v|ogv)$/.test(e)) return "video";
+    if (m.indexOf("audio/") === 0 || /^(mp3|wav|m4a|aac|oga|ogg)$/.test(e)) return "audio";
+    if (m === "application/pdf" || e === "pdf") return "pdf";
+    if (m.indexOf("model/") === 0 || /^(glb|gltf|usdz|obj|fbx|stl)$/.test(e)) return "model";
+    return "other";
+  }
+  function _sizeLabel(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
   /* ---- export: tiny JSON + media/ folder, zipped (GitHub & Vercel ready) ---- */
   function exportData(silent) {
     silent = (silent === true);
@@ -3711,7 +3986,10 @@
           else if (pub[k] && pub[k].items) { bundle[k] = pub[k]; }          // untouched — keep what's already published
           else if (localUsable) { bundle[k] = local; }                      // no published copy yet — use local
         });
-        if (!bundle[CFG.page]) bundle[CFG.page] = DATA;                      // safety net for the current page
+        // The page open right now: what is on screen is fresher than anything on disk. If a save
+        // failed (full quota), the stored copy is stale — shipping it would drop the new work.
+        if (DATA && DATA.items && DATA.items.length) { bundle[CFG.page] = DATA; }
+        else if (!bundle[CFG.page]) { bundle[CFG.page] = DATA; }
 
         // ---- HOME PAGE content (certificates + project cover photos) ----
         // These live in localStorage on the home page, NOT in any project's IndexedDB.
@@ -3735,8 +4013,9 @@
 
         bundle = JSON.parse(JSON.stringify(bundle)); // clone — never corrupt live data
 
-        var files = [], used = {}, seen = {}, fetches = [];
+        var files = [], used = {}, seen = {}, made = {}, fetches = [];
         var resumeIncluded = false;
+        var mstat = { photo: 0, video: 0, audio: 0, pdf: 0, model: 0, other: 0, bytes: 0, missing: [] };
         // include a replaced résumé PDF (admin) at media/home/ — the exact path the pages reference
         fetches.push(idbGet("ak-resume-pdf").then(function (d) {
           if (d && d.indexOf("data:") === 0) { var got = _dataURLBytes(d); files.push({ name: "media/home/Ajay-Katta-uiux-product-designer-2026.pdf", bytes: got.bytes }); resumeIncluded = true; }
@@ -3744,28 +4023,40 @@
         // Each asset is filed under media/<folder>/ where <folder> is the project key
         // (ui-ux | gen-ai | 3d | home). nameFor returns the path AFTER "media/".
         function nameFor(folder, base, ext) {
-          base = base || "asset"; var dir = folder ? folder + "/" : "";
+          base = (base || "asset").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "asset";
+          var dir = folder ? folder + "/" : "";
           var nm = dir + base + "." + ext, n = 2;
           while (used[nm]) nm = dir + base + "-" + (n++) + "." + ext;
           used[nm] = 1; return nm;
         }
         function stash(ref, folder, hintBase, hintExt) {
           if (!ref || typeof ref !== "string") return ref;
-          if (ref.indexOf("data:") === 0) {                 // freshly uploaded image (inline data URL)
+          if (made[ref]) return ref;                        // already a file we produced this run
+          if (ref.indexOf("data:") === 0) {                 // freshly uploaded file (inline data URL)
             if (seen[ref]) return seen[ref];
-            var got = _dataURLBytes(ref);
-            var path = "media/" + nameFor(folder, _slug(hintBase), _extFor(got.mime, hintExt));
-            files.push({ name: path, bytes: got.bytes });
-            seen[ref] = path; return path;
+            var mime = (ref.slice(5).split(";")[0] || "").split(",")[0];
+            var ext = _extFor(mime, hintExt);
+            var path = "media/" + nameFor(folder, _slug(hintBase), ext);
+            seen[ref] = path; made[path] = 1;
+            mstat[_kindOf(mime, ext)]++;
+            fetches.push(_dataBytesAsync(ref).then(function (got) {
+              files.push({ name: path, bytes: got.bytes });
+              mstat.bytes += got.bytes.length;
+            })["catch"](function () { mstat.missing.push(path); }));
+            return path;
           }
           if (/^media\//i.test(ref)) {                      // already-published file — re-bundle AND migrate it into media/<folder>/
             if (seen[ref]) return seen[ref];
             var basename = ref.replace(/^media\//, "").replace(/^.*\//, "");
             var dot = basename.lastIndexOf("."), b = dot > 0 ? basename.slice(0, dot) : basename, e = dot > 0 ? basename.slice(dot + 1) : "bin";
-            var path = "media/" + nameFor(folder, b, e);
-            seen[ref] = path;
-            fetches.push(fetch(ref).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).then(function (buf) { if (buf) files.push({ name: path, bytes: new Uint8Array(buf) }); }).catch(function () {}));
-            return path;
+            var path2 = "media/" + nameFor(folder, b, e);
+            seen[ref] = path2; made[path2] = 1;
+            mstat[_kindOf("", e)]++;
+            fetches.push(fetch(ref).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).then(function (buf) {
+              if (buf) { files.push({ name: path2, bytes: new Uint8Array(buf) }); mstat.bytes += buf.byteLength; }
+              else { mstat.missing.push(ref); }
+            })["catch"](function () { mstat.missing.push(ref); }));
+            return path2;
           }
           return ref; // root-level file (e.g. cert-google-ux.webp) or external URL — leave untouched
         }
@@ -3775,21 +4066,52 @@
             if (b.src) b.src = stash(b.src, folder, base + "-" + (b.type || "asset") + "-" + (i + 1), b.format);
           });
         }
+        /* Blocks are only ONE of the places a file lives. A Layout-Studio canvas keeps its
+           pictures in studio.els[].content.src, a block's shapes in deco.els[], a canvas block
+           in design.els[] — and none of those were ever extracted, so those photos and videos
+           stayed as base64 inside portfolio-data.json: nothing in media/, and a data file tens
+           of MB heavy. This sweeps every nested object so a file cannot hide again, wherever a
+           future feature decides to keep it. */
+        var INLINE_MIN = 2048;   // under this a data: URL stays inline — not worth its own file
+        var NOISE = { content: 1, els: 1, design: 1, blocks: 1, items: 1, cases: 1, src: 1, meta: 1, info: 1 };
+        function sweep(node, folder, base, depth) {
+          if (!node || typeof node !== "object" || depth > 12) return;
+          if (Array.isArray(node)) {
+            node.forEach(function (v, i) { if (v && typeof v === "object") sweep(v, folder, base + "-" + (i + 1), depth + 1); });
+            return;
+          }
+          if (node.type === "prototype") return;            // embed URL, not a file
+          Object.keys(node).forEach(function (k) {
+            var v = node[k];
+            if (typeof v === "string") {
+              var isData = v.indexOf("data:") === 0, isMedia = /^media\//i.test(v);
+              if (!isData && !isMedia) return;
+              if (isData && v.length < INLINE_MIN) return;   // tiny inline glyph — ships fine inside the JSON
+              node[k] = stash(v, folder, base + (NOISE[k] ? "" : "-" + _slug(k)), node.format);
+              return;
+            }
+            if (v && typeof v === "object") sweep(v, folder, base + (NOISE[k] ? "" : "-" + _slug(k)), depth + 1);
+          });
+        }
         Object.keys(bundle).forEach(function (page) {
           if (page === "home") return; // home images handled separately below
           var d = bundle[page] || {};
           (d.items || []).forEach(function (it, i) {
-            if (it.cover) it.cover = stash(it.cover, page, (_slug(it.title) || (page + "-item")) + "-cover");
-            if (it.homeBg && it.homeBg.video) it.homeBg.video = stash(it.homeBg.video, page, (_slug(it.title) || (page + "-item")) + "-home-bg");
-            if (it.homeBg && it.homeBg.image) it.homeBg.image = stash(it.homeBg.image, page, (_slug(it.title) || (page + "-item")) + "-home-bg-image");
-            walkBlocks(it.blocks, page, _slug(it.title) || (page + "-" + i));
+            var base = _slug(it.title) || (page + "-" + i);
+            if (it.cover) it.cover = stash(it.cover, page, base + "-cover");
+            if (it.homeBg && it.homeBg.video) it.homeBg.video = stash(it.homeBg.video, page, base + "-home-bg");
+            if (it.homeBg && it.homeBg.image) it.homeBg.image = stash(it.homeBg.image, page, base + "-home-bg-image");
+            walkBlocks(it.blocks, page, base);
+            sweep(it, page, base, 0);                       // canvas layouts, shapes, anything nested
           });
           var cases = d.cases || {};
           Object.keys(cases).forEach(function (ck) {
             var c = cases[ck] || {};
             if (c.info && c.info.cover) c.info.cover = stash(c.info.cover, page, ck + "-cover");
             walkBlocks(c.blocks, page, ck);
+            sweep(c, page, ck, 0);
           });
+          sweep(d, page, page, 0);                          // page-level extras (canvas themes, defaults)
         });
 
         // stash home-page images (certificate scans + project cover photos) under media/home/
@@ -3801,11 +4123,16 @@
             bundle.home.covers[k] = stash(bundle.home.covers[k], "home", k + "-cover");
           });
           if (bundle.home.profile) bundle.home.profile = stash(bundle.home.profile, "home", "profile-photo");
+          sweep(bundle.home, "home", "home", 0);
         }
 
         return Promise.all(fetches).then(function () {
-          if (silent) return { json: JSON.stringify(bundle, null, 2), files: files };
+          var jsonText = JSON.stringify(bundle, null, 2);
+          if (silent) return { json: jsonText, files: files };
           var mediaCount = files.length; // media only — JSON not added yet
+          // Nothing big should be left inline: a data: URL still in here means a file the ZIP does not
+          // carry. Tiny ones are deliberate (see INLINE_MIN) and must not raise a false alarm.
+          var leftInline = (jsonText.match(/"data:[^"]*"/g) || []).filter(function (s) { return s.length >= INLINE_MIN; }).length;
           function counts(obj) { var o = { total: 0 }; keys.forEach(function (k) { var n = (obj && obj[k] && obj[k].items) ? obj[k].items.length : 0; o[k] = n; o.total += n; }); return o; }
           var nowC = counts(bundle);
           function doneModal(info) {
@@ -3851,7 +4178,7 @@
           }
           function legacyZip() {
             var f2 = files.slice();
-            f2.unshift({ name: "portfolio-data.json", bytes: new TextEncoder().encode(JSON.stringify(bundle, null, 2)) });
+            f2.unshift({ name: "portfolio-data.json", bytes: new TextEncoder().encode(jsonText) });
             f2 = f2.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; });
             var zip = makeZip(f2);
             var a = h("a", { href: URL.createObjectURL(zip), download: "portfolio-site-data.zip" });
@@ -3862,7 +4189,7 @@
           function proceed(mode) {
             if (location.protocol === "file:") return legacyZip();
             ensurePkg().then(function (pkg) {
-              return pkg.full({ mode: mode === "delta" ? "delta" : "full", portfolioJSON: JSON.stringify(bundle, null, 2), portfolioFiles: files });
+              return pkg.full({ mode: mode === "delta" ? "delta" : "full", portfolioJSON: jsonText, portfolioFiles: files });
             }).then(function (info) {
               if (info && info.empty) { alert("Nothing to publish \u2014 the live site already matches your changes."); return; }
               markCasesPublished();
@@ -3900,7 +4227,22 @@
                 row("R\u00e9sum\u00e9 PDF", resumeIncluded ? "Updated \u2014 in ZIP" : "Unchanged")
               ]),
               h("div", { class: "ak-xsec" }, ["Bundle"]),
-              h("div", { class: "ak-xrows" }, [row("Media files", mediaCount), optCheckRow()]),
+              h("div", { class: "ak-xrows" }, [
+                row("Photos", mstat.photo),
+                mstat.video ? row("Video", mstat.video) : null,
+                mstat.audio ? row("Audio", mstat.audio) : null,
+                mstat.pdf ? row("PDFs", mstat.pdf) : null,
+                mstat.model ? row("3D models", mstat.model) : null,
+                row("Files in media/", mediaCount + " \u00b7 " + _sizeLabel(mstat.bytes)),
+                row("Data file", _sizeLabel(jsonText.length)),
+                optCheckRow()
+              ].filter(Boolean)),
+              (leftInline || mstat.missing.length) ? h("div", { class: "ak-xwarn" }, [
+                h("strong", {}, ["\u26A0 " + (leftInline + mstat.missing.length) + " file" + ((leftInline + mstat.missing.length) === 1 ? "" : "s") + " could not be packed."]),
+                leftInline ? h("div", { style: "margin-top:6px" }, [leftInline + " still sitting inside the data file instead of media/."]) : null,
+                mstat.missing.length ? h("div", { style: "margin-top:6px" }, ["Couldn't read: " + mstat.missing.slice(0, 4).join(", ") + (mstat.missing.length > 4 ? " +" + (mstat.missing.length - 4) + " more" : "")]) : null,
+                h("div", { style: "margin-top:6px" }, ["Tell Claude before you publish \u2014 those items would go missing on the live site."])
+              ].filter(Boolean)) : null,
               warn.length ? h("div", { class: "ak-xwarn" }, [
                 h("strong", {}, ["\u26A0 This export has FEWER projects than your live site."]),
                 h("div", { style: "margin-top:6px" }, warn.map(function (w) { return h("div", {}, ["\u2022 " + w]); })),
@@ -3908,9 +4250,10 @@
               ]) : null,
               h("div", { class: "ak-xsec" }, ["Download"]),
               h("div", { class: "ak-xrows" }, [
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Only my changes"]), h("span", { class: "v" }, ["small \u2014 just the differing files"])]),
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Whole website"]), h("span", { class: "v" }, ["every page, script and photo"])])
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Only my changes"]), h("span", { class: "v" }, ["about " + _sizeLabel(mstat.bytes + jsonText.length)])]),
+                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Whole website"]), h("span", { class: "v" }, ["much larger \u2014 every page and photo"])])
               ]),
+              h("div", { class: "ak-hint", style: "margin-top:8px" }, ["\u201CWhole website\u201D also re-downloads every photo already on your live site, so it is always the bigger file. Both publish the same content \u2014 pick \u201COnly my changes\u201D unless you want a full backup."]),
               h("div", { class: "ak-acts" }, [
                 h("button", { class: "ak-btn ghost", onclick: close }, ["Cancel"]),
                 h("button", { class: "ak-btn ghost", onclick: function () { close(); proceed("full"); } }, ["Whole website"]),
@@ -3929,7 +4272,7 @@
     if (window.AK_PACKAGE) return Promise.resolve(window.AK_PACKAGE);
     return new Promise(function (res, rej) {
       var id = "ak-package-js";
-      if (!document.getElementById(id)) document.body.appendChild(h("script", { id: id, src: "site-package.js?v=1" }));
+      if (!document.getElementById(id)) document.body.appendChild(h("script", { id: id, src: "site-package.js?v=2" }));
       var tries = 0;
       (function poll() {
         if (window.AK_PACKAGE) return res(window.AK_PACKAGE);

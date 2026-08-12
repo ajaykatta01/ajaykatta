@@ -123,6 +123,15 @@ is only downloaded once an admin session is unlocked, so visitors never pay for 
 
 ## Speed — how the site stays fast
 
+**The site is WebP-only, and it asks before converting.** Drop a PNG, JPEG or HEIC anywhere in
+the editor and a small dialog appears: **Convert to WebP** or **Keep PNG**, with both file
+sizes side by side so the choice is obvious. Tick *do the same for the rest of this upload* and
+a batch of twenty asks once. Keep the original and a reminder says the rest of the site is
+WebP. GIF and SVG (animation and vector, which WebP can't replace) are never touched — they
+just get the reminder. Should a browser be unable to write WebP, the note names the file so it
+can be re-uploaded from Chrome or Edge. **Admin → Optimise images** lists any published file
+that is not WebP.
+
 **Images are capped at 2560px on the long edge.** Anything you drop into the editor is
 downscaled to that before it is stored, so a 7000px Figma export can't reach the live site.
 At those sizes the phone spends longer *decoding* the picture than downloading it, and the
@@ -138,12 +147,11 @@ project — so a newly added project can be optimised on its own. Each row shows
 its images are oversized before you commit to anything, and the **Publish** tab and the
 **Export site data** dialog both show the same check, so nothing oversized ships unnoticed.
 
-Two files still need this pass — they were too large to convert here:
-
-```
-media/ui-ux/motocare-image-15.webp   5684×16383  2.4 MB
-media/ui-ux/motocare-image-17.webp   5684×11676  4.9 MB
-```
+Very large files (the two 5684×16383 and 5684×11676 Motocare exports, for example) used to
+be skipped without saying so — the browser refused them in one go. They are now scaled down
+in halving steps, and anything a browser still can't re-save is listed by name with the
+reason, so nothing disappears quietly. If a file is listed, run the pass again in desktop
+Chrome or Edge, or resize it to 2560px by hand and re-upload it.
 
 Also in place: covers on the category pages are `<link rel="preload">`ed in the HTML so they
 start downloading before `admin.js` and `portfolio-data.json` have even arrived; three.js and

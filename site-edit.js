@@ -620,6 +620,8 @@
     });
   }
   function readDataURL(f) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(f); }); }
+  /* WebP only — same rule as the case-study editor, and the same manners: the sheet asks
+     before anything is re-saved, and if the original format is kept the owner is told. */
   function compress(dataUrl, maxPx, q) {
     return new Promise(function (res) {
       var im = new Image();
@@ -629,41 +631,54 @@
         cv.width = Math.round(w * s); cv.height = Math.round(ht * s);
         var cx = cv.getContext("2d"); cx.imageSmoothingQuality = "high";
         cx.drawImage(im, 0, 0, cv.width, cv.height);
-        var out;
+        var out, fmt = "image/webp";
         try { out = cv.toDataURL("image/webp", q); if (out.indexOf("image/webp") < 0) throw 0; }
-        catch (e) { out = cv.toDataURL("image/jpeg", q); }
-        res({ url: out, w: cv.width, h: cv.height });
+        catch (e) { out = cv.toDataURL("image/jpeg", q); fmt = "image/jpeg"; }
+        res({ url: out, w: cv.width, h: cv.height, fmt: fmt });
       };
       im.onerror = function () { res(null); };
       im.src = dataUrl;
     });
+  }
+  function fmtName(m) {
+    return ({ "image/jpeg": "JPEG", "image/jpg": "JPEG", "image/png": "PNG", "image/gif": "GIF", "image/webp": "WebP",
+      "image/svg+xml": "SVG", "image/avif": "AVIF", "image/heic": "HEIC", "image/heif": "HEIC" })[m]
+      || String(m || "").replace("image/", "").toUpperCase() || "this file";
   }
   function pickImage(el, key) {
     pickFile("image/*").then(function (f) {
       if (!f) return;
       readDataURL(f).then(function (orig) {
         compress(orig, 1600, 0.82).then(function (small) {
+          var srcFmt = f.type || String(orig).slice(5).split(";")[0];
+          var wasWebp = srcFmt === "image/webp";
           sheet(function (box, close) {
             box.appendChild(h("h3", {}, ["Use this photo?"]));
             box.appendChild(h("img", { class: "aks-prev", src: (small && small.url) || orig, alt: "" }));
-            box.appendChild(h("div", { class: "sub" }, [f.name + " · " + kb(f.size)]));
-            if (small) box.appendChild(h("button", { class: "aks-opt", onclick: function () { apply(small.url); close(); } }, [
-              h("div", {}, [h("div", { class: "big" }, ["Optimise (recommended)"]), h("div", { class: "sm" }, [small.w + "×" + small.h + " · fast to load"])]),
+            box.appendChild(h("div", { class: "sub" }, [f.name + " · " + kb(f.size) + " · " + fmtName(srcFmt)]));
+            if (!wasWebp) box.appendChild(h("div", { class: "sub", style: "color:var(--accent)" }, [
+              small && small.fmt === "image/webp"
+                ? "⚠ This site uses WebP only — optimising converts this " + fmtName(srcFmt) + " for you."
+                : "⚠ This site uses WebP only, and this browser cannot write WebP. Re-upload in Chrome or Edge."
+            ]));
+            if (small) box.appendChild(h("button", { class: "aks-opt", onclick: function () { apply(small.url, small.fmt); close(); } }, [
+              h("div", {}, [h("div", { class: "big" }, [wasWebp ? "Optimise (recommended)" : "Convert to WebP (recommended)"]), h("div", { class: "sm" }, [small.w + "×" + small.h + " · " + fmtName(small.fmt) + " · fast to load"])]),
               h("span", { class: "tag" }, [kb(dataBytes(small.url))])
             ]));
-            box.appendChild(h("button", { class: "aks-opt", onclick: function () { apply(orig); close(); } }, [
-              h("div", {}, [h("div", { class: "big" }, ["Keep original"]), h("div", { class: "sm" }, ["Full quality, larger download"])]),
+            box.appendChild(h("button", { class: "aks-opt", onclick: function () { apply(orig, srcFmt); close(); } }, [
+              h("div", {}, [h("div", { class: "big" }, ["Keep original"]), h("div", { class: "sm" }, [wasWebp ? "Full quality, larger download" : "Stays " + fmtName(srcFmt) + " · against the WebP rule"])]),
               h("span", { class: "tag" }, [kb(f.size)])
             ]));
             box.appendChild(h("div", { class: "aks-acts", style: "border:0;padding:4px 0 0" }, [
               h("button", { class: "aks-b", onclick: close }, ["Cancel"])
             ]));
           });
-          function apply(url) {
+          function apply(url, fmt) {
             setOv("img", key, url);
             if (el.tagName === "IMG") { el.removeAttribute("srcset"); el.src = url; } else el.style.backgroundImage = 'url("' + url + '")';
             el.classList.add("aks-changed");
-            deselect(); syncBar(); toast("Photo replaced");
+            deselect(); syncBar();
+            toast(fmt === "image/webp" ? "Photo replaced · WebP" : "⚠ Photo replaced — still " + fmtName(fmt) + ", not WebP");
           }
         });
       });
@@ -1205,7 +1220,7 @@
     return new Promise(function (res, rej) {
       var id = "ak-package-js", ex = document.getElementById(id);
       if (!ex) {
-        ex = h("script", { id: id, src: "site-package.js?v=1" });
+        ex = h("script", { id: id, src: "site-package.js?v=2" });
         document.body.appendChild(ex);
       }
       var tries = 0;

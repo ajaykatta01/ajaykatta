@@ -270,7 +270,7 @@
           fill: surface, stroke: hero ? cat.accent : line, strokeW: hero ? 1.5 : 1, opacity: 1,
           content: null, bento: true, detail: { eyebrow: name, title: "", body: "", tags: [], refs: [] } };
       }
-      var TOP = 196;
+      var TOP = 48;
       var boxes = [
         ["HERO",   40,  TOP,       550,  380, true],
         ["MEDIUM", 610, TOP,       550,  180, false],
@@ -279,10 +279,7 @@
         ["WIDE",   40,  TOP + 400, 835,  180, false],
         ["FULL",   40,  TOP + 620, 1120, 620, false]
       ];
-      var els = [
-        txt(40, 58, 1040, 66, "New " + cat.label + " project", 46, 700, cat.titleColor, head),
-        txt(40, 130, 1040, 40, "Bento layout \u2014 click any tile to add its image and prompt details.", 18, 500, cat.muted)
-      ];
+      var els = [];
       boxes.forEach(function (b) { els.push(tile(b[0], b[1], b[2], b[3], b[4], b[5])); });
       return { h: TOP + 620 + 620 + 48, bg: cat.bg, els: els, groups: {} };
     }

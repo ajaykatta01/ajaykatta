@@ -27,7 +27,9 @@
     "scroll-progress.js", "layout-studio.js", "studio-templates.js",
     "site-content.json", "portfolio-data.json", "robots.txt", "vercel.json", "README.md"
   ]);
-  var ASSET_RE = /(?:media|assets)\/[A-Za-z0-9._@()%+\-\/]+?\.(?:webp|jpe?g|png|gif|svg|avif|pdf|mp4|webm|woff2?|ico)/g;
+  /* Videos, audio and 3D models count as much as photos — a case study that leans on an .mp4
+     or a .glb was shipping a page that pointed at a file the ZIP never carried. */
+  var ASSET_RE = /(?:media|assets)\/[A-Za-z0-9._@()%+\-\/]+?\.(?:webp|jpe?g|png|gif|svg|avif|pdf|mp4|webm|mov|m4v|ogv|mp3|wav|m4a|oga|glb|gltf|usdz|obj|woff2?|ico)/g;
   var BASE = location.href.split("#")[0].split("?")[0].replace(/[^\/]*$/, "");
   var ROOT = "Ajaykatta_Website";          // top folder inside the ZIP
   var REPO = ROOT + "/GitRepo";            // its contents are exactly what goes in the repo

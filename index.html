@@ -1789,7 +1789,7 @@ const root=document.documentElement, knob=document.getElementById('knob');
       const cx=cv.getContext('2d'); cx.imageSmoothingQuality='high';
       const sx=(-ox)/scale, sy=(-oy)/scale, sw=s.w/scale, sh=s.h/scale;
       try{ cx.drawImage(img,sx,sy,sw,sh,0,0,outW,outH); }catch(e){ close(); return; }
-      const url=cv.toDataURL('image/jpeg',0.9);
+      const url=(function(){try{const o=cv.toDataURL('image/webp',0.92);if(o.indexOf('data:image/webp')===0)return o;}catch(e){}return cv.toDataURL('image/jpeg',0.9);})();
       try{ localStorage.setItem(KEY,url); }catch(err){ alert('Image is too large to save in this browser. Try a smaller file.'); return; }
       apply(url); close();
     });
@@ -2701,7 +2701,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
       w=Math.round(w*scale);hh=Math.round(hh*scale);
       var cv=document.createElement("canvas");cv.width=w;cv.height=hh;
       cv.getContext("2d").drawImage(img,0,0,w,hh);
-      pendingImg=cv.toDataURL("image/jpeg",0.85); setPreview(pendingImg);
+      pendingImg=(function(){try{var o=cv.toDataURL("image/webp",0.9);if(o.indexOf("data:image/webp")===0)return o;}catch(e){}return cv.toDataURL("image/jpeg",0.85);})(); setPreview(pendingImg);
     };img.src=r.result;};
     r.readAsDataURL(f);
   });

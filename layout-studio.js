@@ -31,6 +31,12 @@
   "use strict";
   if (window.AKLayout) return;
   var DW = 1200; // design width in units
+  /* The viewer fits a 1200-unit design to the real column width. Doing that with
+     transform:scale() rasterises every cover at its design-unit size and lets the
+     compositor resample the result — detailed images (AI renders especially) come
+     out soft and grainy. zoom re-lays the cards out at their true pixel size, so
+     each image is sampled once, at full resolution, by the image decoder. */
+  var ZOOMOK = (function () { try { return !!(window.CSS && CSS.supports && CSS.supports("zoom", "1.5")); } catch (e) { return false; } })();
   var detailOpen = 0;  // >0 while a bento detail overlay is up — editor keys must stand down
   var detailClosers = [];
   function closeBentoDetails() { detailClosers.slice().forEach(function (fn) { try { fn(); } catch (e) {} }); }
@@ -150,13 +156,112 @@
       var url = URL.createObjectURL(new Blob([arr], { type: mime })); _blobCache[d] = url; return url;
     } catch (e) { return d; }
   }
+  /* ---- crisp minification -------------------------------------------------
+     A 2000px image shown in a 430px card is a ~5x reduction. The renderer's
+     runtime downscale aliases badly at that ratio on high-frequency detail
+     (monograms, weave, fine type) and the result reads as grain. createImage‑
+     Bitmap's "high" resize is a properly filtered resample, so hand the element
+     a variant near its real display size and leave the renderer only the last
+     ~1.5x. Keyed in power-of-two buckets so zooming does not thrash the cache.
+     Only the DOM src is swapped — the stored design keeps the original file. */
+  var _crispCache = {}, _crispBusy = {}, _crispKeys = [];
+  var CRISPOK = (function () { try { return typeof createImageBitmap === "function"; } catch (e) { return false; } })();
+  function crispKey(src, edge) { return src.length + "|" + src.slice(-40) + "@" + edge; }
+  function crispVariant(src, edge) {
+    var key = crispKey(src, edge);
+    if (_crispCache[key] !== undefined) return Promise.resolve(_crispCache[key]);
+    if (_crispBusy[key]) return _crispBusy[key];
+    var p = fetch(blobURL(src)).then(function (r) { return r.blob(); }).then(function (b) {
+      if (!b || b.type.indexOf("image/") !== 0 || b.type === "image/gif" || b.type.indexOf("svg") > -1) return null;
+      return createImageBitmap(b).then(function (probe) {
+        var lw = probe.width, lh = probe.height, long = Math.max(lw, lh);
+        if (probe.close) probe.close();
+        if (!long || long <= edge * 1.15) return null;      /* already close enough */
+        return createImageBitmap(b, { resizeWidth: Math.max(1, Math.round(lw * edge / long)), resizeQuality: "high" }).then(function (sm) {
+          var cv = document.createElement("canvas");
+          cv.width = sm.width; cv.height = sm.height;
+          var cx = cv.getContext("2d");
+          cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+          cx.drawImage(sm, 0, 0);
+          if (sm.close) sm.close();
+          return new Promise(function (res) { cv.toBlob(res, "image/webp", 0.94); }).then(function (out) {
+            return out ? URL.createObjectURL(out) : null;
+          });
+        });
+      });
+    }).catch(function () { return null; });
+    _crispBusy[key] = p;
+    return p.then(function (url) {
+      delete _crispBusy[key];
+      _crispCache[key] = url; _crispKeys.push(key);
+      while (_crispKeys.length > 120) {
+        var old = _crispKeys.shift(), u = _crispCache[old];
+        if (u) { try { URL.revokeObjectURL(u); } catch (e) {} }
+        delete _crispCache[old];
+      }
+      return url;
+    });
+  }
+  /* Measure the element and, when it is showing a much larger file than it
+     needs, swap in the filtered variant. Re-runs when the box changes size
+     (card resize, editor zoom) but only crosses work when the bucket changes. */
+  function crispen(img, src) {
+    if (!CRISPOK || !src || typeof src !== "string") return;
+    var applied = 0, natOrig = 0;
+    function pass() {
+      if (!img.isConnected) return;
+      var r = img.getBoundingClientRect();
+      var box = Math.max(r.width, r.height);
+      if (!box) return;
+      /* remember the ORIGINAL pixel size: once a variant is swapped in,
+         naturalWidth reports the variant and zooming back in could never
+         ask for a sharper one. */
+      if (!natOrig) natOrig = Math.max(img.naturalWidth || 0, img.naturalHeight || 0);
+      var nat = natOrig;
+      var want = box * (window.devicePixelRatio || 1) * 1.5;
+      if (!nat || nat <= want * 1.15) return;                 /* no meaningful reduction */
+      var edge = Math.pow(2, Math.ceil(Math.log(Math.max(128, want)) / Math.LN2));
+      if (edge >= nat) return;
+      if (edge === applied) return;
+      applied = edge;
+      crispVariant(src, edge).then(function (url) { if (url && img.isConnected) img.src = url; });
+    }
+    var run = function () { if (img.complete && img.naturalWidth) pass(); else img.addEventListener("load", pass, { once: true }); };
+    requestAnimationFrame(run);
+    if (window.ResizeObserver) {
+      try {
+        var ro = new ResizeObserver(function () { if (!img.isConnected) { ro.disconnect(); return; } pass(); });
+        ro.observe(img);
+      } catch (e) {}
+    }
+  }
+  /* The site is WebP-only and caps every long edge. A picture added ON THE CANVAS has to go
+     through the same door as one added to a block — otherwise it lands full-size, in its
+     original format, and quietly makes the whole project several times heavier. */
+  function readAsset(f) {
+    if (window.AK_IMG && window.AK_IMG.fromFile) {
+      try { return Promise.resolve(window.AK_IMG.fromFile(f)); } catch (e) {}
+    }
+    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(f); });
+  }
   function pickFile(accept, cb) {
     var i = h("input", { type: "file", accept: accept, style: "display:none" });
     i.addEventListener("change", function () {
       var f = i.files[0]; if (!f) return;
-      var r = new FileReader();
-      r.onload = function () { cb(r.result, f.name); };
-      r.readAsDataURL(f);
+      readAsset(f).then(function (data) { cb(data, f.name); })["catch"](function () {});
+    });
+    document.body.appendChild(i); i.click();
+    setTimeout(function () { i.remove(); }, 120000);
+  }
+
+  /* multi-file picker — resolves an array of data URLs in pick order */
+  function pickFiles(accept, cb) {
+    var i = h("input", { type: "file", accept: accept, multiple: "", style: "display:none" });
+    i.addEventListener("change", function () {
+      var fs = Array.prototype.slice.call(i.files); if (!fs.length) return cb([]);
+      Promise.all(fs.map(function (f) {
+        return readAsset(f).then(function (data) { return { data: data, name: f.name }; })["catch"](function () { return null; });
+      })).then(function (out) { cb(out.filter(Boolean)); });
     });
     document.body.appendChild(i); i.click();
     setTimeout(function () { i.remove(); }, 120000);
@@ -203,6 +308,8 @@
     .akls-ov ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--tx) 15%,transparent);border-radius:99px}
     .akls-ov ::-webkit-scrollbar-track,.akls-ov ::-webkit-scrollbar-corner{background:transparent}
     .akls-ov .akls-el > *{pointer-events:none}
+    /* …except the open-detail button, which is a real click target on a bento card */
+    .akls-ov .akls-el > .akls-bento-open{pointer-events:auto}
     .akls-ov .akls-el{cursor:grab}
     .akls-ov .akls-el.akls-dragging{cursor:grabbing}
     /* custom tooltips */
@@ -506,8 +613,10 @@
     .akls-ov.settled .akls-top,.akls-ov.settled .akls-side,.akls-ov.settled .akls-panel,.akls-ov.settled .akls-dock{animation:none}
     .akld-ov.settled,.akld-ov.settled .akld-card{animation:none}
     .akls-view .akls-bento{cursor:pointer}
-    .akls-bento{transition:box-shadow .25s,outline-color .2s,filter .25s;outline:0 solid transparent}
-    .akls-bento:hover{outline:2px solid var(--ac,var(--accent,#E5783A));outline-offset:-2px;box-shadow:0 20px 54px -20px rgba(0,0,0,.55);filter:brightness(1.05);z-index:6}
+    .akls-bento{transition:box-shadow .25s,outline-color .2s;outline:0 solid transparent}
+    /* no filter on hover: a filter forces the tile onto its own composited layer and
+       the cover gets resampled, which reads as noise. The hover scrim carries the lift. */
+    .akls-bento:hover{outline:2px solid var(--ac,var(--accent,#E5783A));outline-offset:-2px;box-shadow:0 20px 54px -20px rgba(0,0,0,.55);z-index:6}
     .akls-bento-open{position:absolute;top:12px;right:12px;z-index:7;width:46px;height:46px;display:flex;align-items:center;justify-content:center;border:none;border-radius:13px;cursor:pointer;color:#fff;background:rgba(12,10,8,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);opacity:.92;transition:opacity .18s,background .2s,transform .12s;box-shadow:0 6px 18px -8px rgba(0,0,0,.6)}
     .akls-bento:hover .akls-bento-open{opacity:1}
     .akls-bento-open:hover{background:var(--ac,var(--accent,#E5783A));transform:scale(1.06)}
@@ -551,21 +660,25 @@
     .akld-eyebrow:before{content:'';width:22px;height:2px;background:#7c5cff;display:inline-block;flex:none}
     .akld-title{font:700 26px/1.22 'Inter',sans-serif;color:#1b1b1f;margin:12px 0 0}
     .akld-hr{height:1px;background:#ece8e0;margin:20px 0}
-    .akld-lbl{font:700 11px 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#9a948a;margin-bottom:11px}
+    .akld-lbl{font:700 11.5px 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#6B6459;margin-bottom:11px}
     .akld-refs{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .akld-ref{width:58px;height:54px;border-radius:9px;object-fit:cover;border:1px solid #e2ddd3}
-    .akld-refnote{font:500 13px 'Inter',sans-serif;color:#a49e93}
-    .akld-code{background:#151317;color:#cfc9e6;border-radius:12px;padding:18px;font:500 12.5px/1.7 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;border-left:3px solid #7c5cff;min-height:20px}
+    .akld-refnote{font:500 13px 'Inter',sans-serif;color:#7A736A}
+    .akld-code{background:#0B0A0D;color:#FBFAFF;border-radius:12px;padding:18px;font:500 13.5px/1.75 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;border-left:3px solid #7c5cff;min-height:20px}
     .akld-tags{display:flex;flex-wrap:wrap;gap:9px}
     .akld-tag{font:600 12px 'Inter',sans-serif;color:#6d4bff;background:#efeafe;border:1px solid #ddd2fb;border-radius:99px;padding:7px 13px}
     .akld-add{font:600 12px 'Inter',sans-serif;color:#7c5cff;background:none;border:1px dashed #c9bdf5;border-radius:99px;padding:7px 13px;cursor:pointer}
     .akld-add:hover{background:#f3effe}
+    .akld-sugwrap{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+    .akld-suglbl{font:600 10.5px 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#8A8794}
+    .akld-sug{font:600 12px 'Inter',sans-serif;color:#6b6676;background:#F3F1EC;border:1px dashed #d8d3c8;border-radius:99px;padding:7px 13px;cursor:pointer}
+    .akld-sug:hover{color:#6d4bff;background:#efeafe;border-color:#c9bdf5}
     .akld-x{position:absolute;top:16px;right:16px;z-index:4;width:34px;height:34px;border:none;border-radius:9px;background:rgba(0,0,0,.06);color:#333;cursor:pointer;display:flex;align-items:center;justify-content:center}
     .akld-x:hover{background:rgba(0,0,0,.12)}
     .akld-x svg{width:18px;height:18px}
     .akld-edit:focus{outline:2px solid #7c5cff;outline-offset:3px;border-radius:5px}
-    .akld-edit:empty:before{content:attr(data-ph);color:#c0bab0}
-    .akld-code.akld-edit:empty:before{color:#6b6580}
+    .akld-edit:empty:before{content:attr(data-ph);color:#9A9388}
+    .akld-code.akld-edit:empty:before{color:#A9A2C4}
     @media(max-width:760px){.akld-card{flex-direction:column;height:min(92vh,880px)}.akld-media{flex:0 0 42%}.akld-info{flex:1 1 auto;padding:24px}}
     ` }));
   }
@@ -793,6 +906,11 @@
       return { title: title, body: txt, chars: txt.replace(/\s/g, "").length };
     }, function () { return { title: "", body: "", chars: 0 }; });
   }
+  /* the site ships WebP only — PDF page renders follow the same rule */
+  function toWebpURL(cv, q) {
+    try { var o = cv.toDataURL("image/webp", q); if (o.indexOf("data:image/webp") === 0) return o; } catch (e) {}
+    return cv.toDataURL("image/jpeg", q);
+  }
   function imgObjToDataURL(obj) {
     if (!obj) return null;
     try {
@@ -802,7 +920,7 @@
         w = w || bmp.width; hgt = hgt || bmp.height;
         cv = document.createElement("canvas"); cv.width = w; cv.height = hgt;
         cv.getContext("2d").drawImage(bmp, 0, 0);
-        return { src: cv.toDataURL("image/jpeg", 0.82), w: w, h: hgt };
+        return { src: toWebpURL(cv, 0.82), w: w, h: hgt };
       }
       if (obj.data && w && hgt) {
         cv = document.createElement("canvas"); cv.width = w; cv.height = hgt;
@@ -813,7 +931,7 @@
         else if (s.length === npx) { for (i = 0; i < npx; i++) { d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = s[i]; d[i * 4 + 3] = 255; } }
         else return null;
         ctx.putImageData(id, 0, 0);
-        return { src: cv.toDataURL("image/jpeg", 0.82), w: w, h: hgt };
+        return { src: toWebpURL(cv, 0.82), w: w, h: hgt };
       }
     } catch (e) {}
     return null;
@@ -1114,7 +1232,11 @@
     var c = el.content; if (!c) return null;
     if (c.type === "text") return textBlock(c, false);
     var common = "width:100%;height:100%;border:0;display:block;";
-    if (c.type === "image") return h("img", Object.assign({ src: blobURL(c.src), draggable: "false", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) }, loadHints(el, editing)));
+    if (c.type === "image") {
+      var cim = h("img", Object.assign({ src: blobURL(c.src), draggable: "false", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) }, loadHints(el, editing)));
+      crispen(cim, c.src);
+      return cim;
+    }
     if (c.type === "media") {
       if ((c.mime || "").indexOf("audio") === 0) {
         if (editing) return h("div", { class: "akls-audio", style: "color:var(--muted,#999)", html: ICO.audio });
@@ -1146,12 +1268,6 @@
     var d = el.detail || {};
     var hero = String(d.title || "").trim() || String(d.eyebrow || "").trim();
     var ov = h("div", { class: "akls-bhov" });
-    var c = el.content;
-    if (c && c.src) {
-      var chip = h("div", { class: "akls-bsize" });
-      fileFacts(c.src, c.mime, function (f) { var t = factsText(f); if (t) chip.textContent = t; else chip.remove(); });
-      ov.appendChild(chip);
-    }
     if (hero) ov.appendChild(h("div", { class: "akls-bhero" }, [hero]));
     else if (editing) ov.appendChild(h("div", { class: "akls-bhero ph" }, ["Add a title in the detail view"]));
     ov.appendChild(h("div", { class: "akls-bcta" }, [
@@ -1198,7 +1314,11 @@
   function gridAspect(el) { return Math.max(1, Math.round(el.w || 16)) + "/" + Math.max(1, Math.round(el.h || 10)); }
   function gridMedia(el) {
     var c = el.content;
-    if (c.type === "image") return h("img", Object.assign({ src: blobURL(c.src), draggable: "false", alt: "", style: "width:100%;height:auto;display:block" }, loadHints(el, false)));
+    if (c.type === "image") {
+      var gim = h("img", Object.assign({ src: blobURL(c.src), draggable: "false", alt: "", style: "width:100%;height:auto;display:block" }, loadHints(el, false)));
+      crispen(gim, c.src);
+      return gim;
+    }
     if (c.type === "media" && (c.mime || "").indexOf("audio") !== 0)
       return h("video", { src: blobURL(c.src), playsinline: "", controls: "", preload: (el.y || 0) > 1500 ? "none" : "metadata", style: "width:100%;height:auto;display:block;background:#000" });
     var inner = renderContent(el, false);
@@ -1289,7 +1409,8 @@
     function fit() {
       var w = wrap.clientWidth || 1, k = w / DW, dh = liveH(design);
       stage.style.height = dh + "px";
-      stage.style.transform = "scale(" + k + ")";
+      if (ZOOMOK) { stage.style.zoom = k; stage.style.transform = ""; }
+      else stage.style.transform = "scale(" + k + ")";
       wrap.style.height = (dh * k) + "px";
     }
     if (window.ResizeObserver) { try { new ResizeObserver(fit).observe(wrap); } catch (e) {} }
@@ -1309,9 +1430,11 @@
     holder.appendChild(wrap);
     function fit() {
       var w = wrap.clientWidth || 1, hgt = wrap.clientHeight || 1;
-      var k = Math.max(w / DW, hgt / dh);
+      var k = Math.max(w / DW, hgt / dh), dx = (w - DW * k) / 2, dy = (hgt - dh * k) / 2;
       stage.style.transformOrigin = "0 0";
-      stage.style.transform = "translate(" + ((w - DW * k) / 2) + "px," + ((hgt - dh * k) / 2) + "px) scale(" + k + ")";
+      /* translate inside a zoomed box is in zoomed units, so divide the offset by k */
+      if (ZOOMOK) { stage.style.zoom = k; stage.style.transform = "translate(" + (dx / k) + "px," + (dy / k) + "px)"; }
+      else stage.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + k + ")";
     }
     if (window.ResizeObserver) { try { new ResizeObserver(fit).observe(wrap); } catch (e) {} }
     fit(); requestAnimationFrame(fit);
@@ -1943,7 +2066,7 @@
                 var cv = document.createElement("canvas");
                 cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
                 return page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise.then(function () {
-                  return { src: cv.toDataURL("image/jpeg", 0.8), ar: cv.height / cv.width };
+                  return { src: toWebpURL(cv, 0.8), ar: cv.height / cv.width };
                 });
               }
               return Promise.all([extractPageText(page), extractPageImages(page, window.pdfjsLib)]).then(function (r) {
@@ -2151,7 +2274,12 @@
     /* ---- zoom ---- */
     function applyZoom() {
       stage.style.width = DW + "px"; stage.style.height = D.h + "px";
-      stage.style.transform = "scale(" + k + ")";
+      /* zoom, not transform: a transform-scaled stage rasterises each image at its
+         design size and lets the compositor resample it, which shows up as grain on
+         detailed covers. zoom re-lays the canvas out at true pixel size instead.
+         All pointer math is rect-based and divides by k, so it is unaffected. */
+      if (ZOOMOK) { stage.style.zoom = k; stage.style.transform = ""; }
+      else stage.style.transform = "scale(" + k + ")";
       stage.style.background = D.bg || "transparent";
       frame.style.width = (DW * k) + "px"; frame.style.height = (D.h * k) + "px";
       zoomLbl.textContent = Math.round(k * 100) + "%";
@@ -2285,14 +2413,7 @@
         n.setAttribute("data-el", el.id);
         if (el.locked) n.style.pointerEvents = "none";
         wireEl(n, el);
-        if (el.bento) {
-          var openDetail = function () { snapNow(); openBentoDetail(el, D.els.filter(function (x) { return x.bento; }), true, function (t, kind) { if (kind === "content") refreshNode(t, true); }); };
-          var ob = h("button", { class: "akls-bento-open", title: "Open detail view", html: ICO.fit });
-          ob.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); });
-          ob.addEventListener("click", function (ev) { ev.stopPropagation(); openDetail(); });
-          n.appendChild(ob);
-          n.addEventListener("dblclick", function (ev) { ev.preventDefault(); ev.stopPropagation(); openDetail(); });
-        }
+        wireBento(n, el);
         stage.appendChild(n);
       });
       paintGrid();
@@ -2303,6 +2424,19 @@
          adds, hides and z-order changes instead of waiting for a reload */
       if (D.layout === "grid" && typeof gridPrev !== "undefined" && gridPrev) paintGridPrev();
     }
+    /* Open-detail affordances on a bento card. Must run for EVERY freshly built
+       node — refreshNode() replaces the node wholesale after a content change, so
+       wiring this only in paintStage() left a card unopenable once you gave it an
+       image (the rebuild dropped the button and the dblclick). */
+    function wireBento(n, el) {
+      if (!el.bento) return;
+      var openDetail = function () { snapNow(); openBentoDetail(el, D.els.filter(function (x) { return x.bento; }), true, function (t, kind) { if (kind === "content") refreshNode(t, true); }); };
+      var ob = h("button", { class: "akls-bento-open", title: "Open detail view", html: ICO.fit });
+      ob.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); });
+      ob.addEventListener("click", function (ev) { ev.stopPropagation(); openDetail(); });
+      n.appendChild(ob);
+      n.addEventListener("dblclick", function (ev) { ev.preventDefault(); ev.stopPropagation(); openDetail(); });
+    }
     function refreshNode(el, structural) {
       var n = nodeFor(el.id); if (!n) return;
       /* mid-typing: never rebuild the node — that would tear out the live editor
@@ -2311,7 +2445,7 @@
         applyBoxStyle(n, el); tedit.restyle(); paintSel(); return;
       }
       if (structural) {
-        var nn = renderEl(el, true); nn.setAttribute("data-el", el.id); wireEl(nn, el); n.replaceWith(nn);
+        var nn = renderEl(el, true); nn.setAttribute("data-el", el.id); wireEl(nn, el); wireBento(nn, el); n.replaceWith(nn);
         paintLayers();
       } else applyBoxStyle(n, el);
       paintSel();
@@ -3035,6 +3169,9 @@
       });
       node.addEventListener("dblclick", function (e) {
         var isText = el.content && el.content.type === "text";
+        /* a bento card owns dblclick: it opens the detail view. Crop/pan stays
+           available from the toolbar so the two never fight over the gesture. */
+        if (el.bento && !isText) return;
         if (!pannable(el) && !isText) return;
         e.preventDefault(); e.stopPropagation();
         if (sel !== el.id) setSel(el.id);
@@ -3330,7 +3467,7 @@
           fill: "#26231D", stroke: b.hero ? "#E5783A" : "#373634", strokeW: b.hero ? 1.5 : 1, opacity: 1,
           content: null,
           bento: true,
-          detail: { eyebrow: b.name, title: "", body: "", tags: [], refs: [] }
+          detail: { eyebrow: b.name, title: "", body: PROMPT_TPL, tags: [], refs: [] }
         });
       });
       var need = 0;
@@ -3459,9 +3596,7 @@
         if (it.kind === "file" && it.type.indexOf("image/") === 0) {
           var f = it.getAsFile();
           if (f) {
-            var r = new FileReader();
-            r.onload = function () { addImageFromData(r.result); };
-            r.readAsDataURL(f);
+            readAsset(f).then(addImageFromData)["catch"](function () {});
             e.preventDefault();
             toast("Image pasted");
             return;
@@ -4290,12 +4425,58 @@
     fit(); requestAnimationFrame(fit);
   }
 
-  function bentoDetailData(el) {
+  /* Shot parameters suggested from the prompt text: known vocabulary first,
+     then any JSON "key": "value" pairs the prompt carries (type, angle, lens…). */
+  var SHOT_VOCAB = [
+    "lifestyle shot", "studio shot", "product shot", "editorial", "campaign", "catalogue", "e-commerce", "packshot", "still life", "flat lay", "mockup",
+    "close-up", "macro", "wide shot", "full body", "half body", "portrait", "headshot", "detail shot", "three-quarter", "top down", "eye level", "low angle", "high angle", "side profile", "back view", "front view",
+    "female model", "male model", "model", "hands", "mannequin", "on white", "on marble", "outdoor", "indoor", "studio backdrop", "street", "beach", "city",
+    "shoulder carry", "hand carry", "crossbody", "worn", "held", "floating", "stacked",
+    "soft light", "hard light", "natural light", "golden hour", "backlit", "rim light", "studio lighting", "softbox", "dramatic lighting", "shadow play",
+    "shallow depth of field", "bokeh", "85mm", "50mm", "35mm", "telephoto", "wide angle",
+    "minimal", "luxury", "cinematic", "photorealistic", "hyperrealistic", "vintage", "monochrome", "high contrast", "pastel", "neutral tones", "warm tones", "cool tones",
+    "leather", "suede", "canvas", "metal", "glass", "fabric", "wood", "concrete",
+    "4k", "8k", "1:1", "4:5", "3:2", "16:9", "9:16"
+  ];
+  function titleCase(s) {
+    return String(s).split(/\s+/).map(function (w) {
+      if (/^\d/.test(w) || w.length <= 2) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(" ");
+  }
+  function shotSuggestions(body, taken) {
+    var txt = String(body || "");
+    if (!txt.trim()) return [];
+    var low = txt.toLowerCase();
+    var have = (taken || []).map(function (t) { return String(t).trim().toLowerCase(); });
+    var out = [], seen = {};
+    function push(s) {
+      s = String(s).trim().replace(/\s+/g, " ");
+      if (!s || s.length > 28) return;
+      var k = s.toLowerCase();
+      if (seen[k] || have.indexOf(k) >= 0) return;
+      seen[k] = 1; out.push(titleCase(s));
+    }
+    SHOT_VOCAB.forEach(function (term) {
+      var esc = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp("(^|[^a-z0-9])" + esc + "([^a-z0-9]|$)").test(low)) push(term);
+    });
+    /* JSON-ish fields worth surfacing as a chip */
+    var re = /"(type|style|shot|angle|lens|lighting|mood|material|format|aspect[_ ]?ratio|camera|background)"\s*:\s*"([^"]{1,28})"/gi, m;
+    while ((m = re.exec(txt))) push(m[2]);
+    return out.slice(0, 8);
+  }
+
+  /* default scaffold for the "AI prompt used" box on bento tiles */
+  var PROMPT_TPL = '{\n  "id": number,\n  "name": "Naming",\n  "type": "product",\n  "prompt": " text "\n}';
+
+  function bentoDetailData(el, editable) {
     el.detail = el.detail || {};
     var d = el.detail;
     if (d.eyebrow == null) d.eyebrow = "";
     if (d.title == null) d.title = "";
     if (d.body == null) d.body = "";
+    if (editable && !String(d.body).trim()) d.body = PROMPT_TPL;
     if (!Array.isArray(d.tags)) d.tags = [];
     if (!Array.isArray(d.refs)) d.refs = [];
     return d;
@@ -4352,7 +4533,8 @@
       return e;
     }
     function paint() {
-      var el = sibs[idx], d = bentoDetailData(el); card.innerHTML = "";
+      var el = sibs[idx], d = bentoDetailData(el, editable); card.innerHTML = "";
+      var renderSug = null;
       var media = h("div", { class: "akld-media" });
       var c = el.content;
       if (c && c.src) {
@@ -4428,12 +4610,12 @@
         if (editable) { im.title = "Click to remove"; im.style.cursor = "pointer"; im.addEventListener("click", function () { d.refs.splice(ri, 1); commit("text"); paint(); }); }
         refs.appendChild(im);
       });
-      if (editable) refs.appendChild(h("button", { class: "akld-add", onclick: function () { pickFile("image/*", function (data) { if (!data) return; d.refs.push(data); commit("text"); paint(); }); } }, ["+ ref"]));
+      if (editable) refs.appendChild(h("button", { class: "akld-add", onclick: function () { pickFiles("image/*", function (files) { if (!files || !files.length) return; files.forEach(function (f) { d.refs.push(f.data); }); commit("text"); paint(); }); } }, ["+ refs"]));
       else if (!d.refs.length) refs.appendChild(h("div", { class: "akld-refnote" }, ["\u2014"]));
       info.appendChild(refs);
       info.appendChild(h("div", { class: "akld-hr" }));
       info.appendChild(h("div", { class: "akld-lbl" }, ["AI prompt used"]));
-      info.appendChild(editField("akld-code", "Add the prompt or a detailed description\u2026", d.body, function (v) { d.body = v; commit("text"); }, true));
+      info.appendChild(editField("akld-code", PROMPT_TPL, d.body, function (v) { d.body = v; commit("text"); if (renderSug) renderSug(); }, true));
       info.appendChild(h("div", { class: "akld-hr" }));
       info.appendChild(h("div", { class: "akld-lbl" }, ["Shot parameters"]));
       var tags = h("div", { class: "akld-tags" });
@@ -4450,6 +4632,22 @@
       if (editable) tags.appendChild(h("button", { class: "akld-add", onclick: function () { d.tags.push("New tag"); commit("text"); paint(); } }, ["+ tag"]));
       else if (!d.tags.length) tags.appendChild(h("div", { class: "akld-refnote" }, ["\u2014"]));
       info.appendChild(tags);
+      if (editable) {
+        var sw = h("div", { class: "akld-sugwrap" });
+        renderSug = function () {
+          sw.innerHTML = "";
+          var sug = shotSuggestions(d.body, d.tags);
+          if (!sug.length) return;
+          sw.appendChild(h("div", { class: "akld-suglbl" }, ["From your prompt \u2014 tap to add"]));
+          var srow = h("div", { class: "akld-tags" });
+          sug.forEach(function (s) {
+            srow.appendChild(h("button", { class: "akld-sug", onclick: function () { d.tags.push(s); commit("text"); paint(); } }, ["+ " + s]));
+          });
+          sw.appendChild(srow);
+        };
+        renderSug();
+        info.appendChild(sw);
+      }
       card.appendChild(info);
       card.appendChild(closeBtn);
     }
