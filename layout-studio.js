@@ -38,6 +38,7 @@
      each image is sampled once, at full resolution, by the image decoder. */
   var ZOOMOK = (function () { try { return !!(window.CSS && CSS.supports && CSS.supports("zoom", "1.5")); } catch (e) { return false; } })();
   var detailOpen = 0;  // >0 while a bento detail overlay is up — editor keys must stand down
+  var lbOpen = 0;      // >0 while the image lightbox is up — the detail card's keys stand down
   var detailClosers = [];
   function closeBentoDetails() { detailClosers.slice().forEach(function (fn) { try { fn(); } catch (e) {} }); }
 
@@ -164,6 +165,58 @@
      a variant near its real display size and leave the renderer only the last
      ~1.5x. Keyed in power-of-two buckets so zooming does not thrash the cache.
      Only the DOM src is swapped — the stored design keeps the original file. */
+  /* Video first-frame poster. A <video> with no poster attribute paints a flat grey box
+     until it is played - and stays grey for good when preload is "none" - so pull an early
+     frame through a canvas once per file and hand it to every element showing that file.
+     Generated lazily (near-viewport) and cached in memory; the stored design is untouched. */
+  var _posterCache = {};
+  function firstFrame(src, cb) {
+    if (!src) return;
+    if (_posterCache[src]) { cb(_posterCache[src]); return; }
+    var v = document.createElement("video"), done = 0;
+    v.preload = "auto"; v.muted = true; v.playsInline = true;
+    v.setAttribute("playsinline", ""); v.setAttribute("muted", "");
+    function stop() { try { v.removeAttribute("src"); v.load(); } catch (e) { } }
+    function grab() {
+      if (done) return;
+      var w = v.videoWidth || 0, hh = v.videoHeight || 0;
+      if (!w || !hh || v.readyState < 2) return;   /* no frame decoded yet - wait for the next event */
+      done = 1;
+      try {
+        var k = Math.min(1, 1280 / Math.max(w, hh)), c = document.createElement("canvas");
+        c.width = Math.max(2, Math.round(w * k)); c.height = Math.max(2, Math.round(hh * k));
+        var cx = c.getContext("2d");
+        cx.drawImage(v, 0, 0, c.width, c.height);
+        /* a frame that decoded to nothing would cache a blank poster for good */
+        var px = cx.getImageData(0, 0, c.width, c.height).data, lit = 0;
+        for (var i = 3; i < px.length; i += 4 * 97) if (px[i] > 8) { lit = 1; break; }
+        if (!lit) { done = 0; return; }
+        var d = c.toDataURL("image/webp", 0.82);
+        if (d && d.indexOf("data:image") === 0) { _posterCache[src] = d; cb(d); }
+      } catch (e) { }
+      stop();
+    }
+    /* browsers disagree on which event lands first with a frame in hand - try them all */
+    ["seeked", "loadeddata", "canplay", "timeupdate"].forEach(function (n) { v.addEventListener(n, grab); });
+    v.addEventListener("loadedmetadata", function () {
+      /* frame 0 of an encode is often black or mid fade-in - nudge a little way in */
+      var t = Math.min(0.12, (v.duration || 1) / 4);
+      if (t > 0 && v.currentTime < t) { try { v.currentTime = t; } catch (e) { } }
+    });
+    v.addEventListener("error", function () { done = 1; stop(); });
+    setTimeout(function () { if (!done) { done = 1; stop(); } }, 8000);
+    v.src = blobURL(src);
+  }
+  function posterize(v, src) {
+    if (!v || !src || v.getAttribute("poster")) return;
+    if (_posterCache[src]) { v.setAttribute("poster", _posterCache[src]); return; }
+    function go() { firstFrame(src, function (d) { if (!v.getAttribute("poster")) v.setAttribute("poster", d); }); }
+    if (!window.IntersectionObserver) { go(); return; }
+    var io = new IntersectionObserver(function (es) {
+      for (var i = 0; i < es.length; i++) if (es[i].isIntersecting) { io.disconnect(); go(); return; }
+    }, { rootMargin: "600px" });
+    io.observe(v);
+  }
   var _crispCache = {}, _crispBusy = {}, _crispKeys = [];
   var CRISPOK = (function () { try { return typeof createImageBitmap === "function"; } catch (e) { return false; } })();
   function crispKey(src, edge) { return src.length + "|" + src.slice(-40) + "@" + edge; }
@@ -637,7 +690,10 @@
     @keyframes akldIn{from{opacity:0}to{opacity:1}}
     /* click-to-enlarge for plain images on a canvas */
     .akls-view .akls-el[data-img="1"],.akls-gridview [data-img="1"]{cursor:zoom-in}
-    .aklb-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:clamp(16px,4vw,48px);
+    /* refs strip inside a bento detail card enlarges too */
+    .akld-ref[data-zoom="1"]{cursor:zoom-in;transition:transform .16s ease,border-color .16s ease}
+    .akld-ref[data-zoom="1"]:hover{transform:scale(1.06);border-color:#c9c2b4}
+    .aklb-ov{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:clamp(16px,4vw,48px);
       background:rgba(8,7,6,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);animation:akldIn .18s ease}
     .aklb-ov img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px;box-shadow:0 40px 120px -30px rgba(0,0,0,.8);animation:akldIn .22s ease}
     .aklb-btn{position:absolute;border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;
@@ -657,8 +713,10 @@
     .akld-media img,.akld-media video{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;background:#E7E3DC}
     .akld-media iframe{width:100%;height:100%;border:0;display:block;background:#fff}
     .akld-media img,.akld-media video{transform-origin:0 0;transition:transform .22s cubic-bezier(.22,.61,.36,1)}
-    .akld-media.zoomed img,.akld-media.zoomed video{transition:none;cursor:grab}
-    .akld-media.grabbing img,.akld-media.grabbing video{cursor:grabbing}
+    .akld-media.akld-pan{touch-action:none}
+    .akld-media.akld-pan img,.akld-media.akld-pan video{-webkit-user-select:none;user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none}
+    .akld-media.zoomed img,.akld-media.zoomed video{transition:none;cursor:grab;will-change:transform}
+    .akld-media.grabbing img,.akld-media.grabbing video{cursor:grabbing;transition:none}
     .akld-zoom{position:absolute;right:14px;bottom:14px;z-index:6;display:flex;gap:6px}
     .akld-zbtn{border:0;cursor:pointer;height:32px;min-width:32px;padding:0 10px;border-radius:999px;background:rgba(14,12,10,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff;font:600 12px/1 ui-monospace,'SFMono-Regular',Menlo,monospace;display:flex;align-items:center;justify-content:center;gap:6px}
     .akld-zbtn:hover{background:#1C1A14}.akld-zbtn[disabled]{opacity:.4;cursor:default}
@@ -682,7 +740,9 @@
     .akld-refnote{font:500 13px 'Inter',sans-serif;color:#7A736A}
     .akld-code{background:#0B0A0D;color:#FBFAFF;border-radius:12px;padding:18px;font:500 13.5px/1.75 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;border-left:3px solid #7c5cff;min-height:20px}
     .akld-tags{display:flex;flex-wrap:wrap;gap:9px}
-    .akld-tag{font:600 12px 'Inter',sans-serif;color:#6d4bff;background:#efeafe;border:1px solid #ddd2fb;border-radius:99px;padding:7px 13px}
+    .akld-tag{font:600 12px 'Inter',sans-serif;color:#6d4bff;background:#efeafe;border:1px solid #ddd2fb;border-radius:99px;padding:7px 13px;
+      transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+    .akld-tag:hover{transform:translateY(-2px);border-color:#c3b2f7;box-shadow:0 6px 16px -8px rgba(109,75,255,.55)}
     .akld-add{font:600 12px 'Inter',sans-serif;color:#7c5cff;background:none;border:1px dashed #c9bdf5;border-radius:99px;padding:7px 13px;cursor:pointer}
     .akld-add:hover{background:#f3effe}
     .akld-sugwrap{display:flex;flex-direction:column;gap:8px;margin-top:12px}
@@ -696,6 +756,8 @@
     .akld-edit:empty:before{content:attr(data-ph);color:#9A9388}
     .akld-code.akld-edit:empty:before{color:#A9A2C4}
     @media(max-width:760px){.akld-card{flex-direction:column;height:min(92vh,880px)}.akld-media{flex:0 0 42%}.akld-info{flex:1 1 auto;padding:24px}}
+    @media (pointer:coarse){.akld-zoom{gap:8px;right:10px;bottom:10px}.akld-zbtn{height:44px;min-width:44px;padding:0 14px;font-size:15px}
+      .akld-nav{width:44px;height:44px}.akld-x{width:44px;height:44px}}
     ` }));
   }
 
@@ -1260,6 +1322,7 @@
       }
       var v = h("video", { src: blobURL(c.src), playsinline: "", preload: (el && el.y || 0) > 1500 ? "none" : "metadata", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) });
       if (!editing) v.setAttribute("controls", "");
+      posterize(v, c.src);
       return v;
     }
     if (c.type === "pdf") return h("iframe", { src: blobURL(c.src) + "#toolbar=0", title: "PDF", style: common + "background:#fff" });
@@ -1335,8 +1398,11 @@
       crispen(gim, c.src);
       return gim;
     }
-    if (c.type === "media" && (c.mime || "").indexOf("audio") !== 0)
-      return h("video", { src: blobURL(c.src), playsinline: "", controls: "", preload: (el.y || 0) > 1500 ? "none" : "metadata", style: "width:100%;height:auto;display:block;background:#000" });
+    if (c.type === "media" && (c.mime || "").indexOf("audio") !== 0) {
+      var gv = h("video", { src: blobURL(c.src), playsinline: "", controls: "", preload: (el.y || 0) > 1500 ? "none" : "metadata", style: "width:100%;height:auto;display:block;background:#000" });
+      posterize(gv, c.src);
+      return gv;
+    }
     var inner = renderContent(el, false);
     if (c.type === "media") return h("div", { style: "padding:16px" }, [inner]); /* audio */
     /* prototype / PDF / 3D: keep the card's own aspect so the frame stays usable */
@@ -4537,6 +4603,8 @@
     if (!list || !list.length) return;
     idx = Math.max(0, Math.min(idx || 0, list.length - 1));
     var lock = document.body.style.overflow; document.body.style.overflow = "hidden";
+    lbOpen++;
+    var shut = false;
     var img = h("img", { alt: "" });
     var ov = h("div", { class: "aklb-ov" }, [img]);
     var count = list.length > 1 ? h("div", { class: "aklb-n" }, []) : null;
@@ -4545,15 +4613,19 @@
       if (count) count.textContent = (idx + 1) + " / " + list.length;
     }
     function close() {
+      if (shut) return; shut = true;
+      lbOpen = Math.max(0, lbOpen - 1);
       document.body.style.overflow = lock;
-      removeEventListener("keydown", onKey);
+      removeEventListener("keydown", onKey, true);
       ov.remove();
     }
     function go(d) { idx = (idx + d + list.length) % list.length; paint(); }
+    /* capture phase + stopPropagation: an open detail card also listens for Esc/arrows on
+       document, and one keypress must not close both layers at once */
     function onKey(e) {
-      if (e.key === "Escape") { e.preventDefault(); close(); }
-      else if (e.key === "ArrowRight" && list.length > 1) go(1);
-      else if (e.key === "ArrowLeft" && list.length > 1) go(-1);
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+      else if (e.key === "ArrowRight" && list.length > 1) { e.stopPropagation(); go(1); }
+      else if (e.key === "ArrowLeft" && list.length > 1) { e.stopPropagation(); go(-1); }
     }
     ov.appendChild(h("button", { class: "aklb-btn aklb-x", title: "Close", onclick: close }, ["\u2715"]));
     if (list.length > 1) {
@@ -4562,7 +4634,7 @@
       ov.appendChild(count);
     }
     ov.addEventListener("click", function (e) { if (e.target === ov || e.target === img) close(); });
-    addEventListener("keydown", onKey);
+    addEventListener("keydown", onKey, true);
     paint();
     document.body.appendChild(ov);
   }
@@ -4580,12 +4652,16 @@
       if (closed) return; closed = true;
       detailOpen = Math.max(0, detailOpen - 1);
       var ix = detailClosers.indexOf(close); if (ix >= 0) detailClosers.splice(ix, 1);
+      dropRO();
       ov.remove(); document.body.style.overflow = lock; document.removeEventListener("keydown", onKey);
     }
+    var curRO = null;
+    function dropRO() { if (curRO) { try { curRO.disconnect(); } catch (_) { } curRO = null; } }
     function go(dir) { idx = (idx + dir + sibs.length) % sibs.length; paint(); }
     function onKey(e) {
       var t = e.target;
       var typing = !!(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "")));
+      if (lbOpen) return;   /* a ref image is enlarged on top — it owns Esc and the arrows */
       if (e.key === "Escape") { if (typing && t.blur) { t.blur(); return; } close(); return; }
       if (typing) return;   /* arrows move the caret while editing, never the deck */
       if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1);
@@ -4617,13 +4693,13 @@
       return e;
     }
     function paint() {
-      var el = sibs[idx], d = bentoDetailData(el, editable); card.innerHTML = "";
+      var el = sibs[idx], d = bentoDetailData(el, editable); card.innerHTML = ""; dropRO();
       var renderSug = null;
       var media = h("div", { class: "akld-media" });
       var c = el.content;
       if (c && c.src) {
         var url = blobURL(c.src), kind = srcKind(c.src, c.mime);
-        if (kind === "video") media.appendChild(h("video", { src: url, controls: "", playsinline: "", preload: "metadata" }));
+        if (kind === "video") { var dv = h("video", { src: url, controls: "", playsinline: "", preload: "metadata" }); posterize(dv, c.src); media.appendChild(dv); }
         else if (kind === "audio") media.appendChild(h("audio", { src: url, controls: "", style: "width:82%" }));
         else if (kind === "pdf" || kind === "file") media.appendChild(h("iframe", { src: url, title: d.title || "File preview" }));
         else media.appendChild(h("img", { src: url, alt: d.title || "" }));
@@ -4632,49 +4708,126 @@
         var mEl = media.querySelector("img,video");
         if (mEl) {
           var z = 1, px = 0, py = 0, MAXZ = 5;
-          function clamp() {
-            var b = media.getBoundingClientRect(), w = mEl.offsetWidth * z, hh = mEl.offsetHeight * z;
-            var ox = (b.width - mEl.offsetWidth) / 2, oy = (b.height - mEl.offsetHeight) / 2;
-            px = w <= b.width ? (b.width - w) / 2 - ox : Math.min(-ox, Math.max(px, b.width - ox - w));
-            py = hh <= b.height ? (b.height - hh) / 2 - oy : Math.min(-oy, Math.max(py, b.height - oy - hh));
+          var box = { l: 0, t: 0, w: 1, h: 1 }, iw = 0, ih = 0;
+          var coarse = !!(window.matchMedia && matchMedia("(pointer:coarse)").matches);
+          media.classList.add("akld-pan");
+          /* Layout is read ONCE per gesture, never per pointermove: measuring the pane and
+             the file inside every move event is what made touch panning crawl. */
+          function metrics() {
+            var b = media.getBoundingClientRect();
+            box = { l: b.left, t: b.top, w: b.width || 1, h: b.height || 1 };
+            iw = mEl.offsetWidth || 0; ih = mEl.offsetHeight || 0;
+            return iw > 0 && ih > 0;
           }
-          function apply() {
-            clamp();
-            mEl.style.transform = "translate(" + px + "px," + py + "px) scale(" + z + ")";
+          function clamp() {
+            var w = iw * z, hh = ih * z, ox = (box.w - iw) / 2, oy = (box.h - ih) / 2;
+            px = w <= box.w ? (box.w - w) / 2 - ox : Math.min(-ox, Math.max(px, box.w - ox - w));
+            py = hh <= box.h ? (box.h - hh) / 2 - oy : Math.min(-oy, Math.max(py, box.h - oy - hh));
+          }
+          /* one write per frame - pointers fire far faster than the screen refreshes */
+          function flush() {
+            mEl.style.transform = "translate3d(" + px + "px," + py + "px,0) scale(" + z + ")";
             media.classList.toggle("zoomed", z > 1.001);
             out.disabled = z <= 1.001;
-            fit.textContent = (Math.round(z * 10) / 10) + "x";
+            var lbl = (Math.round(z * 10) / 10) + "x";
+            if (fit.textContent !== lbl) fit.textContent = lbl;
           }
+          /* Written straight out, no rAF hop: a transform write forces no layout, and a tab
+             that is not being painted (background load, mid-scroll) may never hand out
+             another frame - queueing the write there is what made panning feel stuck. */
+          function apply() { clamp(); flush(); }
           function zoomAt(nz, cx, cy) {
             nz = Math.max(1, Math.min(nz, MAXZ));
-            var b = media.getBoundingClientRect();
-            cx = cx == null ? b.width / 2 : cx - b.left; cy = cy == null ? b.height / 2 : cy - b.top;
+            metrics();
+            cx = cx == null ? box.w / 2 : cx - box.l; cy = cy == null ? box.h / 2 : cy - box.t;
             var k = nz / z; px = cx - (cx - px) * k; py = cy - (cy - py) * k; z = nz; apply();
           }
+          /* Recentre from scratch. A phone decodes the file well after the overlay lays out,
+             so the first frame measured a 0x0 image and the preview stayed off-centre. Bail out
+             (without touching the zoom) until the file reports a size - load and the observer
+             below call back on decode and on every pane change (rotate, resize, pane growing). */
+          function recentre() {
+            if (!metrics()) return;
+            var keep = z; z = 1; px = py = 0; zoomAt(keep);
+          }
+          function reset1x() { z = 1; px = py = 0; metrics(); apply(); }
           var out = h("button", { class: "akld-zbtn", title: "Zoom out", onclick: function (e) { e.stopPropagation(); zoomAt(z / 1.5); } }, ["\u2212"]);
           var inn = h("button", { class: "akld-zbtn", title: "Zoom in", onclick: function (e) { e.stopPropagation(); zoomAt(z * 1.5); } }, ["+"]);
-          var fit = h("button", { class: "akld-zbtn", title: "Reset zoom", onclick: function (e) { e.stopPropagation(); z = 1; px = py = 0; apply(); } }, ["1x"]);
+          var fit = h("button", { class: "akld-zbtn", title: "Reset zoom", onclick: function (e) { e.stopPropagation(); reset1x(); } }, ["1x"]);
           media.appendChild(h("div", { class: "akld-zoom" }, [out, inn, fit]));
-          media.appendChild(h("div", { class: "akld-drag" }, ["\u2725  Drag to move"]));
+          media.appendChild(h("div", { class: "akld-drag" }, [coarse ? "\u2725  Drag to move \u00b7 pinch to zoom" : "\u2725  Drag to move"]));
           media.addEventListener("wheel", function (e) { e.preventDefault(); zoomAt(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY); }, { passive: false });
           media.addEventListener("dblclick", function (e) { if (e.target.closest("button")) return; zoomAt(z > 1.001 ? 1 : 2.5, e.clientX, e.clientY); });
-          mEl.addEventListener("pointerdown", function (e) {
-            if (z <= 1.001 || e.button) return;
-            var sx = e.clientX, sy = e.clientY, ox = px, oy = py, live = false;
-            function mv(ev) {
-              if (!live) {
-                if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
-                live = true; dragged = true; media.classList.add("grabbing");
-              }
-              ev.preventDefault();
-              px = ox + (ev.clientX - sx); py = oy + (ev.clientY - sy); apply();
-            }
-            function up() { media.classList.remove("grabbing"); window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); }
-            window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+          /* One finger pans, two fingers pinch-zoom, double-tap toggles 1x / 2.5x. */
+          var pts = [], drag = null, pin = null, tapAt = 0, tapX = 0, tapY = 0;
+          function findPt(id) { for (var i = 0; i < pts.length; i++) if (pts[i].id === id) return pts[i]; return null; }
+          function startDrag(p) { drag = { x: p.x, y: p.y, px: px, py: py, live: false }; }
+          media.addEventListener("pointerdown", function (e) {
+            if (e.target.closest("button") || pts.length >= 2) return;
+            if (e.pointerType === "mouse" && e.button) return;
+            pts.push({ id: e.pointerId, x: e.clientX, y: e.clientY });
+            try { media.setPointerCapture(e.pointerId); } catch (_) { }
+            metrics();
+            if (pts.length === 2) {
+              drag = null; dragged = true;
+              var a = pts[0], b = pts[1];
+              pin = { d: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), z: z, px: px, py: py };
+            } else if (z > 1.001) startDrag(pts[0]);
           });
+          media.addEventListener("pointermove", function (e) {
+            var p = findPt(e.pointerId); if (!p) return;
+            p.x = e.clientX; p.y = e.clientY;
+            if (pin && pts.length === 2) {
+              var a = pts[0], b = pts[1];
+              var d = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+              var mx = (a.x + b.x) / 2 - box.l, my = (a.y + b.y) / 2 - box.t;
+              var nz = Math.max(1, Math.min(pin.z * (d / pin.d), MAXZ)), k = nz / pin.z;
+              px = mx - (mx - pin.px) * k; py = my - (my - pin.py) * k; z = nz;
+              if (e.cancelable) e.preventDefault();
+              apply(); return;
+            }
+            if (!drag) return;
+            if (!drag.live) {
+              if (Math.abs(p.x - drag.x) + Math.abs(p.y - drag.y) < (coarse ? 6 : 4)) return;
+              drag.live = true; dragged = true; media.classList.add("grabbing");
+            }
+            if (e.cancelable) e.preventDefault();
+            px = drag.px + (p.x - drag.x); py = drag.py + (p.y - drag.y); apply();
+          });
+          function endPt(e) {
+            var p = findPt(e.pointerId);
+            pts = pts.filter(function (q) { return q.id !== e.pointerId; });
+            try { media.releasePointerCapture(e.pointerId); } catch (_) { }
+            if (pts.length < 2) pin = null;
+            if (pts.length === 1) { metrics(); startDrag(pts[0]); return; }   /* second finger up - keep panning */
+            if (pts.length) return;
+            var wasLive = drag && drag.live;
+            drag = null; media.classList.remove("grabbing");
+            /* touch-action:none stops the browser synthesising dblclick, so detect the double tap */
+            if (!editable && p && !wasLive && e.pointerType !== "mouse") {
+              var now = Date.now();
+              if (now - tapAt < 320 && Math.abs(p.x - tapX) + Math.abs(p.y - tapY) < 26) {
+                tapAt = 0; dragged = true; zoomAt(z > 1.001 ? 1 : 2.5, p.x, p.y);
+              } else { tapAt = now; tapX = p.x; tapY = p.y; }
+            }
+          }
+          media.addEventListener("pointerup", endPt);
+          media.addEventListener("pointercancel", endPt);
           out.disabled = true;
+          mEl.addEventListener(mEl.tagName === "VIDEO" ? "loadedmetadata" : "load", recentre);
+          if (window.ResizeObserver) {
+            var rq = 0;
+            curRO = new ResizeObserver(function () {
+              if (rq) return;
+              rq = requestAnimationFrame(function () { rq = 0; recentre(); });
+            });
+            curRO.observe(media);
+          }
           /* open every file already at 1.5×, centred — 1x stays the reset floor */
-          requestAnimationFrame(function () { zoomAt(1.5); });
+          z = 1.5;
+          recentre();
+          requestAnimationFrame(recentre);
+          setTimeout(recentre, 120);
         }
       } else media.appendChild(h("div", { class: "akld-empty" }, [editable ? "Click to add an image" : "No image yet"]));
       if (editable) { media.style.cursor = "pointer"; media.addEventListener("click", function (ev) { if (dragged) { dragged = false; return; } if (ev.target.closest(".akld-zoom,.akld-nav")) return; pickFile("image/*", function (data) { if (!data) return; el.content = { type: "image", src: data, fit: "cover", tx: 0, ty: 0, sc: 1 }; commit("content"); paint(); }); }); }
@@ -4692,6 +4845,12 @@
       d.refs.forEach(function (src, ri) {
         var im = h("img", { class: "akld-ref", src: blobURL(src), alt: "" });
         if (editable) { im.title = "Click to remove"; im.style.cursor = "pointer"; im.addEventListener("click", function () { d.refs.splice(ri, 1); commit("text"); paint(); }); }
+        else {
+          /* visitors read the reference shots full-screen, arrowing through the whole strip */
+          im.title = "Click to enlarge";
+          im.setAttribute("data-zoom", "1");
+          im.addEventListener("click", function (e) { e.stopPropagation(); openImageLightbox(d.refs.slice(), ri); });
+        }
         refs.appendChild(im);
       });
       if (editable) refs.appendChild(h("button", { class: "akld-add", onclick: function () { pickFiles("image/*", function (files) { if (!files || !files.length) return; files.forEach(function (f) { d.refs.push(f.data); }); commit("text"); paint(); }); } }, ["+ refs"]));

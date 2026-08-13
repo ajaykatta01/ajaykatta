@@ -2016,6 +2016,44 @@
     }, { rootMargin: (margin || 400) + "px" });
     io.observe(el);
   }
+  /* First-frame poster for a media block's <video>: without one the player is just a grey
+     rectangle until it is played. Lazily grabbed near the viewport, cached per source. */
+  var _vPoster = {};
+  function videoPoster(vEl, key, url) {
+    if (!vEl || !key || vEl.getAttribute("poster")) return;
+    if (_vPoster[key]) { vEl.setAttribute("poster", _vPoster[key]); return; }
+    lazyMount(vEl, function () {
+      var v = h("video", { preload: "auto", playsinline: "", muted: "" }), done = 0;
+      v.muted = true;
+      function stop() { try { v.removeAttribute("src"); v.load(); } catch (e) { } }
+      function grab() {
+        if (done) return;
+        var w = v.videoWidth || 0, hh = v.videoHeight || 0;
+        if (!w || !hh || v.readyState < 2) return;
+        done = 1;
+        try {
+          var k = Math.min(1, 1280 / Math.max(w, hh)), c = document.createElement("canvas");
+          c.width = Math.max(2, Math.round(w * k)); c.height = Math.max(2, Math.round(hh * k));
+          var cx = c.getContext("2d");
+          cx.drawImage(v, 0, 0, c.width, c.height);
+          var px = cx.getImageData(0, 0, c.width, c.height).data, lit = 0;
+          for (var i = 3; i < px.length; i += 4 * 97) if (px[i] > 8) { lit = 1; break; }
+          if (!lit) { done = 0; return; }
+          var d = c.toDataURL("image/webp", 0.82);
+          if (d && d.indexOf("data:image") === 0) { _vPoster[key] = d; if (!vEl.getAttribute("poster")) vEl.setAttribute("poster", d); }
+        } catch (e) { }
+        stop();
+      }
+      ["seeked", "loadeddata", "canplay", "timeupdate"].forEach(function (n) { v.addEventListener(n, grab); });
+      v.addEventListener("loadedmetadata", function () {
+        var t = Math.min(0.12, (v.duration || 1) / 4);
+        if (t > 0 && v.currentTime < t) { try { v.currentTime = t; } catch (e) { } }
+      });
+      v.addEventListener("error", function () { done = 1; stop(); });
+      setTimeout(function () { if (!done) { done = 1; stop(); } }, 8000);
+      v.src = url;
+    }, 600);
+  }
   var _psFrameCache = {};
   function videoFrameThumb(src, thumb) {
     if (_psFrameCache[src]) { thumb.insertBefore(h("img", { src: _psFrameCache[src], alt: "", decoding: "async" }), thumb.firstChild); return; }
@@ -2027,7 +2065,7 @@
         var c = document.createElement("canvas"), k = Math.min(1, 344 / (v.videoWidth || 344));
         c.width = Math.max(2, Math.round((v.videoWidth || 344) * k)); c.height = Math.max(2, Math.round((v.videoHeight || 260) * k));
         c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
-        var d = c.toDataURL("image/jpeg", 0.72);
+        var d = c.toDataURL("image/webp", 0.8);
         _psFrameCache[src] = d;
         thumb.insertBefore(h("img", { src: d, alt: "", decoding: "async" }), thumb.firstChild);
       } catch (e) {}
@@ -2791,6 +2829,7 @@
     } else if (b.type === "media") {
       var isAudio = (b.mime || "").indexOf("audio") === 0;
       var mEl = isAudio ? h("audio", { class: "media", src: dataURLtoBlobURL(b.src), controls: "", preload: "metadata" }) : h("video", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), controls: "", playsinline: "", preload: "metadata" });
+      if (!isAudio) videoPoster(mEl, b.src, mEl.getAttribute("src"));
       mEl.addEventListener("error", function () { var ph = mediaMissing(I.media, isAudio ? "Audio unavailable" : "Video unavailable", rad); if (mEl.parentNode) mEl.parentNode.replaceChild(ph, mEl); });
       inner = h("div", {}, [isAudio ? mEl : h("div", { class: "ak-wide" }, [mEl]), b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else if (b.type === "model") {
@@ -4205,7 +4244,19 @@
         function sweep(node, folder, base, depth) {
           if (!node || typeof node !== "object" || depth > 12) return;
           if (Array.isArray(node)) {
-            node.forEach(function (v, i) { if (v && typeof v === "object") sweep(v, folder, base + "-" + (i + 1), depth + 1); });
+            /* A file can also sit in a plain array of strings — Layout-Studio keeps a shape's
+               reference photos as detail.refs[] — and those used to be skipped here, so they
+               stayed base64 in the JSON (one handbag project shipped 11 MB that way). */
+            node.forEach(function (v, i) {
+              if (typeof v === "string") {
+                var isD = v.indexOf("data:") === 0, isM = /^media\//i.test(v);
+                if (!isD && !isM) return;
+                if (isD && v.length < INLINE_MIN) return;
+                node[i] = stash(v, folder, base + "-" + (i + 1));
+                return;
+              }
+              if (v && typeof v === "object") sweep(v, folder, base + "-" + (i + 1), depth + 1);
+            });
             return;
           }
           if (node.type === "prototype") return;            // embed URL, not a file
