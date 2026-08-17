@@ -1220,7 +1220,7 @@
     return new Promise(function (res, rej) {
       var id = "ak-package-js", ex = document.getElementById(id);
       if (!ex) {
-        ex = h("script", { id: id, src: "site-package.js?v=2" });
+        ex = h("script", { id: id, src: "site-package.js?v=3" });
         document.body.appendChild(ex);
       }
       var tries = 0;
@@ -1262,6 +1262,13 @@
             r.changed.slice(0, 14).forEach(function (n) { blk.appendChild(h("div", { class: "it" }, [n])); });
             if (r.changed.length > 14) blk.appendChild(h("div", { class: "it" }, ["+ " + (r.changed.length - 14) + " more"]));
             box.appendChild(blk);
+          }
+          // a file that could not be read is a file the live site would be missing — say so
+          if (r.missing && r.missing.length) {
+            box.appendChild(h("div", { class: "aks-note", style: "margin-top:10px;padding:10px 12px;border:1px solid #ef4444;border-radius:10px", html:
+              "<b>\u26A0 " + r.missing.length + " file" + (r.missing.length === 1 ? "" : "s") + " could not be packed:</b><br>" +
+              r.missing.slice(0, 4).join("<br>") + (r.missing.length > 4 ? "<br>+ " + (r.missing.length - 4) + " more" : "") +
+              "<br>Tell Claude before you push \u2014 they would be missing on the live site." }));
           }
           box.appendChild(h("div", { class: "aks-note", html: isDelta
             ? "1 \u00b7 Unzip it.<br>2 \u00b7 Open <b>Ajaykatta_Website / GitRepo</b> and copy these files into your repo, same folder layout, replacing what's there.<br>3 \u00b7 Push to GitHub \u2014 Vercel redeploys automatically."

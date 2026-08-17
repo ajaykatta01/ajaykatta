@@ -623,6 +623,15 @@
     .akls-sm:hover{border-color:var(--ac);color:var(--ac)}
     .akls-sm svg{width:12px;height:12px;flex:none}
     .akls-sm.w100{width:100%;margin-bottom:8px}
+    .akls-sm.on{border-color:color-mix(in srgb,var(--ac) 55%,var(--ln));color:var(--ac);background:color-mix(in srgb,var(--ac) 10%,transparent);cursor:default}
+    .akls-sm.on:hover{border-color:color-mix(in srgb,var(--ac) 55%,var(--ln));color:var(--ac)}
+    /* focal-point pad: drag the dot to choose which part of a filled image shows */
+    .akls-focal{position:relative;width:100%;aspect-ratio:16/10;margin-bottom:8px;border:1px solid var(--ln);border-radius:10px;overflow:hidden;
+      background:repeating-conic-gradient(color-mix(in srgb,var(--tx) 7%,transparent) 0 25%,transparent 0 50%) 0 0/14px 14px;cursor:crosshair;touch-action:none}
+    .akls-focal:hover{border-color:color-mix(in srgb,var(--ac) 60%,var(--ln))}
+    .akls-focal img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+    .akls-focdot{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid #fff;
+      background:color-mix(in srgb,var(--ac) 85%,transparent);box-shadow:0 0 0 1px rgba(0,0,0,.5),0 2px 9px rgba(0,0,0,.45);pointer-events:none}
     .akls-chk{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--mut);cursor:pointer;user-select:none;margin-bottom:8px}
     .akls-chk input{accent-color:var(--ac);margin:0}
     .akls-note{font-size:10.5px;line-height:1.55;color:var(--mut);margin:2px 0 10px}
@@ -717,7 +726,7 @@
     .akld-media.akld-pan img,.akld-media.akld-pan video{-webkit-user-select:none;user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none}
     .akld-media.zoomed img,.akld-media.zoomed video{transition:none;cursor:grab;will-change:transform}
     .akld-media.grabbing img,.akld-media.grabbing video{cursor:grabbing;transition:none}
-    .akld-zoom{position:absolute;right:14px;bottom:14px;z-index:6;display:flex;gap:6px}
+    .akld-zoom{position:absolute;right:14px;bottom:14px;z-index:6;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:calc(100% - 28px)}
     .akld-zbtn{border:0;cursor:pointer;height:32px;min-width:32px;padding:0 10px;border-radius:999px;background:rgba(14,12,10,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff;font:600 12px/1 ui-monospace,'SFMono-Regular',Menlo,monospace;display:flex;align-items:center;justify-content:center;gap:6px}
     .akld-zbtn:hover{background:#1C1A14}.akld-zbtn[disabled]{opacity:.4;cursor:default}
     .akld-drag{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;background:rgba(14,12,10,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fff;font:600 11px/1 'Inter',sans-serif;letter-spacing:.04em;pointer-events:none}
@@ -1220,6 +1229,26 @@
       }
     } else { node.style.boxShadow = ""; node.style.filter = ""; }
   }
+  /* Bento tiles FILL their frame (fit:cover) and the author picks which part shows:
+     c.px / c.py are the crop's focal point in percent (50/50 = centre) and ride on
+     object-position, so dragging can never open a gap at the edges. c.z / c.ox / c.oy
+     stay for zoom and legacy pixel pans. The full file is untouched — opening the
+     card still shows all of it. */
+  var IMGFILL_KEY = "akls-img-fill";
+  function imgFillDefault() { try { return localStorage.getItem(IMGFILL_KEY) !== "0"; } catch (e) { return true; } }
+  function setImgFillDefault(on) { try { localStorage.setItem(IMGFILL_KEY, on ? "1" : "0"); } catch (e) {} }
+  function defaultFit() { return imgFillDefault() ? "cover" : "contain"; }
+  function centerable(c) { return !!c && (c.type === "image" || (c.type === "media" && String(c.mime || "").indexOf("audio") !== 0)); }
+  function focalOf(c) { return { x: (c && c.px != null) ? c.px : 50, y: (c && c.py != null) ? c.py : 50 }; }
+  function imgFocal(c) { var f = focalOf(c); return "object-position:" + f.x + "% " + f.y + "%;"; }
+  function isCropCentred(c) {
+    var f = focalOf(c);
+    return !!c && f.x === 50 && f.y === 50 && (c.z || 1) === 1 && !(c.ox || 0) && !(c.oy || 0);
+  }
+  function resetCrop(c) {
+    if (!centerable(c) || isCropCentred(c)) return false;
+    c.px = 50; c.py = 50; c.z = 1; c.ox = 0; c.oy = 0; return true;
+  }
   function imgTf(c) {
     var z = c.z || 1, ox = c.ox || 0, oy = c.oy || 0;
     if (z === 1 && !ox && !oy) return "";
@@ -1311,7 +1340,7 @@
     if (c.type === "text") return textBlock(c, false);
     var common = "width:100%;height:100%;border:0;display:block;";
     if (c.type === "image") {
-      var cim = h("img", Object.assign({ src: blobURL(c.src), draggable: "false", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) }, loadHints(el, editing)));
+      var cim = h("img", Object.assign({ src: blobURL(c.src), draggable: "false", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgFocal(c) + imgTf(c) }, loadHints(el, editing)));
       crispen(cim, c.src);
       return cim;
     }
@@ -1320,7 +1349,7 @@
         if (editing) return h("div", { class: "akls-audio", style: "color:var(--muted,#999)", html: ICO.audio });
         return h("div", { class: "akls-audio" }, [h("audio", { src: blobURL(c.src), controls: "", style: "width:100%" })]);
       }
-      var v = h("video", { src: blobURL(c.src), playsinline: "", preload: (el && el.y || 0) > 1500 ? "none" : "metadata", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgTf(c) });
+      var v = h("video", { src: blobURL(c.src), playsinline: "", preload: (el && el.y || 0) > 1500 ? "none" : "metadata", style: common + "object-fit:" + (c.fit || "cover") + ";" + imgFocal(c) + imgTf(c) });
       if (!editing) v.setAttribute("controls", "");
       posterize(v, c.src);
       return v;
@@ -2148,6 +2177,23 @@
           toast("Theme exported");
         });
       }));
+      menuEl.appendChild(h("div", { class: "akls-msep" }));
+      menuEl.appendChild(h("div", { class: "akls-mhd" }, ["Images"]));
+      menuEl.appendChild(mItem(ICO.fit, "New images fill their frame", function () {
+        setImgFillDefault(!imgFillDefault());
+        closeMenu(); openMenu();
+        toast(imgFillDefault() ? "New images fill their frame — drag the crop to taste" : "New images show the whole file, letterboxed if needed");
+      }, [h("span", { class: "tag" }, [imgFillDefault() ? "on" : "off"])]));
+      menuEl.appendChild(mItem(ICO.img, "Recentre every image crop", function () {
+        closeMenu();
+        var targets = D.els.filter(function (e2) { return centerable(e2.content) && !isCropCentred(e2.content); });
+        if (!targets.length) { toast("Every crop is already centred"); return; }
+        snapNow();
+        targets.forEach(function (e2) { resetCrop(e2.content); });
+        paintStage(); paintPanel();
+        toast(targets.length + (targets.length === 1 ? " crop recentred" : " crops recentred") + " — Ctrl+Z undoes it");
+      }));
+      menuEl.appendChild(h("div", { class: "akls-mnote" }, ["Filled images crop to their frame — pick the visible part per image in the inspector."]));
       if (opts.onSaveTheme) {
         menuEl.appendChild(h("div", { class: "akls-msep" }));
         menuEl.appendChild(mItem(ICO.check, "Use canvas as default start", function () {
@@ -2320,9 +2366,7 @@
       itool(ICO.line, "Line", function () { addEl({ kind: "rect", line: true, w: 520, h: 4, fill: "#E5783A", capS: "round", capE: "round", capAmt: 100 }); }),
       textBtn,
       itool(ICO.img, "Image\u2026", function () {
-        pickFile("image/*", function (data) {
-          addEl({ kind: "rect", w: 640, h: 420, r: 12, fill: "none", content: { type: "image", src: data, fit: "cover" } });
-        });
+        pickFile("image/*", function (data) { addImageFromData(data, 12); });
       }),
       itool(ICO.bento, "Bento grid — 6 sized tiles", function () { addBento(); }),
       vsep(),
@@ -3270,9 +3314,19 @@
     function pannable(el) { var c = el.content; return !!(c && (c.type === "image" || (c.type === "media" && (c.mime || "").indexOf("audio") !== 0))); }
     function applyContentTransform(node, el) {
       var m = node.querySelector("img,video"); if (!m) return;
-      var c = el.content || {};
+      var c = el.content || {}, f = focalOf(c);
+      m.style.objectPosition = f.x + "% " + f.y + "%";
       m.style.transform = "translate(" + (c.ox || 0) + "px," + (c.oy || 0) + "px) scale(" + (c.z || 1) + ")";
       m.style.transformOrigin = "center center";
+    }
+    /* How far a filled image overhangs its frame, in design units — the room a drag has. */
+    function coverSlack(node, el) {
+      var m = node.querySelector("img,video"); if (!m) return null;
+      var c = el.content || {};
+      var nw = m.naturalWidth || m.videoWidth || 0, nh = m.naturalHeight || m.videoHeight || 0;
+      if (!nw || !nh) return null;
+      var s = Math.max(el.w / nw, el.h / nh) * (c.z || 1);
+      return { x: Math.max(0, nw * s - el.w), y: Math.max(0, nh * s - el.h) };
     }
     function wireEl(node, el) {
       node.addEventListener("contextmenu", function (e) {
@@ -3314,6 +3368,10 @@
         else if (!selSet.has(el.id)) selectElement(el, { alt: e.altKey });
         else if (sel !== el.id) { sel = el.id; adjust = false; paintSel(); paintPanel(); paintLayers(); }
         var isAdj = adjust && sel === el.id && pannable(el);
+        /* A filled image pans its crop (object-position), never the element — so the drag
+           can't slide the picture off its own frame and leave a gap. */
+        var slack = (isAdj && (c.fit || "cover") === "cover") ? coverSlack(node, el) : null;
+        var f0 = focalOf(c);
         var group = selSet.size > 1 ? selEls().filter(function (o) { return o.id !== el.id && !o.locked; }).map(function (o) { return { o: o, x0: o.x, y0: o.y }; }) : [];
         var c = el.content || {};
         var sx = e.clientX, sy = e.clientY, x0 = el.x, y0 = el.y, ox0 = c.ox || 0, oy0 = c.oy || 0, moved = false;
@@ -3325,7 +3383,11 @@
           if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
           if (!moved) pushPre(pre);
           moved = true;
-          if (isAdj) {
+          if (slack) {
+            c.px = slack.x > 0.5 ? Math.round(clamp(f0.x - dx / slack.x * 100, 0, 100) * 10) / 10 : 50;
+            c.py = slack.y > 0.5 ? Math.round(clamp(f0.y - dy / slack.y * 100, 0, 100) * 10) / 10 : 50;
+            applyContentTransform(node, el);
+          } else if (isAdj) {
             c.ox = Math.round(ox0 + dx); c.oy = Math.round(oy0 + dy);
             applyContentTransform(node, el);
           } else {
@@ -3685,14 +3747,17 @@
     }
 
     /* ---- paste (Figma → studio): images, SVG, text ---- */
-    function addImageFromData(data) {
+    /* The frame is sized to the file's own aspect, so a centred image fills it without
+       letterboxing; fit follows the studio-wide default. */
+    function addImageFromData(data, r) {
+      var rad = r == null ? 10 : r, ft = defaultFit();
       var im = new Image();
       im.onload = function () {
         var nw = im.naturalWidth || 700, nh = im.naturalHeight || 400;
         var w = Math.min(700, nw), hh = Math.min(900, Math.round(w * nh / nw));
-        addEl({ kind: "rect", w: w, h: hh, r: 10, fill: "none", content: { type: "image", src: data, fit: "contain" } });
+        addEl({ kind: "rect", w: w, h: hh, r: rad, fill: "none", content: { type: "image", src: data, fit: ft } });
       };
-      im.onerror = function () { addEl({ kind: "rect", w: 520, h: 340, r: 10, fill: "none", content: { type: "image", src: data, fit: "cover" } }); };
+      im.onerror = function () { addEl({ kind: "rect", w: 520, h: 340, r: rad, fill: "none", content: { type: "image", src: data, fit: ft } }); };
       im.src = data;
     }
     function onPaste(e) {
@@ -4380,7 +4445,7 @@
         var accept = { image: "image/*", media: "video/*,audio/*", pdf: "application/pdf", model: ".glb,.gltf,model/gltf-binary,model/gltf+json" }[v];
         pickFile(accept, function (data) {
           if (!data) { cSel.value = curType; return; }
-          el.content = { type: v, src: data, fit: "cover" };
+          el.content = { type: v, src: data, fit: defaultFit() };
           if (v === "media") el.content.mime = (data.match(/^data:(.*?);/) || [])[1] || "";
           refreshNode(el, true); paintPanel();
         });
@@ -4390,12 +4455,52 @@
       var c = el.content;
       if (c && (c.type === "image" || c.type === "media" || c.type === "pdf" || c.type === "model")) {
         if (c.type === "image" || (c.type === "media" && (c.mime || "").indexOf("audio") !== 0)) {
-          panel.appendChild(fw("Fit", seg([["cover", "Cover"], ["contain", "Contain"], ["fill", "Stretch"]], c.fit || "cover", function (v) { c.fit = v; refreshNode(el, true); })));
+          panel.appendChild(fw("Fit", seg([["cover", "Fill"], ["contain", "Whole image"], ["fill", "Stretch"]], c.fit || "cover", function (v) { c.fit = v; refreshNode(el, true); paintPanel(); })));
+          if (c.type === "image" && c.src) {
+            var pad = h("div", { class: "akls-focal", title: "Drag to choose which part of the image the tile shows" });
+            var pimg = h("img", { src: blobURL(c.src), draggable: "false", alt: "" });
+            var frame = h("div", { class: "fr" });
+            var dot = h("span", { class: "akls-focdot" });
+            pad.appendChild(pimg); pad.appendChild(frame); pad.appendChild(dot);
+            /* the pad takes the file's own aspect, so percentages map 1:1 onto the image */
+            var syncPad = function () {
+              var ff = focalOf(c), nw = pimg.naturalWidth || 0, nh = pimg.naturalHeight || 0;
+              dot.style.left = ff.x + "%"; dot.style.top = ff.y + "%";
+              if (nw && nh) pad.style.aspectRatio = nw + "/" + nh;
+              var shown = (c.fit || "cover") === "cover" && nw && nh;
+              frame.style.display = shown ? "" : "none";
+              if (!shown) return;
+              var ai = nw / nh, af = Math.max(0.01, (el.w || 1) / (el.h || 1)), z = c.z || 1;
+              var fw2 = Math.min(1, (af / ai) / z), fh2 = Math.min(1, (ai / af) / z);
+              frame.style.left = ((1 - fw2) * ff.x) + "%"; frame.style.top = ((1 - fh2) * ff.y) + "%";
+              frame.style.width = (fw2 * 100) + "%"; frame.style.height = (fh2 * 100) + "%";
+            };
+            var setFocal = function (ev) {
+              var r = pad.getBoundingClientRect();
+              c.px = Math.round(clamp((ev.clientX - r.left) / (r.width || 1) * 100, 0, 100) * 10) / 10;
+              c.py = Math.round(clamp((ev.clientY - r.top) / (r.height || 1) * 100, 0, 100) * 10) / 10;
+              syncPad();
+              var n2 = nodeFor(el.id); if (n2) applyContentTransform(n2, el);
+            };
+            pimg.addEventListener("load", syncPad);
+            pad.addEventListener("pointerdown", function (ev) {
+              ev.preventDefault(); snapNow();
+              try { pad.setPointerCapture(ev.pointerId); } catch (e2) {}
+              setFocal(ev);
+              var mvp = function (e3) { setFocal(e3); };
+              var upp = function () {
+                pad.removeEventListener("pointermove", mvp); pad.removeEventListener("pointerup", upp); pad.removeEventListener("pointercancel", upp);
+              };
+              pad.addEventListener("pointermove", mvp); pad.addEventListener("pointerup", upp); pad.addEventListener("pointercancel", upp);
+            });
+            syncPad();
+            panel.appendChild(fw("What the tile shows", pad));
+          }
           panel.appendChild(grid2(
-            h("button", { class: "akls-sm", html: ICO.move + "<span>" + (adjust ? "Done adjusting" : "Adjust on canvas") + "</span>", onclick: function () { adjust = !adjust; paintSel(); paintPanel(); } }),
-            h("button", { class: "akls-sm", onclick: function () { c.z = 1; c.ox = 0; c.oy = 0; refreshNode(el, true); paintPanel(); } }, ["Reset view"])
+            h("button", { class: "akls-sm", html: ICO.move + "<span>" + (adjust ? "Done adjusting" : "Drag on canvas") + "</span>", onclick: function () { adjust = !adjust; paintSel(); paintPanel(); } }),
+            h("button", { class: "akls-sm" + (isCropCentred(c) ? " on" : ""), onclick: function () { if (isCropCentred(c)) return; snapNow(); resetCrop(c); refreshNode(el, true); paintPanel(); } }, [isCropCentred(c) ? "Centred" : "Recentre crop"])
           ));
-          panel.appendChild(note("Double-click the shape on canvas: drag pans the image, scroll zooms it. Esc exits."));
+          panel.appendChild(note("Fill crops to the frame. Drag the pad above \u2014 or double-click the tile on canvas: drag moves the crop, scroll zooms \u2014 to set the part visitors see. The whole file stays intact behind it."));
         }
         panel.appendChild(h("button", { class: "akls-sm w100", html: ICO.dup + "<span>Replace file\u2026</span>", onclick: function () {
           var accept = { image: "image/*", media: "video/*,audio/*", pdf: "application/pdf", model: ".glb,.gltf" }[c.type];
@@ -4751,13 +4856,58 @@
             var keep = z; z = 1; px = py = 0; zoomAt(keep);
           }
           function reset1x() { z = 1; px = py = 0; metrics(); apply(); }
-          var out = h("button", { class: "akld-zbtn", title: "Zoom out", onclick: function (e) { e.stopPropagation(); zoomAt(z / 1.5); } }, ["\u2212"]);
-          var inn = h("button", { class: "akld-zbtn", title: "Zoom in", onclick: function (e) { e.stopPropagation(); zoomAt(z * 1.5); } }, ["+"]);
-          var fit = h("button", { class: "akld-zbtn", title: "Reset zoom", onclick: function (e) { e.stopPropagation(); reset1x(); } }, ["1x"]);
-          media.appendChild(h("div", { class: "akld-zoom" }, [out, inn, fit]));
+          /* The author's chosen opening view, stored on the file as zoom + where in the
+             overflow the pane sits (fractions), so it survives any pane or screen size. */
+          function viewState() {
+            if (!metrics()) return null;
+            var ox = (box.w - iw) / 2, oy = (box.h - ih) / 2;
+            var sw = iw * z - box.w, sh = ih * z - box.h;
+            var f01 = function (n) { return Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000; };
+            return {
+              z: Math.round(z * 1000) / 1000,
+              fx: sw > 0.5 ? f01((-ox - px) / sw) : 0.5,
+              fy: sh > 0.5 ? f01((-oy - py) / sh) : 0.5
+            };
+          }
+          function applyView(v) {
+            if (!v || !metrics()) return false;
+            z = Math.max(1, Math.min(v.z || 1.5, MAXZ));
+            var ox = (box.w - iw) / 2, oy = (box.h - ih) / 2;
+            var sw = iw * z - box.w, sh = ih * z - box.h;
+            px = sw > 0.5 ? -ox - (v.fx == null ? 0.5 : v.fx) * sw : (box.w - iw * z) / 2 - ox;
+            py = sh > 0.5 ? -oy - (v.fy == null ? 0.5 : v.fy) * sh : (box.h - ih * z) / 2 - oy;
+            apply(); return true;
+          }
+          var touched = false;
+          function restore() { if (c && c.view && applyView(c.view)) return; recentre(); }
+          var out = h("button", { class: "akld-zbtn", title: "Zoom out", onclick: function (e) { e.stopPropagation(); touched = true; zoomAt(z / 1.5); } }, ["\u2212"]);
+          var inn = h("button", { class: "akld-zbtn", title: "Zoom in", onclick: function (e) { e.stopPropagation(); touched = true; zoomAt(z * 1.5); } }, ["+"]);
+          var fit = h("button", { class: "akld-zbtn", title: "Reset zoom", onclick: function (e) { e.stopPropagation(); touched = true; reset1x(); } }, ["1x"]);
+          var zoomRow = [out, inn, fit];
+          if (editable) {
+            /* Drag/zoom to taste, then pin it: this is the view every visitor opens on. */
+            var setBtn = h("button", { class: "akld-zbtn", title: "Save this framing as the view visitors open on" }, ["Set as opening view"]);
+            setBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              var v = viewState(); if (!v) return;
+              c.view = v; commit("content");
+              setBtn.textContent = "Opening view saved \u2713";
+              setTimeout(function () { if (setBtn.isConnected) setBtn.textContent = "Set as opening view"; }, 1600);
+              if (clrBtn) clrBtn.style.display = "";
+            });
+            var clrBtn = h("button", { class: "akld-zbtn", title: "Forget the saved opening view", style: c && c.view ? "" : "display:none" }, ["\u21ba"]);
+            clrBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              if (c) delete c.view;
+              commit("content"); clrBtn.style.display = "none";
+              touched = false; z = 1.5; recentre();
+            });
+            zoomRow = [setBtn, clrBtn, out, inn, fit];
+          }
+          media.appendChild(h("div", { class: "akld-zoom" }, zoomRow));
           media.appendChild(h("div", { class: "akld-drag" }, [coarse ? "\u2725  Drag to move \u00b7 pinch to zoom" : "\u2725  Drag to move"]));
-          media.addEventListener("wheel", function (e) { e.preventDefault(); zoomAt(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY); }, { passive: false });
-          media.addEventListener("dblclick", function (e) { if (e.target.closest("button")) return; zoomAt(z > 1.001 ? 1 : 2.5, e.clientX, e.clientY); });
+          media.addEventListener("wheel", function (e) { e.preventDefault(); touched = true; zoomAt(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY); }, { passive: false });
+          media.addEventListener("dblclick", function (e) { if (e.target.closest("button")) return; touched = true; zoomAt(z > 1.001 ? 1 : 2.5, e.clientX, e.clientY); });
           /* One finger pans, two fingers pinch-zoom, double-tap toggles 1x / 2.5x. */
           var pts = [], drag = null, pin = null, tapAt = 0, tapX = 0, tapY = 0;
           function findPt(id) { for (var i = 0; i < pts.length; i++) if (pts[i].id === id) return pts[i]; return null; }
@@ -4765,6 +4915,7 @@
           media.addEventListener("pointerdown", function (e) {
             if (e.target.closest("button") || pts.length >= 2) return;
             if (e.pointerType === "mouse" && e.button) return;
+            touched = true;
             pts.push({ id: e.pointerId, x: e.clientX, y: e.clientY });
             try { media.setPointerCapture(e.pointerId); } catch (_) { }
             metrics();
@@ -4814,23 +4965,23 @@
           media.addEventListener("pointerup", endPt);
           media.addEventListener("pointercancel", endPt);
           out.disabled = true;
-          mEl.addEventListener(mEl.tagName === "VIDEO" ? "loadedmetadata" : "load", recentre);
+          mEl.addEventListener(mEl.tagName === "VIDEO" ? "loadedmetadata" : "load", restore);
           if (window.ResizeObserver) {
             var rq = 0;
             curRO = new ResizeObserver(function () {
               if (rq) return;
-              rq = requestAnimationFrame(function () { rq = 0; recentre(); });
+              rq = requestAnimationFrame(function () { rq = 0; if (touched) recentre(); else restore(); });
             });
             curRO.observe(media);
           }
-          /* open every file already at 1.5×, centred — 1x stays the reset floor */
-          z = 1.5;
-          recentre();
-          requestAnimationFrame(recentre);
-          setTimeout(recentre, 120);
+          /* the author's saved opening view when there is one, else 1.5× centred */
+          z = (c && c.view && c.view.z) ? c.view.z : 1.5;
+          restore();
+          requestAnimationFrame(restore);
+          setTimeout(restore, 120);
         }
       } else media.appendChild(h("div", { class: "akld-empty" }, [editable ? "Click to add an image" : "No image yet"]));
-      if (editable) { media.style.cursor = "pointer"; media.addEventListener("click", function (ev) { if (dragged) { dragged = false; return; } if (ev.target.closest(".akld-zoom,.akld-nav")) return; pickFile("image/*", function (data) { if (!data) return; el.content = { type: "image", src: data, fit: "cover", tx: 0, ty: 0, sc: 1 }; commit("content"); paint(); }); }); }
+      if (editable) { media.style.cursor = "pointer"; media.addEventListener("click", function (ev) { if (dragged) { dragged = false; return; } if (ev.target.closest(".akld-zoom,.akld-nav")) return; pickFile("image/*", function (data) { if (!data) return; el.content = { type: "image", src: data, fit: defaultFit(), tx: 0, ty: 0, sc: 1 }; commit("content"); paint(); }); }); }
       if (sibs.length > 1) {
         media.appendChild(h("button", { class: "akld-nav prev", title: "Previous", onclick: function (e) { e.stopPropagation(); go(-1); } }, ["\u2039"]));
         media.appendChild(h("button", { class: "akld-nav next", title: "Next", onclick: function (e) { e.stopPropagation(); go(1); } }, ["\u203A"]));

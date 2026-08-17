@@ -132,6 +132,209 @@
   }
   function hashKey(s) { var x = 0; for (var i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) >>> 0; return x.toString(36); }
 
+  /* ------------------------------------------ case studies without admin.js --
+     Publishing from a page that does NOT load admin.js (the home page, the
+     résumé) used to fall back to the live portfolio-data.json — so a project
+     created minutes earlier, and every photo and video inside it, was silently
+     left out of the ZIP. This rebuilds the data file and the media/ folder from
+     this device's working copies in IndexedDB, the same way the admin export
+     does, so every publish button ships the newest case studies. */
+  var BUILTIN_PAGES = ["ui-ux", "gen-ai", "3d"];
+  var INLINE_MIN = 2048;                 // a data: URL under this stays inside the JSON
+  /* Every category this device knows about: the built-in pages, anything already
+     published, and any working copy sitting in IndexedDB. A category page added
+     later is therefore published without a code change. */
+  function pageKeys(pub, localKeys) {
+    var out = [], seen = {};
+    BUILTIN_PAGES.concat(Object.keys(pub || {}), localKeys || []).forEach(function (k) {
+      if (!k || k === "home" || seen[k]) return;
+      seen[k] = 1; out.push(k);
+    });
+    return out;
+  }
+  function idbDataKeys() {
+    return new Promise(function (res) {
+      try {
+        var rq = indexedDB.open("ak-portfolio", 1);
+        rq.onupgradeneeded = function () { try { rq.result.createObjectStore("kv"); } catch (e) {} };
+        rq.onerror = function () { res([]); };
+        rq.onsuccess = function () {
+          try {
+            var r = rq.result.transaction("kv").objectStore("kv").getAllKeys();
+            r.onsuccess = function () {
+              res((r.result || []).filter(function (k) { return typeof k === "string" && k.indexOf("data:") === 0; })
+                                  .map(function (k) { return k.slice(5); }));
+            };
+            r.onerror = function () { res([]); };
+          } catch (e) { res([]); }
+        };
+      } catch (e) { res([]); }
+    });
+  }
+  function slug(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
+  function extForMime(mime, fb) {
+    var map = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg",
+      "application/pdf": "pdf", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/ogg": "ogv",
+      "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "oga",
+      "model/gltf-binary": "glb", "model/gltf+json": "gltf" };
+    return map[String(mime || "").toLowerCase()] || fb || "bin";
+  }
+  /* let the browser do the base64 — atob() over a 100 MB video is what stalls the tab */
+  function bytesFromData(d) {
+    if (typeof fetch === "function") {
+      return fetch(d).then(function (r) { return r.arrayBuffer(); })
+        .then(function (b) { return new Uint8Array(b); })
+        ["catch"](function () { return dataToBytes(d).bytes; });
+    }
+    return Promise.resolve(dataToBytes(d).bytes);
+  }
+  function fnv(b) { var x = 2166136261; for (var i = 0; i < b.length; i++) { x ^= b[i]; x = (x * 16777619) >>> 0; } return x.toString(36); }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  function buildPortfolioFromDevice(pr) {
+    return Promise.all([
+      fetch(BASE + "portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; })["catch"](function () { return null; }),
+      idbDataKeys(), idbGet("ak-resume-pdf")
+    ]).then(function (pre) {
+      var pub = pre[0] || {}, resume = pre[2], PKEYS = pageKeys(pub, pre[1]);
+      return Promise.all(PKEYS.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
+      var bundle = {}, mine = false;
+      /* same merge rule as the admin export: this device's edits win, an untouched
+         page keeps whatever is already published — never drop a page either way */
+      PKEYS.forEach(function (k, i) {
+        var local = vals[i], usable = !!(local && local.items && local.items.length);
+        var flagged = !!lsGet("ak-local-edits:" + k);
+        if (flagged && usable) { bundle[k] = local; mine = true; }
+        else if (pub[k] && pub[k].items) { bundle[k] = pub[k]; }
+        else if (usable) { bundle[k] = local; mine = true; }
+      });
+      var home = {}, certs = null;
+      try { var raw = lsGet("ak-certs"); if (raw) { var a = JSON.parse(raw); if (Array.isArray(a)) certs = a; } } catch (e) {}
+      if (certs) { home.certs = certs; mine = true; }
+      else if (pub.home && Array.isArray(pub.home.certs)) home.certs = pub.home.certs;
+      var covers = {};
+      PKEYS.forEach(function (k) {
+        var v = lsGet("ak-cover-" + k);
+        if (v) { covers[k] = v; mine = true; }
+        else if (pub.home && pub.home.covers && pub.home.covers[k]) covers[k] = pub.home.covers[k];
+      });
+      if (Object.keys(covers).length) home.covers = covers;
+      var prof = lsGet("ak-profile-photo");
+      if (prof) { home.profile = prof; mine = true; }
+      else if (pub.home && pub.home.profile) home.profile = pub.home.profile;
+      if (home.certs || home.covers || home.profile) bundle.home = home;
+      var hasResume = !!(resume && String(resume).indexOf("data:") === 0);
+      if (!mine && !hasResume) return null;        // nothing of this device's own — keep the live file
+
+      bundle = JSON.parse(JSON.stringify(bundle));  // never touch the working copy
+      var files = [], used = {}, seen = {}, jobs = [];
+      function nameFor(folder, base, ext) {
+        base = (base || "asset").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "asset";
+        var dir = folder ? folder + "/" : "", nm = dir + base + "." + ext, n = 2;
+        while (used[nm]) nm = dir + base + "-" + (n++) + "." + ext;
+        used[nm] = 1; return nm;
+      }
+      /* only uploads (data: URLs) become new files; an already-published media/… path
+         is left exactly as it is, and full mode collects it by scanning the JSON */
+      function stash(ref, folder, hintBase, hintExt) {
+        if (!ref || typeof ref !== "string" || ref.indexOf("data:") !== 0) return ref;
+        if (seen[ref]) return seen[ref];
+        var mime = (ref.slice(5).split(";")[0] || "").split(",")[0];
+        var path = "media/" + nameFor(folder, slug(hintBase), extForMime(mime, hintExt));
+        seen[ref] = path;
+        jobs.push({ ref: ref, path: path });
+        return path;
+      }
+      function walkBlocks(blocks, folder, base) {
+        (blocks || []).forEach(function (b, i) {
+          if (!b || b.type === "prototype") return;   // prototype src is an embed URL
+          if (b.src) b.src = stash(b.src, folder, base + "-" + (b.type || "asset") + "-" + (i + 1), b.format);
+        });
+      }
+      /* a file can hide anywhere: a Layout-Studio canvas keeps pictures in
+         studio.els[].content.src, a shape's reference photos in detail.refs[] */
+      var NOISE = { content: 1, els: 1, design: 1, blocks: 1, items: 1, cases: 1, src: 1, meta: 1, info: 1 };
+      function sweep(node, folder, base, depth) {
+        if (!node || typeof node !== "object" || depth > 12) return;
+        if (Array.isArray(node)) {
+          node.forEach(function (v, i) {
+            if (typeof v === "string") {
+              if (v.indexOf("data:") !== 0 || v.length < INLINE_MIN) return;
+              node[i] = stash(v, folder, base + "-" + (i + 1));
+              return;
+            }
+            if (v && typeof v === "object") sweep(v, folder, base + "-" + (i + 1), depth + 1);
+          });
+          return;
+        }
+        if (node.type === "prototype") return;
+        Object.keys(node).forEach(function (k) {
+          var v = node[k];
+          if (typeof v === "string") {
+            if (v.indexOf("data:") !== 0 || v.length < INLINE_MIN) return;
+            node[k] = stash(v, folder, base + (NOISE[k] ? "" : "-" + slug(k)), node.format);
+            return;
+          }
+          if (v && typeof v === "object") sweep(v, folder, base + (NOISE[k] ? "" : "-" + slug(k)), depth + 1);
+        });
+      }
+      Object.keys(bundle).forEach(function (page) {
+        if (page === "home") return;
+        var d = bundle[page] || {};
+        (d.items || []).forEach(function (it, i) {
+          var base = slug(it.title) || (page + "-" + i);
+          if (it.cover) it.cover = stash(it.cover, page, base + "-cover");
+          if (it.homeBg && it.homeBg.video) it.homeBg.video = stash(it.homeBg.video, page, base + "-home-bg");
+          if (it.homeBg && it.homeBg.image) it.homeBg.image = stash(it.homeBg.image, page, base + "-home-bg-image");
+          walkBlocks(it.blocks, page, base);
+          sweep(it, page, base, 0);
+        });
+        var cases = d.cases || {};
+        Object.keys(cases).forEach(function (ck) {
+          var c = cases[ck] || {};
+          if (c.info && c.info.cover) c.info.cover = stash(c.info.cover, page, ck + "-cover");
+          walkBlocks(c.blocks, page, ck);
+          sweep(c, page, ck, 0);
+        });
+        sweep(d, page, page, 0);
+      });
+      if (bundle.home) {
+        (bundle.home.certs || []).forEach(function (c, i) {
+          if (c && c.img) c.img = stash(c.img, "home", "certificate-" + (slug(c.title) || (i + 1)));
+        });
+        if (bundle.home.covers) Object.keys(bundle.home.covers).forEach(function (k) {
+          bundle.home.covers[k] = stash(bundle.home.covers[k], "home", k + "-cover");
+        });
+        if (bundle.home.profile) bundle.home.profile = stash(bundle.home.profile, "home", "profile-photo");
+        sweep(bundle.home, "home", "home", 0);
+      }
+      if (hasResume) jobs.push({ ref: resume, path: "media/home/Ajay-Katta-uiux-product-designer-2026.pdf" });
+
+      var byHash = {}, remap = {}, missing = [];
+      return pool(jobs, 4, function (j) {
+        return bytesFromData(j.ref)["catch"](function () { missing.push(j.path); return null; }).then(function (bytes) {
+          if (!bytes) return;
+          var key = bytes.length + ":" + fnv(bytes);        // the same picture is written once
+          if (byHash[key]) { remap[j.path] = byHash[key]; return; }
+          byHash[key] = j.path;
+          files.push({ name: j.path, bytes: bytes });
+        });
+      }, function (d, t) { if (pr) pr.set("Packing your photos and videos — " + d + " of " + t, 2 + (d / t) * 4); })
+      .then(function () {
+        if (Object.keys(remap).length) (function walk(node, depth) {
+          if (!node || typeof node !== "object" || depth > 14) return;
+          Object.keys(node).forEach(function (k) {
+            var v = node[k];
+            if (typeof v === "string") { if (remap[v]) node[k] = remap[v]; return; }
+            if (v && typeof v === "object") walk(v, depth + 1);
+          });
+        })(bundle, 0);
+        return { json: JSON.stringify(bundle, null, 2), files: files, missing: missing };
+      });
+      });
+    })["catch"](function () { return null; });
+  }
+
   /* uploaded data: URLs in a site-content object become real files */
   function materialise(out) {
     var files = [], seen = {};
@@ -284,14 +487,14 @@
     if (!flagged) return Promise.resolve(null);
     return idbGet("site:content").then(function (v) { return (v && typeof v === "object") ? v : null; });
   }
-  function getPortfolio(opts) {
+  function getPortfolio(opts, pr) {
     if (opts.portfolioJSON) return Promise.resolve({ json: opts.portfolioJSON, files: opts.portfolioFiles || [] });
     if (window.AK_ADMIN_DATA && window.AK_ADMIN_DATA.build) {
       return window.AK_ADMIN_DATA.build().then(function (r) {
-        return r ? { json: r.json, files: r.files || [] } : null;
-      })["catch"](function () { return null; });
+        return (r && r.json) ? { json: r.json, files: r.files || [] } : buildPortfolioFromDevice(pr);
+      })["catch"](function () { return buildPortfolioFromDevice(pr); });
     }
-    return Promise.resolve(null);
+    return buildPortfolioFromDevice(pr);   // home page / résumé: admin.js isn't loaded here
   }
 
   /* ------------------------------------------------------------------ full */
@@ -304,11 +507,12 @@
     var zipName = opts.zipName || (delta ? "ajay-katta-changes.zip" : "ajay-katta-website.zip");
     var pr = progress(opts.title || (delta ? "Packaging your changes" : "Packaging your website"));
     var enc = new TextEncoder();
-    var files = [], text = {}, live = {}, sc = null, pf = null, changed = [];
+    var files = [], text = {}, live = {}, sc = null, pf = null, changed = [], missing = [];
 
-    return Promise.all([getSiteContent(opts), getPortfolio(opts)])
+    return Promise.all([getSiteContent(opts), getPortfolio(opts, pr)])
       .then(function (got) {
         sc = got[0]; pf = got[1];
+        missing = (pf && pf.missing) || [];
         if (sc) { sc = JSON.parse(JSON.stringify(sc)); files = files.concat(materialise(sc)); }
         if (pf && pf.files) files = files.concat(pf.files);
         pr.set("Reading your pages…", 6);
@@ -396,13 +600,14 @@
         var a = el("a");
         a.href = URL.createObjectURL(blob); a.download = zipName;
         document.body.appendChild(a); a.click(); a.remove();
-        return { blob: blob, count: files.length, size: blob.size, sizeLabel: kb(blob.size), name: zipName, changed: changed, mode: delta ? "delta" : "full" };
+        return { blob: blob, count: files.length, size: blob.size, sizeLabel: kb(blob.size), name: zipName, changed: changed, missing: missing, mode: delta ? "delta" : "full" };
       })
       ["catch"](function (e) { pr.close(); throw e; });
   }
 
   window.AK_PACKAGE = {
     full: full,
+    portfolioFromDevice: buildPortfolioFromDevice,
     materialise: materialise,
     bakePage: bakePage,
     makeZip: makeZip,

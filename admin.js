@@ -3617,17 +3617,27 @@
      of a slow case study: the phone spends longer DECODING the picture than
      downloading it, and the biggest ones fail outright on iOS. New uploads are capped
      automatically (see readFileAsDataURL) — this is for files published before that. */
-  function _mediaImagePaths(o) {
+  /* Every image the owner could act on: files already live in media/, AND uploads that are
+     still only in this browser (a project added five minutes ago is base64 in IndexedDB —
+     it used to be invisible here, so its oversized photos sailed straight into a publish). */
+  function _optRefs(o) {
     var out = {};
     (function walk(v) {
       if (!v) return;
-      if (typeof v === "string") { if (/^media\/.+\.(webp|jpe?g|png)$/i.test(v)) out[v] = 1; return; }
+      if (typeof v === "string") {
+        if (/^media\/.+\.(webp|jpe?g|png)$/i.test(v)) out[v] = 1;
+        else if (/^data:image\/(webp|jpe?g|png)[;,]/i.test(v) && v.length >= 2048) out[v] = 1;
+        return;
+      }
       if (typeof v !== "object") return;
       if (Array.isArray(v)) { v.forEach(walk); return; }
       Object.keys(v).forEach(function (k) { walk(v[k]); });
     })(o);
     return Object.keys(out);
   }
+  var _optNames = {};                       // data: URL -> something readable in the list
+  function _optIsLocal(p) { return typeof p === "string" && p.indexOf("data:") === 0; }
+  function _optShow(p) { return _optIsLocal(p) ? (_optNames[p] || "new upload") : p.split("/").pop(); }
   /* Decoding and re-encoding both differ per browser (Safari has ignored createImageBitmap's
      resize options, iPad throws on very large decodes, older engines refuse image/webp from
      toBlob). Every step below therefore has a fallback, and anything that still fails comes
@@ -3734,6 +3744,9 @@
       .catch(function (e) { return { fail: (e && e.message) || "could not be read" }; });
   }
   var _optMeas = {}, _optLastIx = null;
+  /* a new or edited project invalidates the pre-flight size check, so it re-reads
+     instead of quoting the last scan */
+  try { document.addEventListener("ak-cases-changed", function () { _optLastIx = null; }); } catch (e) {}
   var _OPT_LABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
   function _optMeasure(url) {
     if (_optMeas[url]) return Promise.resolve(_optMeas[url]);
@@ -3762,31 +3775,132 @@
       next();
     });
   }
-  /* the scopes the owner can act on: everything · a category · one project · the home page */
-  function _optGroups(pub) {
+  /* the scopes the owner can act on: everything · a category · one project · the home page.
+     Categories come from the data itself, so a page added later lists itself. */
+  function _optGroups(src) {
+    var data = (src && src.data) || {}, pubIds = (src && src.pubIds) || {};
     var gs = [], all = {};
-    ["ui-ux", "gen-ai", "3d"].forEach(function (k) {
-      var page = pub && pub[k]; if (!page) return;
-      var pagePaths = _mediaImagePaths(page); if (!pagePaths.length) return;
+    Object.keys(data).forEach(function (k) {
+      if (k === "home") return;
+      var page = data[k]; if (!page) return;
+      var pagePaths = _optRefs(page); if (!pagePaths.length) return;
       pagePaths.forEach(function (p) { all[p] = 1; });
       gs.push({ key: "page:" + k, label: (_OPT_LABEL[k] || k), kind: "page", paths: pagePaths });
       (page.items || []).forEach(function (it) {
-        var ip = _mediaImagePaths(it);
-        if (ip.length) gs.push({ key: "item:" + it.id, label: it.title || "Untitled", kind: "item", paths: ip });
+        var ip = _optRefs(it);
+        if (!ip.length) return;
+        var title = it.title || "Untitled", fresh = !pubIds[it.id];
+        ip.forEach(function (r, n) { if (_optIsLocal(r)) _optNames[r] = title + " \u00b7 photo " + (n + 1); });
+        gs.push({ key: "item:" + it.id, label: title + (fresh ? " \u00b7 not published yet" : ""), kind: "item", paths: ip });
       });
     });
-    if (pub && pub.home) {
-      var hp = _mediaImagePaths(pub.home);
-      if (hp.length) { hp.forEach(function (p) { all[p] = 1; }); gs.push({ key: "home", label: "Home page", kind: "page", paths: hp }); }
+    if (data.home) {
+      var hp = _optRefs(data.home);
+      if (hp.length) {
+        hp.forEach(function (p) { all[p] = 1; if (_optIsLocal(p)) _optNames[p] = "Home page photo"; });
+        gs.push({ key: "home", label: "Home page", kind: "page", paths: hp });
+      }
     }
     return { all: Object.keys(all), groups: gs };
+  }
+  /* What to check = the published site MERGED with this device's working copies, the same
+     merge the export uses. Without it the panel only ever saw the last publish. */
+  function _optSource() {
+    return Promise.all([
+      fetch("portfolio-data.json", { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+      _idbDataKeys()
+    ]).then(function (pre) {
+      var pub = pre[0] || {}, keys = _pageKeys(pub, pre[1]);
+      return Promise.all(keys.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
+        var data = {}, pubIds = {};
+        keys.forEach(function (k, i) {
+          var local = vals[i], usable = !!(local && local.items && local.items.length);
+          var flagged = false; try { flagged = !!localStorage.getItem("ak-local-edits:" + k); } catch (e) {}
+          var pick = (flagged && usable) ? local : ((pub[k] && pub[k].items) ? pub[k] : (usable ? local : null));
+          if (pick) data[k] = pick;
+          (((pub[k] || {}).items) || []).forEach(function (it) { if (it && it.id) pubIds[it.id] = 1; });
+        });
+        if (DATA && DATA.items && DATA.items.length) data[CFG.page] = DATA;   // the page on screen is the freshest
+        var home = {}, ls = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+        try { var raw = ls("ak-certs"); if (raw) { var a = JSON.parse(raw); if (Array.isArray(a)) home.certs = a; } } catch (e) {}
+        if (!home.certs && pub.home && pub.home.certs) home.certs = pub.home.certs;
+        var covers = {};
+        keys.forEach(function (k) {
+          var v = ls("ak-cover-" + k);
+          if (v) covers[k] = v;
+          else if (pub.home && pub.home.covers && pub.home.covers[k]) covers[k] = pub.home.covers[k];
+        });
+        if (Object.keys(covers).length) home.covers = covers;
+        var prof = ls("ak-profile-photo") || (pub.home && pub.home.profile);
+        if (prof) home.profile = prof;
+        if (home.certs || home.covers || home.profile) data.home = home;
+        return { data: data, pubIds: pubIds };
+      });
+    });
+  }
+  /* An unpublished upload can't be handed back as a repo file — the fix is written into the
+     working copy instead, so it exports at the right size on the next publish. */
+  function _optLocal(ref) {
+    return fetch(ref).then(function (r) { return r.blob(); }).then(function (blob) {
+      var t = blob.type || "";
+      if (t === "image/gif" || t.indexOf("svg") > -1 || t.indexOf("image/") !== 0) return { skip: "not a resizable image" };
+      return _optDecode(blob).then(function (dec) {
+        var long = Math.max(dec.w, dec.h), from = dec.w + "\u00d7" + dec.h;
+        if (long <= IMG_OVER_EDGE) { dec.release(); return { skip: "already " + from }; }
+        var k = IMG_MAX_EDGE / long, w = Math.max(1, Math.round(dec.w * k)), hh = Math.max(1, Math.round(dec.h * k)), cv;
+        try { cv = _optScaleTo(dec, w, hh); }
+        catch (e) { dec.release(); return { fail: "too big for this browser to redraw \u2014 try a desktop browser" }; }
+        dec.release();
+        var out = null;
+        try { out = cv.toDataURL("image/webp", 0.9); } catch (e) {}
+        cv.width = cv.height = 1;
+        if (!out || out.indexOf("data:image/webp") !== 0) return { fail: "this browser could not re-save it" };
+        var now = Math.round((out.length - out.indexOf(",") - 1) * 0.75);
+        if (now > blob.size * 1.15) return { skip: "already efficient at " + from };
+        return { src: out, was: blob.size, now: now, from: from, to: w + "\u00d7" + hh };
+      }, function () { return { fail: "could not open this file \u2014 it may be damaged" }; });
+    })["catch"](function (e) { return { fail: (e && e.message) || "could not be read" }; });
+  }
+  function _optWriteLocal(map) {
+    if (!Object.keys(map).length) return Promise.resolve(0);
+    function swap(node, depth) {
+      var n = 0;
+      if (!node || typeof node !== "object" || depth > 14) return 0;
+      Object.keys(node).forEach(function (k) {
+        var v = node[k];
+        if (typeof v === "string") { if (map[v]) { node[k] = map[v]; n++; } return; }
+        if (v && typeof v === "object") n += swap(v, depth + 1);
+      });
+      return n;
+    }
+    return _idbDataKeys().then(function (ks) {
+      return Promise.all(ks.map(function (k) {
+        return idbGet("data:" + k).then(function (d) {
+          if (!d || !swap(d, 0)) return 0;
+          if (k === CFG.page && DATA) swap(DATA, 0);          // keep the page on screen in step
+          return idbSet("data:" + k, d).then(function () { return 1; });
+        })["catch"](function () { return 0; });
+      })).then(function (r) {
+        var tot = r.reduce(function (a, b) { return a + b; }, 0);
+        try {                                                 // home-page photos live in localStorage
+          ks.map(function (k) { return "ak-cover-" + k; }).concat(["ak-profile-photo"]).forEach(function (k) {
+            var v = localStorage.getItem(k); if (v && map[v]) { localStorage.setItem(k, map[v]); tot++; }
+          });
+          var raw = localStorage.getItem("ak-certs");
+          if (raw) { var a = JSON.parse(raw); if (Array.isArray(a) && swap({ a: a }, 0)) { localStorage.setItem("ak-certs", JSON.stringify(a)); tot++; } }
+        } catch (e) {}
+        try { renderTiles(); if (typeof openItemId !== "undefined" && openItemId) renderDetail(); } catch (e) {}
+        return tot;
+      });
+    });
   }
   function _optStat(paths) {
     var s = { total: paths.length, known: 0, over: 0, zipped: 0, bytes: 0, notWebp: 0, other: [] };
     paths.forEach(function (p) {
       var m = _optMeas[p]; if (!m) return;
       s.known++;
-      if (m.notWebp && !m.skip) { s.notWebp++; if (s.other.length < 8) s.other.push(p + " \u00b7 " + fmtName(m.fmt)); }
+      if (m.notWebp && !m.skip) { s.notWebp++; if (s.other.length < 8) s.other.push(_optShow(p) + " \u00b7 " + fmtName(m.fmt)); }
       if (m.zipped) s.zipped++;
       else if (m.over) { s.over++; s.bytes += m.size; }
     });
@@ -3795,7 +3909,7 @@
   function _optSizeLabel(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
   function optimiseMedia() {
     var ov = h("div", { class: "ak-ov" });
-    var status = h("div", { class: "sub" }, ["Reading what's published\u2026"]);
+    var status = h("div", { class: "sub" }, ["Reading your images\u2026"]);
     var rowsWrap = h("div", {});
     var steps = h("div", {});
     ov.appendChild(h("div", { class: "ak-modal", style: "width:min(580px,100%)" }, [
@@ -3807,11 +3921,10 @@
     ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
     document.body.appendChild(ov);
 
-    fetch("portfolio-data.json", { cache: "no-store" })
-      .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-      .then(function (pub) {
-        var ix = _optGroups(pub || {}); _optLastIx = ix;
-        if (!ix.all.length) { status.textContent = "Nothing published to check yet."; return; }
+    _optSource()
+      .then(function (src) {
+        var ix = _optGroups(src || {}); _optLastIx = ix;
+        if (!ix.all.length) { status.textContent = "No images to check yet."; return; }
         var rowFor = {};
         function mkRow(g) {
           var val = h("span", { class: "v" }, ["\u2026"]);
@@ -3832,7 +3945,7 @@
             var fmtTail = s.notWebp ? " \u00b7 " + s.notWebp + " not WebP" : "";
             if (s.over) { e.val.textContent = s.over + " of " + s.total + " oversized \u00b7 " + _optSizeLabel(s.bytes) + fmtTail; e.btn.style.display = ""; return; }
             e.btn.style.display = "none";
-            e.val.textContent = (s.zipped ? (s.zipped + " fixed \u2014 in your ZIP \u2713") : (s.total + " image" + (s.total === 1 ? "" : "s") + " \u00b7 all good \u2713")) + fmtTail;
+            e.val.textContent = (s.zipped ? (s.zipped + " fixed \u2713") : (s.total + " image" + (s.total === 1 ? "" : "s") + " \u00b7 all good \u2713")) + fmtTail;
           });
         }
         paint();
@@ -3848,7 +3961,7 @@
             : ("All " + s.total + " images are already the right size \u2014 nothing to do.");
           if (s.notWebp) {
             var box = h("div", { style: "margin-top:12px" }, [
-              h("div", { class: "ak-xsec" }, [s.notWebp + " published image" + (s.notWebp === 1 ? " is" : "s are") + " not WebP"])
+              h("div", { class: "ak-xsec" }, [s.notWebp + " image" + (s.notWebp === 1 ? " is" : "s are") + " not WebP"])
             ]);
             box.appendChild(h("div", { class: "ak-xrows" }, s.other.map(function (t) {
               var bits = t.split(" \u00b7 ");
@@ -3863,7 +3976,7 @@
         function run(g) {
           var queue = g.paths.filter(function (p) { var m = _optMeas[p]; return m && m.over && !m.zipped; });
           if (!queue.length) { status.textContent = "Nothing left to optimise in " + g.label + "."; return; }
-          var count = queue.length, done = 0, fixed = [], saved = 0, failed = [];
+          var count = queue.length, done = 0, fixed = [], localMap = {}, localN = 0, saved = 0, failed = [];
           steps.innerHTML = "";
           var detail = h("div", { class: "ak-xrows" });
           steps.appendChild(h("div", { class: "ak-xsec" }, [g.label]));
@@ -3871,16 +3984,18 @@
           (function nextOne() {
             if (!document.body.contains(ov)) return;
             if (!queue.length) return finish();
-            var p = queue.shift();
+            var p = queue.shift(), isLocal = _optIsLocal(p);
             status.textContent = "Optimising " + (done + 1) + " of " + count + "\u2026";
-            _optImage(p).then(function (r) {
+            (isLocal ? _optLocal(p) : _optImage(p)).then(function (r) {
               done++;
               r = r || { fail: "could not be read" };
-              if (r.bytes) {
-                fixed.push({ name: p, bytes: r.bytes }); saved += (r.was - r.now);
+              if (r.bytes || r.src) {
+                if (r.src) { localMap[p] = r.src; localN++; }
+                else fixed.push({ name: p, bytes: r.bytes });
+                saved += (r.was - r.now);
                 var m = _optMeas[p]; if (m) { m.zipped = true; m.size = r.now; }
                 detail.appendChild(h("div", { class: "ak-xrow" }, [
-                  h("span", { class: "k" }, [p.split("/").pop()]),
+                  h("span", { class: "k" }, [_optShow(p)]),
                   h("span", { class: "v" }, [r.from + " \u2192 " + r.to + " \u00b7 " + Math.round(r.was / 1024) + " \u2192 " + Math.round(r.now / 1024) + " KB"])
                 ]));
               } else {
@@ -3888,7 +4003,7 @@
                 if (r.skip) { var mm = _optMeas[p]; if (mm) mm.over = false; }
                 else failed.push(p);
                 detail.appendChild(h("div", { class: "ak-xrow" }, [
-                  h("span", { class: "k" }, [p.split("/").pop()]),
+                  h("span", { class: "k" }, [_optShow(p)]),
                   h("span", { class: "v", style: r.fail ? "color:var(--accent)" : "" }, [(r.fail ? "\u26A0 " : "") + why])
                 ]));
               }
@@ -3901,24 +4016,36 @@
             ]));
           }
           function finish() {
-            if (!fixed.length) {
-              status.textContent = failed.length
-                ? (failed.length + " image" + (failed.length === 1 ? "" : "s") + " could not be re-saved here \u2014 see below.")
-                : ("Nothing needed changing in " + g.label + ".");
+            /* two kinds of fix: a published file comes back as a repo file in the ZIP, an
+               unpublished upload is rewritten in the working copy right here */
+            var wrote = Object.keys(localMap).length
+              ? _optWriteLocal(localMap).then(function () { return save(); })["catch"](function () {})
+              : Promise.resolve();
+            wrote.then(function () {
+              if (!fixed.length) {
+                status.textContent = localN
+                  ? (localN + " new upload" + (localN === 1 ? "" : "s") + " shrunk \u00b7 " + _optSizeLabel(saved) + " lighter \u00b7 saved here \u2014 publish to send " + (localN === 1 ? "it" : "them") + " live")
+                  : (failed.length
+                      ? (failed.length + " image" + (failed.length === 1 ? "" : "s") + " could not be re-saved here \u2014 see below.")
+                      : ("Nothing needed changing in " + g.label + "."));
+                if (failed.length) failNote();
+                return;
+              }
+              var zip = makeZip(fixed.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; }));
+              var a2 = h("a", { href: URL.createObjectURL(zip), download: "optimised-images.zip" });
+              document.body.appendChild(a2); a2.click(); a2.remove();
+              status.textContent = (fixed.length + localN) + " image" + ((fixed.length + localN) === 1 ? "" : "s") + " shrunk \u00b7 " + _optSizeLabel(saved) + " lighter \u00b7 optimised-images.zip downloaded";
+              steps.appendChild(h("div", { class: "ak-xsec" }, ["To publish"]));
+              steps.appendChild(h("ol", { class: "ak-xsteps" }, [
+                h("li", {}, ["Unzip optimised-images.zip."]),
+                h("li", {}, ["From Ajaykatta_Website / GitRepo, copy the media folder into your repo \u2014 replace the old files."]),
+                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
+              ]));
+              if (localN) steps.appendChild(h("div", { class: "ak-hint", style: "margin-top:8px" }, [
+                localN + " not-yet-published upload" + (localN === 1 ? " was" : "s were") + " fixed inside your working copy \u2014 " + (localN === 1 ? "it goes" : "they go") + " live with your next publish."
+              ]));
               if (failed.length) failNote();
-              return;
-            }
-            var zip = makeZip(fixed.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; }));
-            var a2 = h("a", { href: URL.createObjectURL(zip), download: "optimised-images.zip" });
-            document.body.appendChild(a2); a2.click(); a2.remove();
-            status.textContent = fixed.length + " image" + (fixed.length === 1 ? "" : "s") + " shrunk \u00b7 " + _optSizeLabel(saved) + " lighter \u00b7 optimised-images.zip downloaded";
-            steps.appendChild(h("div", { class: "ak-xsec" }, ["To publish"]));
-            steps.appendChild(h("ol", { class: "ak-xsteps" }, [
-              h("li", {}, ["Unzip optimised-images.zip."]),
-              h("li", {}, ["From Ajaykatta_Website / GitRepo, copy the media folder into your repo \u2014 replace the old files."]),
-              h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
-            ]));
-            if (failed.length) failNote();
+            });
           }
         }
       });
@@ -3948,15 +4075,14 @@
         val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem;margin-left:8px", onclick: function () { optimiseMedia(); } }, ["Show"]));
         return;
       }
-      txt(s.zipped ? (s.zipped + " fixed \u2014 drop your ZIP in first") : ("All " + s.total + " optimised \u00b7 WebP \u2713"));
+      txt(s.zipped ? (s.zipped + " fixed \u2014 publish to send " + (s.zipped === 1 ? "it" : "them") + " live") : ("All " + s.total + " optimised \u00b7 WebP \u2713"));
     }
     function check() {
       txt("Reading\u2026");
-      fetch("portfolio-data.json", { cache: "no-store" })
-        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-        .then(function (pub) {
-          _optLastIx = _optGroups(pub || {});
-          if (!_optLastIx.all.length) return txt("nothing published yet");
+      _optSource()
+        .then(function (src) {
+          _optLastIx = _optGroups(src || {});
+          if (!_optLastIx.all.length) return txt("no images yet");
           var n = 0;
           _optScan(_optLastIx.all, function () { n++; txt("Checking " + n + " of " + _optLastIx.all.length + "\u2026"); }).then(render);
         });
@@ -4128,20 +4254,45 @@
     })["catch"](function () { return 0; });
   }
 
+  /* every "data:<page>" working copy in this browser, so a category page added later
+     is exported without a code change */
+  function _idbDataKeys() {
+    return db().then(function (d) {
+      return new Promise(function (res) {
+        try {
+          var r = d.transaction("kv").objectStore("kv").getAllKeys();
+          r.onsuccess = function () {
+            res((r.result || []).filter(function (k) { return typeof k === "string" && k.indexOf("data:") === 0; })
+                                .map(function (k) { return k.slice(5); }));
+          };
+          r.onerror = function () { res([]); };
+        } catch (e) { res([]); }
+      });
+    })["catch"](function () { return []; });
+  }
+  function _pageKeys(pub, localKeys) {
+    var out = [], seen = {};
+    ["ui-ux", "gen-ai", "3d"].concat(Object.keys(pub || {}), localKeys || []).forEach(function (k) {
+      if (!k || k === "home" || seen[k]) return;
+      seen[k] = 1; out.push(k);
+    });
+    return out;
+  }
   /* ---- export: tiny JSON + media/ folder, zipped (GitHub & Vercel ready) ---- */
   function exportData(silent) {
     silent = (silent === true);
     return save().then(function () {
-      var keys = ["ui-ux", "gen-ai", "3d"];
       // Read BOTH this browser's local edits (IndexedDB) AND the currently-published JSON.
       // A page only has a local copy if it was edited on THIS device; untouched pages must
       // fall back to the published data, otherwise they'd be dropped from the export.
       return Promise.all([
         fetch("portfolio-data.json", { cache: "no-store" })
-          .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-      ].concat(keys.map(function (k) { return idbGet("data:" + k); }))).then(function (res) {
-        var pub = res[0] || {};
-        var vals = res.slice(1);
+          .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+        _idbDataKeys()
+      ]).then(function (pre) {
+        var pub = pre[0] || {};
+        var keys = _pageKeys(pub, pre[1]);
+        return Promise.all(keys.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
         var bundle = {};
         keys.forEach(function (k, i) {
           var local = vals[i];
@@ -4381,10 +4532,11 @@
           // pre-flight: compare against the currently-published JSON so a partial export can't silently wipe projects
           fetch("portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (pub) {
             var labels = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
+            function label(k) { return labels[k] || k; }
             var warn = [];
             if (pub) {
               var pubC = counts(pub);
-              keys.forEach(function (k) { if (nowC[k] < pubC[k]) warn.push(labels[k] + ": live has " + pubC[k] + ", this export has only " + nowC[k]); });
+              keys.forEach(function (k) { if (nowC[k] < pubC[k]) warn.push(label(k) + ": live has " + pubC[k] + ", this export has only " + nowC[k]); });
             }
             var homeCerts = (bundle.home && Array.isArray(bundle.home.certs)) ? bundle.home.certs.length : 0;
             var homeCovers = (bundle.home && bundle.home.covers) ? Object.keys(bundle.home.covers).length : 0;
@@ -4396,11 +4548,9 @@
               h("h3", {}, ["Export site data"]),
               h("div", { class: "sub" }, ["You get your whole website, updated \u2014 this replaces all content on your live site."]),
               h("div", { class: "ak-xsec" }, ["Projects"]),
-              h("div", { class: "ak-xrows" }, [
-                row("UI / UX", nowC["ui-ux"] + " project" + (nowC["ui-ux"] === 1 ? "" : "s")),
-                row("Gen AI", nowC["gen-ai"] + " project" + (nowC["gen-ai"] === 1 ? "" : "s")),
-                row("3D", nowC["3d"] + " project" + (nowC["3d"] === 1 ? "" : "s"))
-              ]),
+              h("div", { class: "ak-xrows" }, keys.map(function (k) {
+                return row(label(k), nowC[k] + " project" + (nowC[k] === 1 ? "" : "s"));
+              })),
               h("div", { class: "ak-xsec" }, ["Home page"]),
               h("div", { class: "ak-xrows" }, [
                 row("Certifications", homeCerts),
@@ -4449,6 +4599,7 @@
           });
         });
         });
+        });
       });
     });
   }
@@ -4457,7 +4608,7 @@
     if (window.AK_PACKAGE) return Promise.resolve(window.AK_PACKAGE);
     return new Promise(function (res, rej) {
       var id = "ak-package-js";
-      if (!document.getElementById(id)) document.body.appendChild(h("script", { id: id, src: "site-package.js?v=2" }));
+      if (!document.getElementById(id)) document.body.appendChild(h("script", { id: id, src: "site-package.js?v=3" }));
       var tries = 0;
       (function poll() {
         if (window.AK_PACKAGE) return res(window.AK_PACKAGE);
@@ -4470,13 +4621,15 @@
   // markPublished(): after a successful download, the projects on this device ARE the
   // live ones — the snapshot is what stops Settings → Projects showing them as edited.
   function markCasesPublished() {
-    var ks = ["ui-ux", "gen-ai", "3d"];
-    return Promise.all(ks.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
+    return _idbDataKeys().then(function (ks) {
+      if (!ks.length) ks = ["ui-ux", "gen-ai", "3d"];
+      return Promise.all(ks.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
       var data = {};
       ks.forEach(function (k, i) { if (vals[i]) data[k] = vals[i]; });
       return idbSet("case:pub-base", { at: Date.now(), data: data });
     }).then(function () {
       try { document.dispatchEvent(new CustomEvent("ak-cases-changed")); } catch (e) {}
+      });
     })["catch"](function () {});
   }
   window.AK_ADMIN_DATA = { build: function () { return exportData(true); }, markPublished: markCasesPublished };
