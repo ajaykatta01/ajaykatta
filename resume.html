@@ -336,10 +336,17 @@ const root=document.documentElement, knob=document.getElementById('knob');
       links.forEach(a=>{ if(a.getAttribute('href').indexOf('?')<0) a.href=v; });
     }).catch(()=>{});
   }
-  rget('ak-resume-pdf').then(d=>{
-    if(d&&String(d).indexOf('data:')===0){
-      fetch(d).then(r=>r.blob()).then(b=>{ const u=URL.createObjectURL(b); links.forEach(a=>a.href=u); }).catch(bust);
-    } else bust();
+  function rdel(k){ return rdb().then(d=>new Promise(r=>{ const t=d.transaction('kv','readwrite'); t.objectStore('kv').delete(k); t.oncomplete=()=>r(); t.onerror=()=>r(); })); }
+  function publishedTime(){
+    return fetch(src,{method:'HEAD',cache:'no-store'})
+      .then(r=>{ const lm=r.headers.get('last-modified'); return lm?Date.parse(lm)||0:0; }).catch(()=>0);
+  }
+  rget('ak-resume-pdf').then(async d=>{
+    if(!(d&&String(d).indexOf('data:')===0)){ bust(); return; }
+    const at=Number(await rget('ak-resume-pdf-at'))||0;
+    const pub=await publishedTime();
+    if(pub&&pub>at){ await rdel('ak-resume-pdf'); await rdel('ak-resume-pdf-at'); bust(); return; }
+    fetch(d).then(r=>r.blob()).then(b=>{ const u=URL.createObjectURL(b); links.forEach(a=>a.href=u); }).catch(bust);
   }).catch(bust);
 })();
 </script>

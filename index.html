@@ -2434,6 +2434,7 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
   function rdb(){ return new Promise((res,rej)=>{ const q=indexedDB.open('ak-portfolio',1); q.onupgradeneeded=()=>{ if(!q.result.objectStoreNames.contains('kv')) q.result.createObjectStore('kv'); }; q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
   function rget(k){ return rdb().then(d=>new Promise(r=>{ const x=d.transaction('kv').objectStore('kv').get(k); x.onsuccess=()=>r(x.result); x.onerror=()=>r(null); })); }
   function rset(k,v){ return rdb().then(d=>new Promise((r,j)=>{ const t=d.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=()=>r(); t.onerror=()=>j(t.error); })); }
+  function rdel(k){ return rdb().then(d=>new Promise(r=>{ const t=d.transaction('kv','readwrite'); t.objectStore('kv').delete(k); t.oncomplete=()=>r(); t.onerror=()=>r(); })); }
   function applyResume(dataURL){
     if(!dataURL) return;
     fetch(dataURL).then(r=>r.blob()).then(b=>{
@@ -2458,7 +2459,21 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
       if(dlLink&&dlLink.getAttribute('href').indexOf('?')<0) dlLink.href=v;
     }).catch(()=>{});
   }
-  rget(RKEY).then(d=>{ if(d) applyResume(d); else bustPublished(); });
+  /* A locally replaced PDF must NOT outlive a newer publish: if the file shipped in the
+     repo is more recent than the local override, drop the override and use the real file. */
+  function publishedTime(){
+    const a=document.querySelector('a[href*="Ajay-Katta-uiux-product-designer"]');
+    if(!a) return Promise.resolve(0);
+    return fetch(a.getAttribute('href').split('?')[0],{method:'HEAD',cache:'no-store'})
+      .then(r=>{ const lm=r.headers.get('last-modified'); return lm?Date.parse(lm)||0:0; }).catch(()=>0);
+  }
+  rget(RKEY).then(async d=>{
+    if(!d){ bustPublished(); return; }
+    const at=Number(await rget(RKEY+'-at'))||0;
+    const pub=await publishedTime();
+    if(pub && pub>at){ await rdel(RKEY); await rdel(RKEY+'-at'); bustPublished(); return; }
+    applyResume(d);
+  }).catch(()=>bustPublished());
 
   const isAdmin=()=>{ try{ return sessionStorage.getItem('ak-admin-unlocked')==='1'; }catch(e){ return false; } };
   // Build the admin-only "Replace" control. Idempotent + re-runnable so it also
@@ -2481,10 +2496,19 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
       const f=fi.files[0]; if(!f) return;
       if(f.type!=='application/pdf'){ alert('Please choose a PDF file.'); return; }
       const fr=new FileReader();
-      fr.onload=()=>{ rset(RKEY,fr.result).then(()=>{ applyResume(fr.result); if(viewer.classList.contains('open')&&window.__akResumeURL) frame.src=window.__akResumeURL; alert('Résumé updated. Use Admin → Export site data (on a project page) to ship it to the repo.'); }); };
+      fr.onload=()=>{ Promise.all([rset(RKEY,fr.result),rset(RKEY+'-at',Date.now())]).then(()=>{ applyResume(fr.result); if(viewer.classList.contains('open')&&window.__akResumeURL) frame.src=window.__akResumeURL; alert('Résumé updated. Use Admin → Export site data (on a project page) to ship it to the repo.'); }); };
       fr.readAsDataURL(f);
     });
     actions.insertBefore(rb, closeBtn);
+    // admin escape hatch: forget the local replacement and go back to the published PDF
+    if(!actions.querySelector('.rv-usepub')){
+      const ub=document.createElement('button');
+      ub.type='button'; ub.className='rv-link rv-usepub'; ub.textContent='Use published';
+      ub.title='Discard the locally replaced PDF and use the file in the repo';
+      ub.style.cursor='pointer';
+      ub.addEventListener('click',()=>{ Promise.all([rdel(RKEY),rdel(RKEY+'-at')]).then(()=>location.reload()); });
+      actions.insertBefore(ub, closeBtn);
+    }
   }
   ensureReplaceBtn();
   // Re-evaluate whenever admin mode is toggled on the home page.
