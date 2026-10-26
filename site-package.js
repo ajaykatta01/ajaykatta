@@ -8,9 +8,9 @@
      → one ZIP holding only what differs from the live site:
          • portfolio-data.json      case studies + home data (minified)
          • <page>.html              page edits written straight into the HTML
-         • media/…                  new uploads, content-addressed
-                                    (<name>-<hash>.<ext>: the same file always
-                                    gets the same path, so it ships once)
+         • media/…                  new uploads, named like the rest of the site
+                                    (<project>-cover / -image-<n> / -media-<n> /
+                                    -model-<n>; identical bytes ship once)
          • media fixes staged by Optimise images
        WHAT-CHANGED.txt lists every file, plus files the site no longer uses.
 
@@ -304,13 +304,91 @@
     return pool(jobs, 2, function (g) { return refit(g.src, g.t).then(function (out) { if (out) g.cs.forEach(function (c) { c.src = out; }); }); });
   }
 
+  /* ------------------------------------------------------------ file names
+     Every upload is named like the files already on the site:
+       <project>-cover.<ext> · <project>-image-<n> · <project>-media-<n> (video, other)
+       <project>-model-<n> (3D) · home: profile-photo, cert-<name>, <category>-cover
+       pages (media/site/): <page>-image-<n> · og-<page>   (index → home)
+     Numbered files: one counter per project, carrying on after the highest number it
+     already uses; a name taken by live data, this publish, or a server file with
+     different bytes is skipped.
+     Fixed names (cover, profile-photo, cert-*, <category>-cover, og-*, the résumé PDF)
+     never change: a replacement overwrites the file and every reference gets ?v=<n+1>,
+     because media/ is cached for 30 days and the old bytes would keep showing. */
+  var MODEL_RX = /^(glb|gltf|usdz|obj|fbx|stl)$/i;
+  var PSLUG = { "index": "home", "project-ui-ux": "ui-ux", "project-gen-ai": "gen-ai", "project-3d": "3d", "resume": "resume" };
+  function verMap(objs, texts) {
+    var v = {};
+    function note(p, n) { n = +n; if (!(v[p] >= n)) v[p] = n; }
+    objs.forEach(function (o) { walkStrings({ o: o }, function (s) { var m = /^(media\/[^?#]+)\?v=(\d+)$/i.exec(s); if (m) note(m[1], m[2]); }); });
+    (texts || []).forEach(function (t) { var re = /(media\/[^"'()\s,<>?#\\]+\.[a-z0-9]{2,5})\?v=(\d+)/gi, m; while ((m = re.exec(t || ""))) note(m[1], m[2]); });
+    return v;
+  }
+  function reEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+  function kindOf(mime, ext) { return /^image\//i.test(mime) ? "image" : MODEL_RX.test(ext) ? "model" : "media"; }
+  function topNum(taken, dir, base) {
+    var pre = dir + base + "-", max = 0;
+    Object.keys(taken).forEach(function (n) {
+      if (n.indexOf(pre) !== 0) return;
+      var m = /^[a-z]+-(\d+)\.[a-z0-9]+$/i.exec(n.slice(pre.length));
+      if (m) max = Math.max(max, +m[1]);
+    });
+    return max;
+  }
+  /* taken: paths in live data + this publish · ver: highest ?v per path · inUse: paths the new data still references */
+  function namer(taken, ver, inUse) {
+    var ctr = {}, mine = {};
+    ver = ver || {}; inUse = inUse || {};
+    function sameAs(path, f) {             // 0 not on the server · 1 same bytes · -1 different
+      return liveSize(path).then(function (n) {
+        if (n === 0) return 0;
+        if (n > 0 && n !== f.bytes.length) return -1;
+        return fetch(BASE + path, { cache: "no-store" }).then(function (r) { return r.ok ? r.arrayBuffer() : null; })
+          .then(function (ab) { return ab ? digest(new Uint8Array(ab)).then(function (hx) { return hx === f.hx ? 1 : -1; }) : -1; })["catch"](function () { return -1; });
+      });
+    }
+    function fixedName(f) {
+      var i = 0;
+      function next() {
+        var p = f.dir + f.fixed + (i ? "-" + (i + 1) : "") + "." + f.ext;
+        if (mine[p] || inUse[p]) { i++; return next(); }   // two uploads in one slot, or still used elsewhere
+        return sameAs(p, f).then(function (r) {
+          mine[p] = taken[p] = 1;
+          if (r === 0) return { path: p, ref: p };
+          if (r === 1) return { path: p, ref: ver[p] ? p + "?v=" + ver[p] : p };
+          return { path: p, ref: p + "?v=" + ((ver[p] || 1) + 1), over: true };
+        });
+      }
+      return next();
+    }
+    /* f: {dir, base, fixed, kind, ext, bytes, hx} — resolves to {path, ref, over}, in call order */
+    return function (f) {
+      if (f.fixed) return fixedName(f);
+      var k = f.dir + f.base, tries = 0;
+      if (!ctr[k]) ctr[k] = topNum(taken, f.dir, f.base) + 1;
+      function next() {
+        var p = f.dir + f.base + "-" + f.kind + "-" + ctr[k] + "." + f.ext;
+        if (++tries > 400) { p = f.dir + f.base + "-" + f.kind + "-" + f.hx + "." + f.ext; taken[p] = 1; return Promise.resolve({ path: p, ref: p }); }
+        if (taken[p]) { ctr[k]++; return next(); }
+        return sameAs(p, f).then(function (r) {
+          ctr[k]++;
+          if (r < 0) return next();
+          taken[p] = mine[p] = 1;
+          return { path: p, ref: p };
+        });
+      }
+      return next();
+    };
+  }
+  function serial(list, fn) { return list.reduce(function (p, x) { return p.then(function () { return fn(x); }); }, Promise.resolve()); }
+
   /* --------------------------------------------------------- extract files
-     Every upload (data: URL) anywhere in the bundle becomes one file at a
-     content-addressed path; identical bytes collapse to one file. */
-  function extract(bundle, tick) {
+     Every upload (data: URL) anywhere in the bundle becomes one file (names above);
+     identical bytes collapse to one file. */
+  function extract(bundle, tick, pub, texts) {
     var refs = [], at = {};
     function want(v) { return isData(v) && v.length >= INLINE_MIN; }
-    function note(v, folder, hint, ext) { if (!at[v]) { at[v] = { folder: folder, hint: hint, ext: ext }; refs.push(v); } }
+    function note(v, folder, base, ext, fixed) { if (!at[v]) { at[v] = { folder: folder, base: base, ext: ext, fixed: fixed }; refs.push(v); } }
     function extHint(node) {
       if (node.format) return node.format;
       var m = typeof node.name === "string" && /\.([a-z0-9]{2,5})$/i.exec(node.name);
@@ -323,19 +401,19 @@
         return;
       }
       if (node.type === "prototype" || node.type === "html") return;       // embed URL / inline code
-      var here = typeof node.type === "string" ? base + "-" + slug(node.type) : base;
       Object.keys(node).forEach(function (k) {
         var v = node[k];
-        if (want(v)) note(v, folder, (k === "src" || k === "content") ? here : here + "-" + slug(k), extHint(node));
-        else if (v && typeof v === "object") walk(v, folder, here, depth + 1);
+        var cover = k === "cover" || (node.type === "cover" && (k === "src" || k === "content"));
+        if (want(v)) note(v, folder, base, extHint(node), cover ? base + "-cover" : null);
+        else if (v && typeof v === "object") walk(v, folder, base, depth + 1);
       });
     }
     Object.keys(bundle).forEach(function (page) {
       var d = bundle[page]; if (!d || typeof d !== "object") return;
       if (page === "home") {
-        (d.certs || []).forEach(function (c, i) { if (c && want(c.img)) note(c.img, "home", "certificate-" + (slug(c.title) || i + 1)); });
-        Object.keys(d.covers || {}).forEach(function (k) { if (want(d.covers[k])) note(d.covers[k], "home", k + "-cover"); });
-        if (want(d.profile)) note(d.profile, "home", "profile-photo");
+        (d.certs || []).forEach(function (c, i) { if (c && want(c.img)) note(c.img, "home", "cert", null, "cert-" + (slug(c.title) || i + 1)); });
+        Object.keys(d.covers || {}).forEach(function (k) { if (want(d.covers[k])) note(d.covers[k], "home", "home", null, k + "-cover"); });
+        if (want(d.profile)) note(d.profile, "home", "home", null, "profile-photo");
         walk(d, "home", "home", 0);
         return;
       }
@@ -344,21 +422,29 @@
       walk(d, page, page, 0);
     });
 
-    var files = [], missing = [], byHash = {}, map = {};
+    var files = [], missing = [], byHash = {}, map = {}, taken = {}, bumps = {};
     return pool(refs, 4, function (ref) {
       return bytesOf(ref).then(function (bytes) {
-        return digest(bytes).then(function (hx) {
-          var key = bytes.length + ":" + hx;
-          if (byHash[key]) { map[ref] = byHash[key]; return; }
-          var a = at[ref];
-          var path = "media/" + a.folder + "/" + (slug(a.hint).slice(0, 48) || "file") + "-" + hx + "." + extFor(mimeOf(ref), a.ext);
-          byHash[key] = path; map[ref] = path;
-          files.push({ name: path, bytes: bytes });
-        });
-      }, function () { missing.push(at[ref].hint); });
+        return digest(bytes).then(function (hx) { at[ref].bytes = bytes; at[ref].hx = hx; });
+      }, function () { missing.push(at[ref].fixed || at[ref].base); });
     }, tick).then(function () {
+      [mediaRefs(pub || {}), mediaRefs(bundle)].forEach(function (o) { Object.keys(o).forEach(function (r) { taken[r] = 1; }); });
+      var name = namer(taken, verMap([pub || {}, bundle], texts), mediaRefs(bundle));
+      return serial(refs, function (ref) {           // document order, so numbers follow the page
+        var a = at[ref]; if (!a.bytes) return;
+        var key = a.bytes.length + ":" + a.hx;
+        if (byHash[key]) { map[ref] = byHash[key]; return; }
+        var ext = extFor(mimeOf(ref), a.ext);
+        return name({ dir: "media/" + a.folder + "/", base: slug(a.base).slice(0, 48) || "file", fixed: a.fixed ? slug(a.fixed).slice(0, 56) : null,
+                      kind: kindOf(mimeOf(ref), ext), ext: ext, bytes: a.bytes, hx: a.hx }).then(function (r) {
+          byHash[key] = r.ref; map[ref] = r.ref;
+          files.push({ name: r.path, bytes: a.bytes, hx: a.hx, fixed: !!a.fixed, over: !!r.over });
+          if (r.over) bumps[r.path] = r.ref;
+        });
+      });
+    }).then(function () {
       walkStrings(bundle, function (v) { return map[v]; });
-      return { files: files, missing: missing };
+      return { files: files, missing: missing, bumps: bumps };
     });
   }
 
@@ -371,8 +457,10 @@
     return !!(d.vars && ["dark", "light"].some(function (m) { return d.vars[m] && Object.keys(d.vars[m]).some(function (k) { return d.vars[m][k]; }); }));
   }
   /* uploaded photos / PDFs in page edits become files under media/site/ */
-  function materialiseSite(sc) {
-    var jobs = [];
+  function materialiseSite(sc, html) {
+    var jobs = [], taken = {}, re = /media\/site\/[^"'()\s,<>?#\\]+\.[a-z0-9]{2,5}/gi;
+    Object.keys(html || {}).forEach(function (p) { var t = html[p] || "", m; while ((m = re.exec(t))) taken[m[0]] = 1; });
+    walkStrings({ o: sc }, function (v) { if (/^media\/site\//i.test(v)) taken[v] = 1; });
     Object.keys(sc).forEach(function (p) {
       var d = sc[p]; if (!d) return;
       ["img", "href"].forEach(function (b) {
@@ -381,20 +469,26 @@
       });
       if (d.meta && isData(d.meta.image)) jobs.push({ set: d.meta, k: "image", p: p, og: true });
     });
-    var files = [], byHash = {};
+    var files = [], byHash = {}, bumps = {};
+    var name = namer(taken, verMap([sc], Object.keys(html || {}).map(function (p) { return html[p]; })), mediaRefs(sc));
     return pool(jobs, 4, function (j) {
-      var v = j.set[j.k];
-      return bytesOf(v).then(function (bytes) {
-        return digest(bytes).then(function (hx) {
-          var path = byHash[hx];
-          if (!path) {
-            path = byHash[hx] = "media/site/" + (j.og ? "og-" : "") + j.p + "-" + hx + "." + extFor(mimeOf(v));
-            files.push({ name: path, bytes: bytes });
-          }
-          j.set[j.k] = path;
-        });
+      return bytesOf(j.set[j.k]).then(function (bytes) {
+        return digest(bytes).then(function (hx) { j.bytes = bytes; j.hx = hx; });
       });
-    }).then(function () { return files; });
+    }).then(function () {
+      return serial(jobs, function (j) {
+        if (!j.bytes) return;
+        var v = j.set[j.k], ext = extFor(mimeOf(v)), path = byHash[j.hx];
+        if (path) { j.set[j.k] = path; return; }
+        var base = PSLUG[j.p] || slug(j.p);
+        return name({ dir: "media/site/", base: base, fixed: j.og ? "og-" + base : null, kind: kindOf(mimeOf(v), ext), ext: ext, bytes: j.bytes, hx: j.hx })
+          .then(function (r) {
+            byHash[j.hx] = r.ref; j.set[j.k] = r.ref;
+            files.push({ name: r.path, bytes: j.bytes, hx: j.hx, fixed: !!j.og, over: !!r.over });
+            if (r.over) bumps[r.path] = r.ref;
+          });
+      });
+    }).then(function () { return { files: files, bumps: bumps }; });
   }
   function bakePage(src, d) {
     var E = window.AK_EDIT, doc;
@@ -408,7 +502,7 @@
   }
   function mediaRefs(obj) {
     var out = {};
-    walkStrings({ o: obj }, function (v) { if (/^media\//i.test(v)) out[v] = 1; });
+    walkStrings({ o: obj }, function (v) { if (/^media\//i.test(v)) out[v.split(/[?#]/)[0]] = 1; });
     return out;
   }
   /* An upload whose bytes are already live under another name (an older export,
@@ -419,7 +513,7 @@
     var now = mediaRefs(bundle), cands = Object.keys(mediaRefs(pub)).filter(function (r) { return !now[r]; });
     if (!cands.length || !files.length) return Promise.resolve(files);
     var bySize = {}, remap = {};
-    files.forEach(function (f) { (bySize[f.bytes.length] = bySize[f.bytes.length] || []).push(f); });
+    files.forEach(function (f) { if (!f.fixed) (bySize[f.bytes.length] = bySize[f.bytes.length] || []).push(f); });
     return pool(cands, 6, function (ref) {
       return liveSize(ref).then(function (n) {
         if (n === 0 || (n > 0 && !bySize[n])) return;      // gone, or no upload of that size
@@ -427,12 +521,12 @@
           var same = ab && bySize[ab.byteLength];
           if (!same) return;
           return digest(new Uint8Array(ab)).then(function (hx) {
-            same.forEach(function (f) { if (!f.reuse && f.name.indexOf("-" + hx + ".") > 0) { f.reuse = ref; remap[f.name] = ref; } });
+            same.forEach(function (f) { if (!f.reuse && f.hx === hx) { f.reuse = ref; remap[f.name] = ref; } });
           });
         });
       });
     }).then(function () {
-      if (Object.keys(remap).length) walkStrings(bundle, function (v) { return remap[v]; });
+      if (Object.keys(remap).length) walkStrings(bundle, function (v) { return remap[v.split("?")[0]]; });
       return files.filter(function (f) { return !f.reuse; });
     });
   }
@@ -444,29 +538,29 @@
     var say = opts.onProgress || function () {};
     var sc = clone(opts.siteContent || {});
     var enc = new TextEncoder();
-    var G, html = {}, media = [], out = [], fixes = [], pageHashes = {};
+    var G, html = {}, baked = {}, bumps = {}, media = [], out = [], fixes = [], pageHashes = {};
     var notes = { missing: [], skipped: [], failed: [], orphaned: [] };
     function add(name, bytes) { out = out.filter(function (f) { return f.name !== name; }); out.push({ name: name, bytes: bytes }); }
 
     say("Reading your projects\u2026", 3);
     return gather().then(function (g) {
       G = g;   /* uploads ship exactly as added — no automatic right-sizing */
-    }).then(function () {
-      return extract(G.bundle, function (d, t) { say("Packing photos and videos \u2014 " + d + " of " + t, 10 + 40 * d / t); });
+      say("Reading your pages\u2026", 6);
+      return Promise.all(PAGES.map(function (p) { return getText(p + ".html"); }));
+    }).then(function (texts) {
+      PAGES.forEach(function (p, i) { html[p] = texts[i]; });
+      return extract(G.bundle, function (d, t) { say("Packing photos and videos \u2014 " + d + " of " + t, 10 + 40 * d / t); }, G.pub, texts);
     }).then(function (x) {
-      notes.missing = x.missing;
+      notes.missing = x.missing; bumps = x.bumps;
       say("Matching files already on the live site\u2026", 50);
       return reuseLive(x.files, G.bundle, G.pub);
     }).then(function (files) {
       media = files;
       if (canon(G.bundle) !== canon(G.pub)) add("portfolio-data.json", enc.encode(JSON.stringify(G.bundle)));
-      say("Reading your pages\u2026", 52);
-      return Promise.all(PAGES.map(function (p) { return getText(p + ".html"); }));
-    }).then(function (texts) {
-      PAGES.forEach(function (p, i) { html[p] = texts[i]; });
-      return materialiseSite(sc);
-    }).then(function (siteFiles) {
-      media = media.concat(siteFiles);
+      return materialiseSite(sc, html);
+    }).then(function (s) {
+      media = media.concat(s.files);
+      Object.keys(s.bumps).forEach(function (k) { bumps[k] = s.bumps[k]; });
       say("Writing your edits into the pages\u2026", 60);
       PAGES.forEach(function (p) {
         var d = sc[p], src = html[p];
@@ -474,21 +568,36 @@
         var r = bakePage(src, d);
         r.skipped.forEach(function (k) { notes.skipped.push(p + ".html \u00b7 " + k); });
         if (!r.html) { notes.failed.push(p + ".html"); return; }
-        pageHashes[p] = strHash(r.html);
-        if (r.html !== src) add(p + ".html", enc.encode(r.html));
+        baked[p] = r.html;
       });
       say("Checking what is already live\u2026", 70);
       return pool(media, 6, function (f) {
-        return liveSize(f.name).then(function (n) { if (n !== -1 && n !== f.bytes.length) f.ship = true; });
+        return liveSize(f.name).then(function (n) { if (f.over || (n !== -1 && n !== f.bytes.length)) f.ship = true; });
       }, function (d, t) { say("Checking what is already live \u2014 " + d + " of " + t, 70 + 15 * d / t); });
     }).then(function () {
       media.forEach(function (f) { if (f.ship) add(f.name, f.bytes); });
       if (!G.resume) return;
       return bytesOf(G.resume).then(function (b) {
-        return liveSize(RESUME_PATH).then(function (n) { if (n !== b.length) add(RESUME_PATH, b); });
+        return liveSize(RESUME_PATH).then(function (n) {
+          if (n === b.length) return;
+          add(RESUME_PATH, b);
+          if (n > 0) bumps[RESUME_PATH] = RESUME_PATH + "?v=" + ((verMap([], PAGES.map(function (p) { return html[p]; }))[RESUME_PATH] || 1) + 1);
+        });
       });
-    }).then(function () { return idbGet(FIXES); }).then(function (fx) {
-      Object.keys(fx || {}).forEach(function (p) { if (fx[p] && fx[p].bytes) { add(p, fx[p].bytes); fixes.push(p); } });
+    }).then(function () {
+      /* a fixed-name file was replaced: every page pointing at it gets the new ?v= */
+      PAGES.forEach(function (p) {
+        var src = html[p]; if (!src) return;
+        var t = baked[p] || src;
+        Object.keys(bumps).forEach(function (path) {
+          t = t.replace(new RegExp(reEsc(path) + "(\\?v=\\d+)?", "g"), function () { return bumps[path]; });
+        });
+        if (baked[p] || t !== src) pageHashes[p] = strHash(t);
+        if (t !== src) add(p + ".html", enc.encode(t));
+      });
+      return idbGet(FIXES);
+    }).then(function (fx) {
+      Object.keys(fx || {}).forEach(function (p) { if (fx[p] && fx[p].bytes) { add(p.split("?")[0], fx[p].bytes); fixes.push(p); } });
       var now = mediaRefs(G.bundle), all = PAGES.map(function (p) { return html[p] || ""; }).join("\n");
       notes.orphaned = Object.keys(mediaRefs(G.pub)).filter(function (r) { return !now[r] && all.indexOf(r) < 0; });
       if (!out.length) return { empty: true, notes: notes };
@@ -534,7 +643,7 @@
   function optRefs(o) {
     var out = {};
     walkStrings({ o: o }, function (v) {
-      if (/^media\/.+\.(webp|jpe?g|png)$/i.test(v)) out[v] = 1;
+      if (/^media\/.+\.(webp|jpe?g|png)(\?v=\d+)?$/i.test(v)) out[v] = 1;
       else if (/^data:image\/(webp|jpe?g|png)[;,]/i.test(v) && v.length >= INLINE_MIN) out[v] = 1;
     });
     return Object.keys(out);

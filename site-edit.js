@@ -26,7 +26,7 @@
   var BAKED = "fc3bc90afab65978286ab14b40b51bbe5b8ab2d3208e6a440c7844babcf89892";
   var FLAG = "ak-site-edits";
   var MAXV = 10;
-  var PKG_SRC = "site-package.js?v=8";
+  var PKG_SRC = "site-package.js?v=10";
   var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume"];
   var PAGELABEL = { "index": "Home", "project-ui-ux": "UI / UX", "project-gen-ai": "Gen AI", "project-3d": "3D", "resume": "Résumé" };
   var CATLABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
