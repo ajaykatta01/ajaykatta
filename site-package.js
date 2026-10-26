@@ -1,617 +1,730 @@
 /* ============================================================================
-   Ajay Katta Portfolio — SHARED PUBLISH PACKAGER  (site-package.js)
+   Ajay Katta Portfolio — PUBLISH PIPELINE  (site-package.js · admin only)
    ----------------------------------------------------------------------------
-   One code path behind BOTH publish buttons:
-     • Settings → Publish → "Download updated website ZIP"   (site-edit.js)
-     • Admin menu → "Export site data"                       (admin.js)
-   Either one produces the SAME artefact: the complete, deploy-ready website —
-   every page, script, photo and file — with the owner's edits already written
-   into the HTML (text, photos, links, hidden/reordered sections, theme colours,
-   title + description + og/twitter tags), plus fresh site-content.json and
-   portfolio-data.json.
+   The ONE place that turns this device's edits into something the live site
+   can use. Loaded on demand by site-edit.js; visitors never fetch it.
 
-   Loaded on demand by the two editors; visitors never fetch it.
+   AK_PACKAGE.publish({ siteContent, onProgress })
+     → one ZIP holding only what differs from the live site:
+         • portfolio-data.json      case studies + home data (minified)
+         • <page>.html              page edits written straight into the HTML
+         • media/…                  new uploads, content-addressed
+                                    (<name>-<hash>.<ext>: the same file always
+                                    gets the same path, so it ships once)
+         • media fixes staged by Optimise images
+       WHAT-CHANGED.txt lists every file, plus files the site no longer uses.
 
-   AK_PACKAGE.full({ siteContent?, portfolioJSON?, portfolioFiles?, title?, zipName? })
-     → Promise<{ blob, count, size }>  (also downloads the ZIP)
-   Anything not passed is gathered from the other editor if it is loaded, then
-   from this device's working copy (IndexedDB), then from the live site.
+   AK_PACKAGE.optimiser   index · measure · stat · run · show  (Tools tab)
 ========================================================================== */
 (function () {
   "use strict";
   if (window.AK_PACKAGE) return;
 
-  var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume"];
-  var SITE_FILES = PAGES.map(function (p) { return p + ".html"; }).concat([
-    "site-content.js", "site-edit.js", "site-package.js", "admin.js", "theme-ripple.js",
-    "scroll-progress.js", "layout-studio.js", "studio-templates.js",
-    "site-content.json", "portfolio-data.json", "robots.txt", "vercel.json", "README.md"
-  ]);
-  /* Videos, audio and 3D models count as much as photos — a case study that leans on an .mp4
-     or a .glb was shipping a page that pointed at a file the ZIP never carried. */
-  var ASSET_RE = /(?:media|assets)\/[A-Za-z0-9._@()%+\-\/]+?\.(?:webp|jpe?g|png|gif|svg|avif|pdf|mp4|webm|mov|m4v|ogv|mp3|wav|m4a|oga|glb|gltf|usdz|obj|woff2?|ico)/g;
   var BASE = location.href.split("#")[0].split("?")[0].replace(/[^\/]*$/, "");
-  var ROOT = "Ajaykatta_Website";          // top folder inside the ZIP
-  var REPO = ROOT + "/GitRepo";            // its contents are exactly what goes in the repo
+  var ROOT = "Ajaykatta_Website", REPO = ROOT + "/GitRepo";
+  var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume"];
+  var BUILTIN = ["ui-ux", "gen-ai", "3d"];
+  var LABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
+  var RESUME_PATH = "media/home/Ajay-Katta-uiux-product-designer-2026.pdf";
+  var FIXES = "media:fixes";
+  var INLINE_MIN = 2048;                         // a data: URL under this stays inside the JSON
+  var IMG_MAX_EDGE = 2560, IMG_OVER_EDGE = 2592; // rebuilt files land on 2560±1
+  var CANVAS_PX_PER_UNIT = 2.5, CANVAS_MIN_EDGE = 1280;
+  var BUCKETS = ["text", "html", "img", "href", "attr", "hide"];
 
   /* ------------------------------------------------------------------ utils */
-  function el(tag, style, txt) {
-    var e = document.createElement(tag);
-    if (style) e.style.cssText = style;
-    if (txt != null) e.textContent = txt;
-    return e;
-  }
   function kb(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
-  function skipEl(e) {
-    if (window.AK_SITE && window.AK_SITE.skip) return window.AK_SITE.skip(e);
-    var c = (e.getAttribute && e.getAttribute("class")) || "";
-    if (/(^|\s)(ak-|aks-)/.test(c)) return true;
-    if (e.hasAttribute && e.hasAttribute("data-ak-transient")) return true;
-    return ["SCRIPT", "STYLE", "LINK", "TEMPLATE", "NOSCRIPT", "META"].indexOf(e.tagName) >= 0;
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+  function slug(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
+  function isData(v) { return typeof v === "string" && v.slice(0, 5) === "data:"; }
+  function mimeOf(d) { return (String(d).slice(5).split(";")[0] || "").split(",")[0].toLowerCase(); }
+  var EXT = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg",
+    "image/avif": "avif", "application/pdf": "pdf", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/ogg": "ogv",
+    "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "oga", "audio/mp4": "m4a",
+    "model/gltf-binary": "glb", "model/gltf+json": "gltf" };
+  function extFor(mime, fb) { return EXT[mime] || (fb ? String(fb).toLowerCase().replace(/[^a-z0-9]/g, "") : "") || "bin"; }
+  /* canonical JSON — key order never counts as a change */
+  function canon(v) {
+    if (Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+    if (v && typeof v === "object") return "{" + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ":" + canon(v[k]); }).join(",") + "}";
+    return JSON.stringify(v === undefined ? null : v);
   }
-  function idbGet(k) {
-    return new Promise(function (res) {
-      try {
-        var rq = indexedDB.open("ak-portfolio", 1);
-        rq.onupgradeneeded = function () { try { rq.result.createObjectStore("kv"); } catch (e) {} };
-        rq.onerror = function () { res(null); };
-        rq.onsuccess = function () {
-          try {
-            var r = rq.result.transaction("kv").objectStore("kv").get(k);
-            r.onsuccess = function () { res(r.result); };
-            r.onerror = function () { res(null); };
-          } catch (e) { res(null); }
-        };
-      } catch (e) { res(null); }
-    });
-  }
+  /* page hashes must match the editor's rebase check exactly — one implementation */
+  function strHash(s) { return window.AK_EDIT.strHash(s); }
   function pool(items, n, worker, tick) {
     var i = 0, done = 0, total = items.length, active = 0;
     return new Promise(function (res) {
       if (!total) return res();
-      function next() {
+      (function next() {
         while (active < n && i < total) {
           active++;
-          worker(items[i++])["catch"](function () {}).then(function () {
+          Promise.resolve().then(worker.bind(null, items[i++]))["catch"](function () {}).then(function () {
             active--; done++;
             if (tick) tick(done, total);
             if (done === total) res(); else next();
           });
         }
-      }
-      next();
+      })();
+    });
+  }
+  function walkStrings(node, fn, depth) {
+    if (!node || typeof node !== "object" || (depth || 0) > 16) return;
+    Object.keys(node).forEach(function (k) {
+      var v = node[k];
+      if (typeof v === "string") { var r = fn(v); if (r !== undefined && r !== v) node[k] = r; }
+      else if (v && typeof v === "object") walkStrings(v, fn, (depth || 0) + 1);
     });
   }
 
-  /* --------------------------------------------------------------- progress */
-  function progress(title) {
-    var bar = el("i", "display:block;height:100%;width:2%;background:#E5783A;transition:width .25s");
-    var lab = el("div", "font:500 12.5px/1.4 system-ui,-apple-system,sans-serif;opacity:.7;margin-top:9px", "Starting…");
-    var track = el("div", "height:6px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:12px");
-    track.appendChild(bar);
-    var box = el("div", "position:fixed;z-index:2147483600;left:50%;bottom:104px;transform:translateX(-50%);width:min(370px,88vw);padding:16px 18px;border-radius:14px;background:#1D1C1A;color:#fff;border:1px solid rgba(255,255,255,.13);box-shadow:0 20px 54px rgba(0,0,0,.5)");
-    box.className = "ak-transient aks-ui";
-    box.setAttribute("data-ak-transient", "");
-    box.appendChild(el("div", "font:600 14px/1.3 system-ui,-apple-system,sans-serif", title));
-    box.appendChild(track);
-    box.appendChild(lab);
-    document.body.appendChild(box);
-    return {
-      set: function (t, pct) { lab.textContent = t; bar.style.width = Math.max(2, Math.min(100, pct)) + "%"; },
-      close: function () { box.remove(); }
-    };
+  /* -------------------------------------------------------------------- idb */
+  var _db;
+  function db() {
+    if (_db) return _db;
+    _db = new Promise(function (res, rej) {
+      var rq = indexedDB.open("ak-portfolio", 1);
+      rq.onupgradeneeded = function () { try { rq.result.createObjectStore("kv"); } catch (e) {} };
+      rq.onsuccess = function () { res(rq.result); };
+      rq.onerror = function () { rej(rq.error); };
+    });
+    return _db;
+  }
+  function idbGet(k) {
+    return db().then(function (d) { return new Promise(function (res) { var r = d.transaction("kv").objectStore("kv").get(k); r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; }); })["catch"](function () { return null; });
+  }
+  function idbSet(k, v) {
+    return db().then(function (d) { return new Promise(function (res, rej) { var t = d.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = function () { res(); }; t.onerror = function () { rej(t.error); }; }); });
+  }
+  function idbKeys() {
+    return db().then(function (d) { return new Promise(function (res) { var r = d.transaction("kv").objectStore("kv").getAllKeys(); r.onsuccess = function () { res(r.result || []); }; r.onerror = function () { res([]); }; }); })["catch"](function () { return []; });
   }
 
-  /* -------------------------------------------------------------- STORE zip */
+  /* ---------------------------------------------------------------- network */
+  function getText(path) {
+    return fetch(BASE + path, { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : null; })["catch"](function () { return null; });
+  }
+  function getJSON(path) { return getText(path).then(function (t) { try { return t ? JSON.parse(t) : null; } catch (e) { return null; } }); }
+  /* 0 = not on the live site · -1 = live, size unknown · n = live, n bytes */
+  function liveSize(path) {
+    return fetch(BASE + path, { method: "HEAD", cache: "no-store" })
+      .then(function (r) { return r.ok ? (+r.headers.get("content-length") || -1) : 0; })["catch"](function () { return 0; });
+  }
+
+  /* ------------------------------------------------------- bytes + hashing */
+  function bytesOf(d) {
+    /* the browser decodes the base64 — atob() over a 100 MB video stalls the tab */
+    return fetch(d).then(function (r) { return r.arrayBuffer(); }).then(function (b) { return new Uint8Array(b); })["catch"](function () {
+      var bin = atob(String(d).split(",")[1] || ""), a = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      return a;
+    });
+  }
+  function fnvHex(b) { var x = 2166136261; for (var i = 0; i < b.length; i++) { x ^= b[i]; x = Math.imul(x, 16777619) >>> 0; } return ("0000000" + x.toString(16)).slice(-8); }
+  function digest(b) {
+    try {
+      if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+        return crypto.subtle.digest("SHA-1", b).then(function (d) {
+          var a = new Uint8Array(d), s = "";
+          for (var i = 0; i < 5; i++) s += ("0" + a[i].toString(16)).slice(-2);
+          return s;
+        })["catch"](function () { return fnvHex(b); });
+      }
+    } catch (e) {}
+    return Promise.resolve(fnvHex(b));
+  }
+  function blobToDataURL(b) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { res(null); }; r.readAsDataURL(b); }); }
+
+  /* -------------------------------------------------------------------- zip */
   var _crc = (function () { var t = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
   function crc32(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = _crc[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
   function makeZip(files) {
     var enc = new TextEncoder();
     function u16(n) { return [n & 0xFF, (n >>> 8) & 0xFF]; }
     function u32(n) { return [n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF]; }
-    var parts = [], central = [], offset = 0;
+    var parts = [], central = [], offset = 0, cs = 0;
     files.forEach(function (f) {
       var name = enc.encode(f.name), data = f.bytes, crc = crc32(data);
-      var lf = new Uint8Array([].concat(u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0)));
-      parts.push(lf, name, data);
-      central.push(new Uint8Array([].concat(u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset))), name);
-      offset += lf.length + name.length + data.length;
+      var lf = new Uint8Array([].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0)));
+      var cf = new Uint8Array([].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset)));
+      parts.push(lf, name, data); central.push(cf, name);
+      offset += lf.length + name.length + data.length; cs += cf.length + name.length;
     });
-    var cs = 0; central.forEach(function (c) { cs += c.length; });
     var end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cs), u32(offset), u16(0)));
     return new Blob(parts.concat(central, [end]), { type: "application/zip" });
   }
-  function dataToBytes(d) {
-    var parts = d.split(","), meta = parts[0] || "", bin = atob(parts[1] || "");
-    var a = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
-    return { mime: (meta.split(";")[0] || "").replace("data:", ""), bytes: a };
+  function download(blob, name) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
   }
-  function extFor(mime) {
-    return ({ "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/svg+xml": "svg", "application/pdf": "pdf", "video/mp4": "mp4" })[mime] || "bin";
-  }
-  function hashKey(s) { var x = 0; for (var i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) >>> 0; return x.toString(36); }
 
-  /* ------------------------------------------ case studies without admin.js --
-     Publishing from a page that does NOT load admin.js (the home page, the
-     résumé) used to fall back to the live portfolio-data.json — so a project
-     created minutes earlier, and every photo and video inside it, was silently
-     left out of the ZIP. This rebuilds the data file and the media/ folder from
-     this device's working copies in IndexedDB, the same way the admin export
-     does, so every publish button ships the newest case studies. */
-  var BUILTIN_PAGES = ["ui-ux", "gen-ai", "3d"];
-  var INLINE_MIN = 2048;                 // a data: URL under this stays inside the JSON
-  /* Every category this device knows about: the built-in pages, anything already
-     published, and any working copy sitting in IndexedDB. A category page added
-     later is therefore published without a code change. */
-  function pageKeys(pub, localKeys) {
+  /* ------------------------------------ gather: working copy merged with live
+     Same rule everywhere: a category edited on THIS device ships its working
+     copy; an untouched one keeps exactly what is live. Nothing is ever dropped. */
+  function pageKeys(pub, local) {
     var out = [], seen = {};
-    BUILTIN_PAGES.concat(Object.keys(pub || {}), localKeys || []).forEach(function (k) {
+    BUILTIN.concat(Object.keys(pub || {}), local || []).forEach(function (k) {
       if (!k || k === "home" || seen[k]) return;
       seen[k] = 1; out.push(k);
     });
     return out;
   }
-  function idbDataKeys() {
-    return new Promise(function (res) {
-      try {
-        var rq = indexedDB.open("ak-portfolio", 1);
-        rq.onupgradeneeded = function () { try { rq.result.createObjectStore("kv"); } catch (e) {} };
-        rq.onerror = function () { res([]); };
-        rq.onsuccess = function () {
-          try {
-            var r = rq.result.transaction("kv").objectStore("kv").getAllKeys();
-            r.onsuccess = function () {
-              res((r.result || []).filter(function (k) { return typeof k === "string" && k.indexOf("data:") === 0; })
-                                  .map(function (k) { return k.slice(5); }));
-            };
-            r.onerror = function () { res([]); };
-          } catch (e) { res([]); }
-        };
-      } catch (e) { res([]); }
+  function gather() {
+    return Promise.all([getJSON("portfolio-data.json"), idbKeys(), idbGet("ak-resume-pdf")]).then(function (pre) {
+      var pub = pre[0] || {};
+      var local = pre[1].filter(function (k) { return typeof k === "string" && k.indexOf("data:") === 0; }).map(function (k) { return k.slice(5); });
+      var keys = pageKeys(pub, local);
+      return Promise.all(keys.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
+        var cur = (window.AK_CASES && window.AK_CASES.current) ? window.AK_CASES.current() : null;
+        var bundle = {};
+        keys.forEach(function (k, i) {
+          var mine = vals[i];
+          if (cur && cur.page === k && cur.data && cur.data.items) mine = cur.data;   // the page on screen is the freshest
+          var usable = !!(mine && mine.items && mine.items.length);
+          if (lsGet("ak-local-edits:" + k) && usable) bundle[k] = mine;
+          else if (pub[k] && pub[k].items) bundle[k] = pub[k];
+          else if (usable) bundle[k] = mine;
+        });
+        var ph = pub.home || {}, home = {};
+        try { var raw = lsGet("ak-certs"), a = raw ? JSON.parse(raw) : null; if (Array.isArray(a)) home.certs = a; } catch (e) {}
+        if (!home.certs && Array.isArray(ph.certs)) home.certs = ph.certs;
+        var covers = {};
+        keys.forEach(function (k) { var v = lsGet("ak-cover-" + k) || (ph.covers && ph.covers[k]); if (v) covers[k] = v; });
+        if (Object.keys(covers).length) home.covers = covers;
+        var prof = lsGet("ak-profile-photo") || ph.profile;
+        if (prof) home.profile = prof;
+        if (Object.keys(home).length) bundle.home = home;
+        Object.keys(pub).forEach(function (k) { if (!(k in bundle)) bundle[k] = pub[k]; });
+        return { pub: pub, keys: keys, bundle: clone(bundle), resume: isData(pre[2]) ? pre[2] : null };
+      });
     });
   }
-  function slug(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
-  function extForMime(mime, fb) {
-    var map = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg",
-      "application/pdf": "pdf", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/ogg": "ogv",
-      "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "oga",
-      "model/gltf-binary": "glb", "model/gltf+json": "gltf" };
-    return map[String(mime || "").toLowerCase()] || fb || "bin";
+
+  /* ---------------------------------------------------------- image codec
+     Decode/encode differ per browser (Safari ignores createImageBitmap resize,
+     iPad throws on huge decodes, older engines refuse WebP from toBlob), so every
+     step has a fallback and a failure comes back with a reason. */
+  function decodeImg(blob) {
+    return new Promise(function (res, rej) {
+      var u = URL.createObjectURL(blob), im = new Image();
+      im.onload = function () {
+        if (!im.naturalWidth) { URL.revokeObjectURL(u); return rej(new Error("empty")); }
+        res({ w: im.naturalWidth, h: im.naturalHeight, src: im, release: function () { URL.revokeObjectURL(u); } });
+      };
+      im.onerror = function () { URL.revokeObjectURL(u); rej(new Error("decode")); };
+      im.src = u;
+    });
   }
-  /* let the browser do the base64 — atob() over a 100 MB video is what stalls the tab */
-  function bytesFromData(d) {
-    if (typeof fetch === "function") {
-      return fetch(d).then(function (r) { return r.arrayBuffer(); })
-        .then(function (b) { return new Uint8Array(b); })
-        ["catch"](function () { return dataToBytes(d).bytes; });
+  function decode(blob) {
+    if (typeof createImageBitmap !== "function") return decodeImg(blob);
+    return createImageBitmap(blob).then(function (bm) {
+      return { w: bm.width, h: bm.height, src: bm, release: function () { if (bm.close) bm.close(); } };
+    }, function () { return decodeImg(blob); });
+  }
+  /* halve repeatedly before the final draw — one big downscale looks soft */
+  function scaleTo(dec, w, h) {
+    var src = dec.src, cw = dec.w, ch = dec.h, guard = 0;
+    while (cw > w * 2 && guard++ < 8) {
+      var t = document.createElement("canvas");
+      t.width = Math.max(w, Math.round(cw / 2)); t.height = Math.max(h, Math.round(ch / 2));
+      var tx = t.getContext("2d"); tx.imageSmoothingEnabled = true; tx.imageSmoothingQuality = "high";
+      tx.drawImage(src, 0, 0, t.width, t.height);
+      src = t; cw = t.width; ch = t.height;
     }
-    return Promise.resolve(dataToBytes(d).bytes);
+    var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    var cx = cv.getContext("2d"); if (!cx) throw new Error("no canvas");
+    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+    cx.drawImage(src, 0, 0, w, h);
+    return cv;
   }
-  function fnv(b) { var x = 2166136261; for (var i = 0; i < b.length; i++) { x ^= b[i]; x = (x * 16777619) >>> 0; } return x.toString(36); }
-  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function toBlob(cv, type, q) {
+    return new Promise(function (res) {
+      var done = false, t = setTimeout(function () { give(null); }, 20000);
+      function give(b) { if (done) return; done = true; clearTimeout(t); res(b); }
+      try { cv.toBlob(give, type, q); } catch (e) { give(null); }
+    });
+  }
+  /* WebP first — the site ships WebP; PNG/JPEG only if a browser refuses to write it */
+  function encodeBest(cv, isPng, origSize) {
+    var list = isPng ? [["image/webp", 0.92], ["image/png"], ["image/jpeg", 0.88]] : [["image/webp", 0.92], ["image/jpeg", 0.88]];
+    var best = null, i = 0;
+    function step() {
+      if (i >= list.length) return Promise.resolve(best);
+      var t = list[i++];
+      return toBlob(cv, t[0], t[1]).then(function (b) {
+        if (b && b.size && (!best || b.size < best.size)) best = b;
+        return (best && best.size < origSize) ? best : step();
+      });
+    }
+    return step();
+  }
+  function resizable(t) { return /^image\/(webp|jpe?g|png)$/i.test(t || ""); }
 
-  function buildPortfolioFromDevice(pr) {
-    return Promise.all([
-      fetch(BASE + "portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; })["catch"](function () { return null; }),
-      idbDataKeys(), idbGet("ak-resume-pdf")
-    ]).then(function (pre) {
-      var pub = pre[0] || {}, resume = pre[2], PKEYS = pageKeys(pub, pre[1]);
-      return Promise.all(PKEYS.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
-      var bundle = {}, mine = false;
-      /* same merge rule as the admin export: this device's edits win, an untouched
-         page keeps whatever is already published — never drop a page either way */
-      PKEYS.forEach(function (k, i) {
-        var local = vals[i], usable = !!(local && local.items && local.items.length);
-        var flagged = !!lsGet("ak-local-edits:" + k);
-        if (flagged && usable) { bundle[k] = local; mine = true; }
-        else if (pub[k] && pub[k].items) { bundle[k] = pub[k]; }
-        else if (usable) { bundle[k] = local; mine = true; }
-      });
-      var home = {}, certs = null;
-      try { var raw = lsGet("ak-certs"); if (raw) { var a = JSON.parse(raw); if (Array.isArray(a)) certs = a; } } catch (e) {}
-      if (certs) { home.certs = certs; mine = true; }
-      else if (pub.home && Array.isArray(pub.home.certs)) home.certs = pub.home.certs;
-      var covers = {};
-      PKEYS.forEach(function (k) {
-        var v = lsGet("ak-cover-" + k);
-        if (v) { covers[k] = v; mine = true; }
-        else if (pub.home && pub.home.covers && pub.home.covers[k]) covers[k] = pub.home.covers[k];
-      });
-      if (Object.keys(covers).length) home.covers = covers;
-      var prof = lsGet("ak-profile-photo");
-      if (prof) { home.profile = prof; mine = true; }
-      else if (pub.home && pub.home.profile) home.profile = pub.home.profile;
-      if (home.certs || home.covers || home.profile) bundle.home = home;
-      var hasResume = !!(resume && String(resume).indexOf("data:") === 0);
-      if (!mine && !hasResume) return null;        // nothing of this device's own — keep the live file
-
-      bundle = JSON.parse(JSON.stringify(bundle));  // never touch the working copy
-      var files = [], used = {}, seen = {}, jobs = [];
-      function nameFor(folder, base, ext) {
-        base = (base || "asset").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "asset";
-        var dir = folder ? folder + "/" : "", nm = dir + base + "." + ext, n = 2;
-        while (used[nm]) nm = dir + base + "-" + (n++) + "." + ext;
-        used[nm] = 1; return nm;
-      }
-      /* only uploads (data: URLs) become new files; an already-published media/… path
-         is left exactly as it is, and full mode collects it by scanning the JSON */
-      function stash(ref, folder, hintBase, hintExt) {
-        if (!ref || typeof ref !== "string" || ref.indexOf("data:") !== 0) return ref;
-        if (seen[ref]) return seen[ref];
-        var mime = (ref.slice(5).split(";")[0] || "").split(",")[0];
-        var path = "media/" + nameFor(folder, slug(hintBase), extForMime(mime, hintExt));
-        seen[ref] = path;
-        jobs.push({ ref: ref, path: path });
-        return path;
-      }
-      function walkBlocks(blocks, folder, base) {
-        (blocks || []).forEach(function (b, i) {
-          if (!b || b.type === "prototype") return;   // prototype src is an embed URL
-          if (b.src) b.src = stash(b.src, folder, base + "-" + (b.type || "asset") + "-" + (i + 1), b.format);
+  /* canvas photos ship at the size they are drawn: 1200 canvas units fitted to the
+     column, so 2.5× the element covers a retina screen. Uploads only — published
+     files are left to Optimise images. */
+  function canvasTarget(el) {
+    var long = Math.max(+el.w || 0, +el.h || 0);
+    return long ? Math.min(IMG_MAX_EDGE, Math.max(CANVAS_MIN_EDGE, Math.round(long * CANVAS_PX_PER_UNIT))) : 0;
+  }
+  function refit(src, target) {
+    return fetch(src).then(function (r) { return r.blob(); }).then(function (blob) {
+      if (!resizable(blob.type)) return null;
+      return decode(blob).then(function (dec) {
+        var long = Math.max(dec.w, dec.h);
+        if (!long || (long <= target * 1.15 && blob.type === "image/webp")) { dec.release(); return null; }
+        var k = Math.min(1, target / long), cv;
+        try { cv = scaleTo(dec, Math.max(1, Math.round(dec.w * k)), Math.max(1, Math.round(dec.h * k))); }
+        catch (e) { dec.release(); return null; }
+        dec.release();
+        return toBlob(cv, "image/webp", 0.86).then(function (b) {
+          cv.width = cv.height = 1;
+          if (!b || b.type !== "image/webp" || b.size > blob.size * 0.9) return null;
+          return blobToDataURL(b);
         });
-      }
-      /* a file can hide anywhere: a Layout-Studio canvas keeps pictures in
-         studio.els[].content.src, a shape's reference photos in detail.refs[] */
-      var NOISE = { content: 1, els: 1, design: 1, blocks: 1, items: 1, cases: 1, src: 1, meta: 1, info: 1 };
-      function sweep(node, folder, base, depth) {
-        if (!node || typeof node !== "object" || depth > 12) return;
-        if (Array.isArray(node)) {
-          node.forEach(function (v, i) {
-            if (typeof v === "string") {
-              if (v.indexOf("data:") !== 0 || v.length < INLINE_MIN) return;
-              node[i] = stash(v, folder, base + "-" + (i + 1));
-              return;
-            }
-            if (v && typeof v === "object") sweep(v, folder, base + "-" + (i + 1), depth + 1);
-          });
-          return;
-        }
-        if (node.type === "prototype") return;
-        Object.keys(node).forEach(function (k) {
-          var v = node[k];
-          if (typeof v === "string") {
-            if (v.indexOf("data:") !== 0 || v.length < INLINE_MIN) return;
-            node[k] = stash(v, folder, base + (NOISE[k] ? "" : "-" + slug(k)), node.format);
-            return;
-          }
-          if (v && typeof v === "object") sweep(v, folder, base + (NOISE[k] ? "" : "-" + slug(k)), depth + 1);
-        });
-      }
-      Object.keys(bundle).forEach(function (page) {
-        if (page === "home") return;
-        var d = bundle[page] || {};
-        (d.items || []).forEach(function (it, i) {
-          var base = slug(it.title) || (page + "-" + i);
-          if (it.cover) it.cover = stash(it.cover, page, base + "-cover");
-          if (it.homeBg && it.homeBg.video) it.homeBg.video = stash(it.homeBg.video, page, base + "-home-bg");
-          if (it.homeBg && it.homeBg.image) it.homeBg.image = stash(it.homeBg.image, page, base + "-home-bg-image");
-          walkBlocks(it.blocks, page, base);
-          sweep(it, page, base, 0);
-        });
-        var cases = d.cases || {};
-        Object.keys(cases).forEach(function (ck) {
-          var c = cases[ck] || {};
-          if (c.info && c.info.cover) c.info.cover = stash(c.info.cover, page, ck + "-cover");
-          walkBlocks(c.blocks, page, ck);
-          sweep(c, page, ck, 0);
-        });
-        sweep(d, page, page, 0);
-      });
-      if (bundle.home) {
-        (bundle.home.certs || []).forEach(function (c, i) {
-          if (c && c.img) c.img = stash(c.img, "home", "certificate-" + (slug(c.title) || (i + 1)));
-        });
-        if (bundle.home.covers) Object.keys(bundle.home.covers).forEach(function (k) {
-          bundle.home.covers[k] = stash(bundle.home.covers[k], "home", k + "-cover");
-        });
-        if (bundle.home.profile) bundle.home.profile = stash(bundle.home.profile, "home", "profile-photo");
-        sweep(bundle.home, "home", "home", 0);
-      }
-      if (hasResume) jobs.push({ ref: resume, path: "media/home/Ajay-Katta-uiux-product-designer-2026.pdf" });
-
-      var byHash = {}, remap = {}, missing = [];
-      return pool(jobs, 4, function (j) {
-        return bytesFromData(j.ref)["catch"](function () { missing.push(j.path); return null; }).then(function (bytes) {
-          if (!bytes) return;
-          var key = bytes.length + ":" + fnv(bytes);        // the same picture is written once
-          if (byHash[key]) { remap[j.path] = byHash[key]; return; }
-          byHash[key] = j.path;
-          files.push({ name: j.path, bytes: bytes });
-        });
-      }, function (d, t) { if (pr) pr.set("Packing your photos and videos — " + d + " of " + t, 2 + (d / t) * 4); })
-      .then(function () {
-        if (Object.keys(remap).length) (function walk(node, depth) {
-          if (!node || typeof node !== "object" || depth > 14) return;
-          Object.keys(node).forEach(function (k) {
-            var v = node[k];
-            if (typeof v === "string") { if (remap[v]) node[k] = remap[v]; return; }
-            if (v && typeof v === "object") walk(v, depth + 1);
-          });
-        })(bundle, 0);
-        return { json: JSON.stringify(bundle, null, 2), files: files, missing: missing };
-      });
       });
     })["catch"](function () { return null; });
   }
+  function rightSizeUploads(bundle) {
+    var groups = {};
+    (function walk(node, depth) {
+      if (!node || typeof node !== "object" || depth > 14) return;
+      if (Array.isArray(node)) { node.forEach(function (v) { walk(v, depth + 1); }); return; }
+      var c = node.content;
+      if (c && c.type === "image" && isData(c.src) && (+node.w || +node.h)) {
+        var t = canvasTarget(node);
+        if (t) { var g = groups[c.src] || (groups[c.src] = { src: c.src, t: 0, cs: [] }); g.t = Math.max(g.t, t); g.cs.push(c); }
+      }
+      Object.keys(node).forEach(function (k) { if (node[k] && typeof node[k] === "object") walk(node[k], depth + 1); });
+    })(bundle, 0);
+    var jobs = Object.keys(groups).map(function (k) { return groups[k]; });
+    /* two at a time — several large decodes at once is what makes an iPad give up */
+    return pool(jobs, 2, function (g) { return refit(g.src, g.t).then(function (out) { if (out) g.cs.forEach(function (c) { c.src = out; }); }); });
+  }
 
-  /* uploaded data: URLs in a site-content object become real files */
-  function materialise(out) {
-    var files = [], seen = {};
-    PAGES.forEach(function (p) {
-      var d = out[p]; if (!d) return;
+  /* --------------------------------------------------------- extract files
+     Every upload (data: URL) anywhere in the bundle becomes one file at a
+     content-addressed path; identical bytes collapse to one file. */
+  function extract(bundle, tick) {
+    var refs = [], at = {};
+    function want(v) { return isData(v) && v.length >= INLINE_MIN; }
+    function note(v, folder, hint, ext) { if (!at[v]) { at[v] = { folder: folder, hint: hint, ext: ext }; refs.push(v); } }
+    function extHint(node) {
+      if (node.format) return node.format;
+      var m = typeof node.name === "string" && /\.([a-z0-9]{2,5})$/i.exec(node.name);
+      return m ? m[1] : null;
+    }
+    function walk(node, folder, base, depth) {
+      if (!node || typeof node !== "object" || depth > 14) return;
+      if (Array.isArray(node)) {
+        node.forEach(function (v) { if (want(v)) note(v, folder, base); else if (v && typeof v === "object") walk(v, folder, base, depth + 1); });
+        return;
+      }
+      if (node.type === "prototype" || node.type === "html") return;       // embed URL / inline code
+      var here = typeof node.type === "string" ? base + "-" + slug(node.type) : base;
+      Object.keys(node).forEach(function (k) {
+        var v = node[k];
+        if (want(v)) note(v, folder, (k === "src" || k === "content") ? here : here + "-" + slug(k), extHint(node));
+        else if (v && typeof v === "object") walk(v, folder, here, depth + 1);
+      });
+    }
+    Object.keys(bundle).forEach(function (page) {
+      var d = bundle[page]; if (!d || typeof d !== "object") return;
+      if (page === "home") {
+        (d.certs || []).forEach(function (c, i) { if (c && want(c.img)) note(c.img, "home", "certificate-" + (slug(c.title) || i + 1)); });
+        Object.keys(d.covers || {}).forEach(function (k) { if (want(d.covers[k])) note(d.covers[k], "home", k + "-cover"); });
+        if (want(d.profile)) note(d.profile, "home", "profile-photo");
+        walk(d, "home", "home", 0);
+        return;
+      }
+      (d.items || []).forEach(function (it, i) { walk(it, page, slug(it && it.title) || page + "-" + (i + 1), 0); });
+      Object.keys(d.cases || {}).forEach(function (ck) { walk(d.cases[ck], page, slug(ck) || "case", 0); });
+      walk(d, page, page, 0);
+    });
+
+    var files = [], missing = [], byHash = {}, map = {};
+    return pool(refs, 4, function (ref) {
+      return bytesOf(ref).then(function (bytes) {
+        return digest(bytes).then(function (hx) {
+          var key = bytes.length + ":" + hx;
+          if (byHash[key]) { map[ref] = byHash[key]; return; }
+          var a = at[ref];
+          var path = "media/" + a.folder + "/" + (slug(a.hint).slice(0, 48) || "file") + "-" + hx + "." + extFor(mimeOf(ref), a.ext);
+          byHash[key] = path; map[ref] = path;
+          files.push({ name: path, bytes: bytes });
+        });
+      }, function () { missing.push(at[ref].hint); });
+    }, tick).then(function () {
+      walkStrings(bundle, function (v) { return map[v]; });
+      return { files: files, missing: missing };
+    });
+  }
+
+  /* ------------------------------------------------------------- page edits */
+  function hasEdits(d) {
+    if (!d || typeof d !== "object") return false;
+    for (var i = 0; i < BUCKETS.length; i++) if (d[BUCKETS[i]] && Object.keys(d[BUCKETS[i]]).length) return true;
+    if (d.order && Object.keys(d.order).length) return true;
+    if (d.meta && Object.keys(d.meta).some(function (k) { return d.meta[k]; })) return true;
+    return !!(d.vars && ["dark", "light"].some(function (m) { return d.vars[m] && Object.keys(d.vars[m]).some(function (k) { return d.vars[m][k]; }); }));
+  }
+  /* uploaded photos / PDFs in page edits become files under media/site/ */
+  function materialiseSite(sc) {
+    var jobs = [];
+    Object.keys(sc).forEach(function (p) {
+      var d = sc[p]; if (!d) return;
       ["img", "href"].forEach(function (b) {
         var set = d[b] || {};
-        for (var k in set) {
-          var v = set[k];
-          if (typeof v !== "string" || v.indexOf("data:") !== 0) continue;
-          if (seen[v]) { set[k] = seen[v]; continue; }
-          var r = dataToBytes(v);
-          var name = "media/site/" + p + "-" + hashKey(k + v.slice(-24)) + "." + extFor(r.mime);
-          files.push({ name: name, bytes: r.bytes });
-          seen[v] = name; set[k] = name;
-        }
+        Object.keys(set).forEach(function (k) { if (isData(set[k])) jobs.push({ set: set, k: k, p: p }); });
       });
-      if (d.meta && d.meta.image && d.meta.image.indexOf("data:") === 0) {
-        var rr = dataToBytes(d.meta.image);
-        var nm = seen[d.meta.image] || ("media/site/og-" + p + "." + extFor(rr.mime));
-        if (!seen[d.meta.image]) { files.push({ name: nm, bytes: rr.bytes }); seen[d.meta.image] = nm; }
-        d.meta.image = nm;
-      }
+      if (d.meta && isData(d.meta.image)) jobs.push({ set: d.meta, k: "image", p: p, og: true });
     });
-    return files;
-  }
-
-  /* ------------------------------- bake overrides into a pristine page ----- */
-  function bResolve(doc, key) {
-    if (!key) return null;
-    if (key.charAt(0) === "#") {
-      try { return doc.querySelector('[data-ak-id="' + key.slice(1).replace(/["\\]/g, "") + '"]'); } catch (e) { return null; }
-    }
-    var segs = key.split(">"), node = doc.body;
-    for (var i = 0; i < segs.length && node; i++) {
-      var m = /^([a-z0-9-]+)(?::(\d+))?$/i.exec(segs[i]); if (!m) return null;
-      var tag = m[1].toUpperCase(), want = m[2] ? +m[2] : 1, c = 0, found = null, ch = node.firstElementChild;
-      while (ch) { if (ch.tagName === tag && !skipEl(ch)) { c++; if (c === want) { found = ch; break; } } ch = ch.nextElementSibling; }
-      node = found;
-    }
-    return node;
-  }
-  function metaTag(doc, attr, name, val) {
-    var e = doc.head.querySelector("meta[" + attr + '="' + name + '"]');
-    if (!e) { e = doc.createElement("meta"); e.setAttribute(attr, name); doc.head.appendChild(e); }
-    e.setAttribute("content", val);
-  }
-  function bakeSEOText(src, m) {
-    if (!m) return src;
-    function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
-    function tag(html, attr, name, val) {
-      var re = new RegExp("<meta[^>]*" + attr + "=[\"']" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "[\"'][^>]*>", "i");
-      var t = "<meta " + attr + '="' + name + '" content="' + esc(val) + '">';
-      return re.test(html) ? html.replace(re, function () { return t; })
-                           : html.replace(/<\/head>/i, function () { return t + "\n</head>"; });
-    }
-    var out = src;
-    if (m.title) {
-      out = out.replace(/<title>[\s\S]*?<\/title>/i, function () { return "<title>" + esc(m.title) + "</title>"; });
-      out = tag(out, "property", "og:title", m.title);
-      out = tag(out, "name", "twitter:title", m.title);
-    }
-    if (m.description) {
-      out = tag(out, "name", "description", m.description);
-      out = tag(out, "property", "og:description", m.description);
-      out = tag(out, "name", "twitter:description", m.description);
-    }
-    if (m.image) { out = tag(out, "property", "og:image", m.image); out = tag(out, "name", "twitter:image", m.image); }
-    return out;
+    var files = [], byHash = {};
+    return pool(jobs, 4, function (j) {
+      var v = j.set[j.k];
+      return bytesOf(v).then(function (bytes) {
+        return digest(bytes).then(function (hx) {
+          var path = byHash[hx];
+          if (!path) {
+            path = byHash[hx] = "media/site/" + (j.og ? "og-" : "") + j.p + "-" + hx + "." + extFor(mimeOf(v));
+            files.push({ name: path, bytes: bytes });
+          }
+          j.set[j.k] = path;
+        });
+      });
+    }).then(function () { return files; });
   }
   function bakePage(src, d) {
-    d = d || {};
-    var doc;
-    try { doc = new DOMParser().parseFromString(src, "text/html"); } catch (e) { return bakeSEOText(src, d.meta); }
-    if (!doc || !doc.body || !doc.head) return bakeSEOText(src, d.meta);
-
-    ["text", "html", "img", "href", "attr", "hide"].forEach(function (b) {
-      var set = d[b]; if (!set) return;
-      for (var k in set) {
-        var node = bResolve(doc, k); if (!node) continue;
-        var v = set[k];
-        if (b === "text") node.textContent = v;
-        else if (b === "html") node.innerHTML = v;
-        else if (b === "img") {
-          if (node.tagName === "IMG") { node.removeAttribute("srcset"); node.setAttribute("src", v); }
-          else if (node.tagName === "SOURCE") node.setAttribute("srcset", v);
-          else node.style.backgroundImage = 'url("' + v + '")';
-        }
-        else if (b === "href") node.setAttribute("href", v);
-        else if (b === "attr") { for (var a in v) node.setAttribute(a, v[a]); }
-        else if (b === "hide" && v) node.style.setProperty("display", "none", "important");
-      }
+    var E = window.AK_EDIT, doc;
+    try { doc = new DOMParser().parseFromString(src, "text/html"); } catch (e) { doc = null; }
+    if (!doc || !doc.body || !E || !E.applyDraft) return { html: null, skipped: [] };
+    var skipped = E.applyDraft(doc, d) || [];
+    var dt = /^\s*(<!doctype[^>]*>)/i.exec(src);
+    var html = (dt ? dt[1] : "<!DOCTYPE html>") + "\n" + doc.documentElement.outerHTML + "\n";
+    if (html.indexOf("</body>") < 0 || html.length < src.length * 0.6) return { html: null, skipped: skipped };   // round-trip safety net
+    return { html: html, skipped: skipped };
+  }
+  function mediaRefs(obj) {
+    var out = {};
+    walkStrings({ o: obj }, function (v) { if (/^media\//i.test(v)) out[v] = 1; });
+    return out;
+  }
+  /* An upload whose bytes are already live under another name (an older export,
+     the same photo re-uploaded) points back at that file instead of shipping a
+     copy. Only files the new data would otherwise stop using are candidates, and
+     only a size match is downloaded and hashed. */
+  function reuseLive(files, bundle, pub) {
+    var now = mediaRefs(bundle), cands = Object.keys(mediaRefs(pub)).filter(function (r) { return !now[r]; });
+    if (!cands.length || !files.length) return Promise.resolve(files);
+    var bySize = {}, remap = {};
+    files.forEach(function (f) { (bySize[f.bytes.length] = bySize[f.bytes.length] || []).push(f); });
+    return pool(cands, 6, function (ref) {
+      return liveSize(ref).then(function (n) {
+        if (n === 0 || (n > 0 && !bySize[n])) return;      // gone, or no upload of that size
+        return fetch(BASE + ref, { cache: "no-store" }).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).then(function (ab) {
+          var same = ab && bySize[ab.byteLength];
+          if (!same) return;
+          return digest(new Uint8Array(ab)).then(function (hx) {
+            same.forEach(function (f) { if (!f.reuse && f.name.indexOf("-" + hx + ".") > 0) { f.reuse = ref; remap[f.name] = ref; } });
+          });
+        });
+      });
+    }).then(function () {
+      if (Object.keys(remap).length) walkStrings(bundle, function (v) { return remap[v]; });
+      return files.filter(function (f) { return !f.reuse; });
     });
-    if (d.order) for (var ck in d.order) {
-      var box = ck === "" ? doc.body : bResolve(doc, ck);
-      if (!box || !Array.isArray(d.order[ck])) continue;
-      var kids = Array.prototype.filter.call(box.children, function (c) { return !skipEl(c); });
-      kids.forEach(function (c, i) { if (!c.hasAttribute("data-ak-oi")) c.setAttribute("data-ak-oi", i); });
-      var by = {}; kids.forEach(function (c) { by[c.getAttribute("data-ak-oi")] = c; });
-      d.order[ck].forEach(function (oi) { if (by[oi]) box.appendChild(by[oi]); });
-    }
-    if (d.vars) {
-      function blk(sel, set) { var o = ""; for (var k in (set || {})) if (set[k]) o += k + ":" + set[k] + ";"; return o ? sel + "{" + o + "}" : ""; }
-      var css = blk(":root", d.vars.dark) + blk('[data-theme="light"]', d.vars.light);
-      if (css) {
-        var st = doc.getElementById("ak-site-vars") || doc.createElement("style");
-        st.id = "ak-site-vars"; st.textContent = css; doc.head.appendChild(st);
-      }
-    }
-    var m = d.meta;
-    if (m) {
-      if (m.title) {
-        var t = doc.head.querySelector("title");
-        if (!t) { t = doc.createElement("title"); doc.head.appendChild(t); }
-        t.textContent = m.title;
-        metaTag(doc, "property", "og:title", m.title);
-        metaTag(doc, "name", "twitter:title", m.title);
-      }
-      if (m.description) {
-        metaTag(doc, "name", "description", m.description);
-        metaTag(doc, "property", "og:description", m.description);
-        metaTag(doc, "name", "twitter:description", m.description);
-      }
-      if (m.image) {
-        metaTag(doc, "property", "og:image", m.image);
-        metaTag(doc, "name", "twitter:image", m.image);
-      }
-    }
-    var html = "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
-    if (html.indexOf("</body>") < 0 || html.length < src.length * 0.6) return bakeSEOText(src, d.meta);  // round-trip sanity net
-    return html;
   }
 
-  /* JSON compares by value, so re-indentation alone never counts as a change */
-  function sameFile(name, a, b) {
-    if (a === b) return true;
-    if (a == null || b == null) return false;
-    if (!/\.json$/i.test(name)) return false;
-    try { return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b)); } catch (e) { return false; }
-  }
-
-  /* --------------------------------------------------- gather both datasets */
-  function getSiteContent(opts) {
-    if (opts.siteContent) return Promise.resolve(opts.siteContent);
-    if (window.AK_EDIT && window.AK_EDIT.content) {
-      try { var c = window.AK_EDIT.content(); if (c) return Promise.resolve(c); } catch (e) {}
-    }
-    var flagged = false;
-    try { flagged = !!localStorage.getItem("ak-site-edits"); } catch (e) {}
-    if (!flagged) return Promise.resolve(null);
-    return idbGet("site:content").then(function (v) { return (v && typeof v === "object") ? v : null; });
-  }
-  function getPortfolio(opts, pr) {
-    if (opts.portfolioJSON) return Promise.resolve({ json: opts.portfolioJSON, files: opts.portfolioFiles || [] });
-    if (window.AK_ADMIN_DATA && window.AK_ADMIN_DATA.build) {
-      return window.AK_ADMIN_DATA.build().then(function (r) {
-        return (r && r.json) ? { json: r.json, files: r.files || [] } : buildPortfolioFromDevice(pr);
-      })["catch"](function () { return buildPortfolioFromDevice(pr); });
-    }
-    return buildPortfolioFromDevice(pr);   // home page / résumé: admin.js isn't loaded here
-  }
-
-  /* ------------------------------------------------------------------ full */
-  /* mode "full"  → the entire deploy-ready website
-     mode "delta" → only the files that differ from what is live right now   */
-  function full(opts) {
+  /* ---------------------------------------------------------------- publish */
+  function publish(opts) {
     opts = opts || {};
-    if (location.protocol === "file:") return Promise.reject(new Error("needs http"));
-    var delta = opts.mode === "delta";
-    var zipName = opts.zipName || (delta ? "ajay-katta-changes.zip" : "ajay-katta-website.zip");
-    var pr = progress(opts.title || (delta ? "Packaging your changes" : "Packaging your website"));
+    if (location.protocol === "file:") return Promise.reject(new Error("Open the site over http(s) to publish."));
+    var say = opts.onProgress || function () {};
+    var sc = clone(opts.siteContent || {});
     var enc = new TextEncoder();
-    var files = [], text = {}, live = {}, sc = null, pf = null, changed = [], missing = [];
+    var G, html = {}, media = [], out = [], fixes = [], pageHashes = {};
+    var notes = { missing: [], skipped: [], failed: [], orphaned: [] };
+    function add(name, bytes) { out = out.filter(function (f) { return f.name !== name; }); out.push({ name: name, bytes: bytes }); }
 
-    return Promise.all([getSiteContent(opts), getPortfolio(opts, pr)])
-      .then(function (got) {
-        sc = got[0]; pf = got[1];
-        missing = (pf && pf.missing) || [];
-        if (sc) { sc = JSON.parse(JSON.stringify(sc)); files = files.concat(materialise(sc)); }
-        if (pf && pf.files) files = files.concat(pf.files);
-        pr.set("Reading your pages…", 6);
-        return pool(SITE_FILES, 8, function (f) {
-          return fetch(BASE + f, { cache: "no-store" }).then(function (r) { if (!r.ok) throw 0; return r.text(); })
-            .then(function (t) { text[f] = t; live[f] = t; });
-        }, function (d, t) { pr.set("Reading your pages — " + d + " of " + t, 6 + (d / t) * 16); });
-      })
-      .then(function () {
-        text["site-content.json"] = sc ? JSON.stringify(sc, null, 2) : (live["site-content.json"] || "{}");
-        text["portfolio-data.json"] = pf ? pf.json : (live["portfolio-data.json"] || "{}");
-        if (delta) return;                       // a change pack ships no untouched media
-        var all = "", k;
-        for (k in text) all += text[k] + "\n";
-        var found = {}, m, re = new RegExp(ASSET_RE.source, "g");
-        while ((m = re.exec(all))) found[m[0]] = 1;
-        var have = {}; files.forEach(function (f) { have[f.name] = 1; });
-        var list = Object.keys(found).filter(function (p) { return !have[p]; });
-        return pool(list, 10, function (p) {
-          return fetch(BASE + p, { cache: "no-store" }).then(function (r) { if (!r.ok) throw 0; return r.arrayBuffer(); })
-            .then(function (b) { files.push({ name: p, bytes: new Uint8Array(b) }); });
-        }, function (d, t) { pr.set("Collecting photos and files — " + d + " of " + t, 22 + (d / t) * 60); });
-      })
-      .then(function () {
-        pr.set("Writing your edits into the pages…", 86);
-        var scObj = sc || {}, k;
-        PAGES.forEach(function (p) {
-          var fn = p + ".html"; if (!text[fn]) return;
-          var d = scObj[p];
-          var baked = (d && Object.keys(d).length) ? bakePage(text[fn], d) : text[fn];
-          delete text[fn];
-          if (delta && baked === live[fn]) return;               // page untouched
-          files.push({ name: fn, bytes: enc.encode(baked) });
-          changed.push(fn);
+    say("Reading your projects\u2026", 3);
+    return gather().then(function (g) {
+      G = g;   /* uploads ship exactly as added — no automatic right-sizing */
+    }).then(function () {
+      return extract(G.bundle, function (d, t) { say("Packing photos and videos \u2014 " + d + " of " + t, 10 + 40 * d / t); });
+    }).then(function (x) {
+      notes.missing = x.missing;
+      say("Matching files already on the live site\u2026", 50);
+      return reuseLive(x.files, G.bundle, G.pub);
+    }).then(function (files) {
+      media = files;
+      if (canon(G.bundle) !== canon(G.pub)) add("portfolio-data.json", enc.encode(JSON.stringify(G.bundle)));
+      say("Reading your pages\u2026", 52);
+      return Promise.all(PAGES.map(function (p) { return getText(p + ".html"); }));
+    }).then(function (texts) {
+      PAGES.forEach(function (p, i) { html[p] = texts[i]; });
+      return materialiseSite(sc);
+    }).then(function (siteFiles) {
+      media = media.concat(siteFiles);
+      say("Writing your edits into the pages\u2026", 60);
+      PAGES.forEach(function (p) {
+        var d = sc[p], src = html[p];
+        if (!src || !hasEdits(d)) return;
+        var r = bakePage(src, d);
+        r.skipped.forEach(function (k) { notes.skipped.push(p + ".html \u00b7 " + k); });
+        if (!r.html) { notes.failed.push(p + ".html"); return; }
+        pageHashes[p] = strHash(r.html);
+        if (r.html !== src) add(p + ".html", enc.encode(r.html));
+      });
+      say("Checking what is already live\u2026", 70);
+      return pool(media, 6, function (f) {
+        return liveSize(f.name).then(function (n) { if (n !== -1 && n !== f.bytes.length) f.ship = true; });
+      }, function (d, t) { say("Checking what is already live \u2014 " + d + " of " + t, 70 + 15 * d / t); });
+    }).then(function () {
+      media.forEach(function (f) { if (f.ship) add(f.name, f.bytes); });
+      if (!G.resume) return;
+      return bytesOf(G.resume).then(function (b) {
+        return liveSize(RESUME_PATH).then(function (n) { if (n !== b.length) add(RESUME_PATH, b); });
+      });
+    }).then(function () { return idbGet(FIXES); }).then(function (fx) {
+      Object.keys(fx || {}).forEach(function (p) { if (fx[p] && fx[p].bytes) { add(p, fx[p].bytes); fixes.push(p); } });
+      var now = mediaRefs(G.bundle), all = PAGES.map(function (p) { return html[p] || ""; }).join("\n");
+      notes.orphaned = Object.keys(mediaRefs(G.pub)).filter(function (r) { return !now[r] && all.indexOf(r) < 0; });
+      if (!out.length) return { empty: true, notes: notes };
+
+      say("Zipping " + out.length + " file" + (out.length === 1 ? "" : "s") + "\u2026", 92);
+      var names = out.map(function (f) { return f.name; }).sort();
+      var d = new Date(), stamp = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+      function list(title, arr) { return arr.length ? "\n" + title + "\n" + arr.map(function (n) { return "  " + n; }).join("\n") + "\n" : ""; }
+      var readme =
+        "AJAY KATTA \u2014 PUBLISH \u00b7 " + d.toLocaleString() + "\n\n" +
+        "Only what differs from the live site is in here (" + names.length + " file" + (names.length === 1 ? "" : "s") + ").\n" +
+        list("IN THIS ZIP", names) +
+        list("NO LONGER USED \u2014 safe to delete from the repo after this push", notes.orphaned) +
+        list("COULD NOT BE PACKED \u2014 re-upload these", notes.missing) +
+        list("PAGE EDITS THAT NO LONGER MATCH AN ELEMENT (skipped)", notes.skipped) +
+        "\nTO GO LIVE\n" +
+        "1. Unzip.\n" +
+        "2. Copy everything inside GitRepo into your repo, keeping the folders,\n" +
+        "   replacing files that already exist.\n" +
+        "3. Push to GitHub \u2014 Vercel redeploys in about a minute.\n";
+      var zipFiles = out.map(function (f) { return { name: REPO + "/" + f.name, bytes: f.bytes }; });
+      zipFiles.push({ name: ROOT + "/WHAT-CHANGED.txt", bytes: enc.encode(readme) });
+      var blob = makeZip(zipFiles), name = "ajay-katta-publish-" + stamp + ".zip";
+      download(blob, name);
+      say("Done", 100);
+      return { name: name, size: blob.size, sizeLabel: kb(blob.size), count: names.length, changed: names,
+               fixes: fixes, pageHashes: pageHashes, notes: notes };
+    });
+  }
+  function clearFixes(paths) {
+    return idbGet(FIXES).then(function (fx) {
+      if (!fx) return;
+      (paths || Object.keys(fx)).forEach(function (p) { delete fx[p]; });
+      return idbSet(FIXES, Object.keys(fx).length ? fx : null);
+    })["catch"](function () {});
+  }
+
+  /* -------------------------------------------------------------- optimiser
+     Finds every image larger than IMG_MAX_EDGE — published files and uploads
+     still on this device — and fixes it in this browser. A published file is
+     staged and ships with the next Publish; an upload is rewritten in place. */
+  var meas = {}, names = {};
+  function optRefs(o) {
+    var out = {};
+    walkStrings({ o: o }, function (v) {
+      if (/^media\/.+\.(webp|jpe?g|png)$/i.test(v)) out[v] = 1;
+      else if (/^data:image\/(webp|jpe?g|png)[;,]/i.test(v) && v.length >= INLINE_MIN) out[v] = 1;
+    });
+    return Object.keys(out);
+  }
+  function optShow(p) { return isData(p) ? (names[p] || "new upload") : p.split("/").pop(); }
+  function optIndex() {
+    return Promise.all([gather(), idbGet(FIXES)]).then(function (r) {
+      var g = r[0], fx = r[1] || {}, pubIds = {}, groups = [], all = {};
+      Object.keys(g.pub).forEach(function (k) { (((g.pub[k] || {}).items) || []).forEach(function (it) { if (it && it.id) pubIds[it.id] = 1; }); });
+      Object.keys(g.bundle).forEach(function (k) {
+        if (k === "home") return;
+        var page = g.bundle[k], pp = optRefs(page);
+        if (!pp.length) return;
+        pp.forEach(function (p) { all[p] = 1; });
+        groups.push({ key: "page:" + k, label: LABEL[k] || k, kind: "page", paths: pp });
+        (page.items || []).forEach(function (it) {
+          var ip = optRefs(it); if (!ip.length) return;
+          var title = it.title || "Untitled";
+          ip.forEach(function (p, n) { if (isData(p)) names[p] = title + " \u00b7 photo " + (n + 1); });
+          groups.push({ key: "item:" + it.id, label: title + (pubIds[it.id] ? "" : " \u00b7 not published yet"), kind: "item", paths: ip });
         });
-        for (k in text) {
-          if (delta && sameFile(k, text[k], live[k])) continue;    // script / json untouched
-          files.push({ name: k, bytes: enc.encode(text[k]) });
-          changed.push(k);
+      });
+      if (g.bundle.home) {
+        var hp = optRefs(g.bundle.home);
+        if (hp.length) {
+          hp.forEach(function (p) { all[p] = 1; if (isData(p)) names[p] = "Home page photo"; });
+          groups.push({ key: "home", label: "Home page", kind: "page", paths: hp });
         }
-        // last write wins, so a name can only appear once
-        var seen = {}, dedup = [];
-        for (var i = files.length - 1; i >= 0; i--) { if (seen[files[i].name]) continue; seen[files[i].name] = 1; dedup.unshift(files[i]); }
-        files = dedup;
-        var media = files.filter(function (f) { return /^media\//.test(f.name); }).map(function (f) { return f.name; });
-        if (delta) changed = changed.concat(media);
-
-        if (delta && !files.length) { pr.close(); return null; }
-
-        files.push({ name: "__ROOT__" + (delta ? "WHAT-CHANGED.txt" : "READ-ME-FIRST.txt"), bytes: enc.encode(delta ?
-          ("AJAY KATTA — CHANGES SINCE YOUR LIVE SITE\n\n" +
-           "Only the files that are different are in here (" + changed.length + ").\n\n" +
-           changed.map(function (n) { return "  " + n; }).join("\n") + "\n\n" +
-           "TO GO LIVE\n" +
-           "1. Unzip.\n" +
-           "2. Open the GitRepo folder and copy these files into your repo, keeping the\n" +
-           "   same folder layout — replacing the ones already there.\n" +
-           "3. Push to GitHub. Vercel redeploys automatically in about a minute.\n\n" +
-           "Exported " + new Date().toLocaleString() + "\n")
-          :
-          ("AJAY KATTA — WEBSITE PUBLISH\n\n" +
-           "This ZIP is your complete, updated website. Everything you changed —\n" +
-           "case studies, text, photos, links, colours, titles and SEO — is already\n" +
-           "written into these files.\n\n" +
-           "TO GO LIVE\n" +
-           "1. Unzip.\n" +
-           "2. Copy everything inside the GitRepo folder into your repo, keeping the same\n" +
-           "   folder layout, replacing the old files.\n" +
-           "3. Push to GitHub. Vercel redeploys automatically in about a minute.\n\n" +
-           "TO CHECK IT FIRST\n" +
-           "Open GitRepo/index.html from the unzipped folder.\n\n" +
-           "Exported " + new Date().toLocaleString() + "\n")) });
-
-        // GitRepo/ holds the deployable tree; the read-me sits beside it at the top
-        files = files.map(function (f) {
-          return { name: f.name.indexOf("__ROOT__") === 0 ? ROOT + "/" + f.name.slice(8) : REPO + "/" + f.name, bytes: f.bytes };
+      }
+      Object.keys(fx).forEach(function (p) { if (meas[p]) meas[p].staged = true; else meas[p] = { staged: true }; });
+      return { all: Object.keys(all), groups: groups };
+    });
+  }
+  function measureOne(url) {
+    if (meas[url] && (meas[url].w || meas[url].skip)) return Promise.resolve(meas[url]);
+    var staged = meas[url] && meas[url].staged;
+    return fetch(url).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) {
+      if (!b || !resizable(b.type)) return (meas[url] = { skip: true });
+      return decode(b).then(function (dec) {
+        var m = { w: dec.w, h: dec.h, size: b.size, fmt: b.type, staged: staged };
+        dec.release();
+        m.over = Math.max(m.w, m.h) > IMG_OVER_EDGE;
+        m.notWebp = b.type !== "image/webp";
+        return (meas[url] = m);
+      });
+    })["catch"](function () { return (meas[url] = { skip: true }); });
+  }
+  function optMeasure(paths, onEach) { return pool(paths, 4, measureOne, onEach); }
+  function optStat(paths) {
+    var s = { total: paths.length, known: 0, over: 0, staged: 0, bytes: 0, notWebp: 0, other: [] };
+    paths.forEach(function (p) {
+      var m = meas[p]; if (!m || (!m.w && !m.skip)) return;
+      s.known++;
+      if (m.notWebp && !m.skip) { s.notWebp++; if (s.other.length < 8) s.other.push(optShow(p)); }
+      if (m.staged) s.staged++;
+      else if (m.over) { s.over++; s.bytes += m.size; }
+    });
+    return s;
+  }
+  function shrink(blob, isPng) {
+    return decode(blob).then(function (dec) {
+      var long = Math.max(dec.w, dec.h), from = dec.w + "\u00d7" + dec.h;
+      if (long <= IMG_OVER_EDGE) { dec.release(); return { skip: "already " + from }; }
+      var w = Math.max(1, Math.round(dec.w * IMG_MAX_EDGE / long)), h = Math.max(1, Math.round(dec.h * IMG_MAX_EDGE / long)), cv;
+      try { cv = scaleTo(dec, w, h); } catch (e) { dec.release(); return { fail: "too big for this browser to redraw \u2014 try desktop Chrome or Edge" }; }
+      dec.release();
+      return encodeBest(cv, isPng, blob.size).then(function (b) {
+        cv.width = cv.height = 1;   // release the backing store on iOS
+        if (!b || !b.size) return { fail: "this browser could not re-save it" };
+        if (b.size > blob.size * 1.15) return { skip: "already efficient at " + from };
+        return { blob: b, was: blob.size, now: b.size, from: from, to: w + "\u00d7" + h };
+      });
+    }, function () { return { fail: "could not open this file \u2014 it may be damaged" }; });
+  }
+  function fixOne(p) {
+    return fetch(p, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("not on the server (" + r.status + ")");
+      return r.blob();
+    }).then(function (blob) {
+      if (!blob.size) throw new Error("empty file");
+      if (!resizable(blob.type)) return { skip: "not a resizable image" };
+      return shrink(blob, /png/i.test(blob.type) || /\.png$/i.test(p));
+    })["catch"](function (e) { return { fail: (e && e.message) || "could not be read" }; });
+  }
+  /* uploads that are still only on this device are rewritten where they live */
+  function writeLocal(map) {
+    if (!Object.keys(map).length) return Promise.resolve(0);
+    function swap(o) { var n = 0; walkStrings(o, function (v) { if (map[v]) { n++; return map[v]; } }); return n; }
+    var cur = (window.AK_CASES && window.AK_CASES.current) ? window.AK_CASES.current() : null;
+    if (cur && cur.data) swap(cur.data);
+    return idbKeys().then(function (ks) {
+      var dk = ks.filter(function (k) { return typeof k === "string" && k.indexOf("data:") === 0; });
+      return Promise.all(dk.map(function (k) {
+        return idbGet(k).then(function (d) { return (d && swap(d)) ? idbSet(k, d) : null; })["catch"](function () {});
+      })).then(function () {
+        dk.map(function (k) { return "ak-cover-" + k.slice(5); }).concat(["ak-profile-photo"]).forEach(function (k) {
+          var v = lsGet(k); if (v && map[v]) lsSet(k, map[v]);
         });
-        pr.set("Zipping " + files.length + " files…", 93);
-        return new Promise(function (r) { setTimeout(r, 50); });
-      })
-      .then(function (cont) {
-        if (cont === null) return { empty: true, count: 0, changed: [], name: zipName };
-        var blob = makeZip(files);
-        pr.close();
-        var a = el("a");
-        a.href = URL.createObjectURL(blob); a.download = zipName;
-        document.body.appendChild(a); a.click(); a.remove();
-        return { blob: blob, count: files.length, size: blob.size, sizeLabel: kb(blob.size), name: zipName, changed: changed, missing: missing, mode: delta ? "delta" : "full" };
-      })
-      ["catch"](function (e) { pr.close(); throw e; });
+        try { var raw = lsGet("ak-certs"), a = raw ? JSON.parse(raw) : null; if (Array.isArray(a) && swap({ a: a })) lsSet("ak-certs", JSON.stringify(a)); } catch (e) {}
+        try { document.dispatchEvent(new CustomEvent("ak-data-replaced")); } catch (e) {}
+      });
+    });
+  }
+  function optRun(paths, onEach) {
+    var queue = paths.filter(function (p) { var m = meas[p]; return m && m.over && !m.staged; });
+    var res = { staged: 0, local: 0, saved: 0, failed: [] }, localMap = {}, stage = {};
+    function next() {
+      if (!queue.length) return Promise.resolve();
+      var p = queue.shift(), local = isData(p);
+      return (local ? fetch(p).then(function (r) { return r.blob(); }).then(function (b) { return shrink(b, /png/i.test(b.type)); }) : fixOne(p))
+        .then(function (r) {
+          r = r || { fail: "could not be read" };
+          if (!r.blob) {
+            if (r.skip && meas[p]) meas[p].over = false; else if (r.fail) res.failed.push(p);
+            if (onEach) onEach(p, r);
+            return next();
+          }
+          res.saved += r.was - r.now;
+          if (meas[p]) { meas[p].staged = true; meas[p].size = r.now; }
+          var done = local
+            ? blobToDataURL(r.blob).then(function (u) { if (u) { localMap[p] = u; res.local++; } })
+            : r.blob.arrayBuffer().then(function (ab) { stage[p] = { bytes: new Uint8Array(ab), was: r.was, now: r.now, at: Date.now() }; res.staged++; });
+          return done.then(function () { if (onEach) onEach(p, r); return next(); });
+        });
+    }
+    return next().then(function () { return writeLocal(localMap); }).then(function () {
+      if (!res.staged) return res;
+      return idbGet(FIXES).then(function (fx) {
+        fx = fx || {};
+        Object.keys(stage).forEach(function (p) { fx[p] = stage[p]; });
+        return idbSet(FIXES, fx);
+      }).then(function () { return res; });
+    });
+  }
+
+  /* ------------------------------------------------- full-site backup ZIP
+     The live site as it is right now — every page, script, data file and every
+     media/ file they reference — in the same Ajaykatta_Website/GitRepo layout.
+     Read-only: it never touches drafts, baselines or the publish snapshot.
+     Unpublished edits are NOT in it; Publish is still the only way to ship them. */
+  function fullSite(o) {
+    o = o || {};
+    var tick = o.onProgress || function () {}, enc = new TextEncoder();
+    var want = {}, out = {}, missing = [], bytes = 0;
+    (o.files || []).forEach(function (f) { if (f) want[f] = 1; });
+    function grab(path) {
+      return fetch(BASE + path.split("/").map(encodeURIComponent).join("/"), { cache: "no-store" }).then(function (r) {
+        if (!r.ok) throw 0;
+        return r.arrayBuffer();
+      }).then(function (b) { out[path] = new Uint8Array(b); bytes += b.byteLength; })["catch"](function () { missing.push(path); });
+    }
+    var core = Object.keys(want);
+    tick("Reading pages and scripts\u2026", 2);
+    return pool(core, 4, grab, function (d, t) { tick("Reading pages and scripts \u00b7 " + d + " of " + t, 2 + d / t * 13); }).then(function () {
+      var media = {}, dec = new TextDecoder(), re = /media\/[^"'()\s,<>?#\\]+\.[a-z0-9]{2,5}/gi;
+      core.forEach(function (f) {                 // images the content uses — pages + data, not code
+        if (!out[f] || /\.(js|css)$/i.test(f)) return;
+        var t = dec.decode(out[f]), m;
+        while ((m = re.exec(t))) { var u = m[0]; try { u = decodeURIComponent(u); } catch (e) {} if (!out[u]) media[u] = 1; }
+      });
+      var list = Object.keys(media).sort();
+      return pool(list, 4, grab, function (d, t) { tick("Media \u00b7 " + d + " of " + t + " \u00b7 " + kb(bytes), 15 + d / t * 80); });
+    }).then(function () {
+      tick("Building the ZIP\u2026", 97);
+      var names = Object.keys(out).sort(), at = new Date();
+      var keep = (out["vercel.json"] ? [] : ["vercel.json"]).concat(["README.md", ".gitignore"]);
+      missing = missing.filter(function (m) { return keep.indexOf(m) < 0; });
+      var info = "Ajay Katta portfolio \u2014 full-site backup\n" + at.toString() + "\nFrom " + BASE + "\n\n" +
+        names.length + " files \u00b7 " + kb(bytes) + "\n" +
+        "This is the LIVE site only. Edits not yet published are not included.\n\n" +
+        "GitRepo/ holds exactly the files the site uses \u2014 pages, scripts, data, config and every\n" +
+        "media file they reference. Nothing unused is included.\n\n" +
+        "To restore: copy everything inside GitRepo into your repo (same folders, replace existing\n" +
+        "files) and push. GitHub's web uploader takes 100 files at a time \u2014 upload media/ folder by folder,\n" +
+        "or use GitHub Desktop / git.\n" +
+        (keep.length ? "\nNot in this ZIP \u2014 keep the copies already in your repo:\n  " + keep.join("\n  ") + "\n" : "") +
+        (missing.length ? "\nCouldn't download (" + missing.length + "):\n  " + missing.join("\n  ") + "\n" : "");
+      var files = names.map(function (n) { return { name: REPO + "/" + n, bytes: out[n] }; });
+      files.unshift({ name: ROOT + "/BACKUP.txt", bytes: enc.encode(info) });
+      var blob = makeZip(files), pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      var name = ROOT + "-full-" + at.getFullYear() + pad(at.getMonth() + 1) + pad(at.getDate()) + "-" + pad(at.getHours()) + pad(at.getMinutes()) + ".zip";
+      download(blob, name);
+      return { name: name, count: names.length, size: blob.size, sizeLabel: kb(blob.size), missing: missing, keep: keep };
+    });
   }
 
   window.AK_PACKAGE = {
-    full: full,
-    portfolioFromDevice: buildPortfolioFromDevice,
-    materialise: materialise,
-    bakePage: bakePage,
-    makeZip: makeZip,
-    kb: kb,
-    PAGES: PAGES
+    publish: publish,
+    fullSite: fullSite,
+    clearFixes: clearFixes,
+    optimiser: { index: optIndex, measure: optMeasure, stat: optStat, run: optRun, show: optShow }
   };
 })();

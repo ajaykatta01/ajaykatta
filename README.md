@@ -1,8 +1,8 @@
 # Ajay Katta — Portfolio
 
 Static portfolio site. Pure HTML/CSS/JS — **no build step, no framework, no dependencies.**
-Fully responsive (phone / tablet / desktop). This single folder is the **whole site** — push it
-to GitHub and Vercel serves it as-is.
+Fully responsive (phone / tablet / desktop). This folder is the **whole site** — push it to
+GitHub and Vercel serves it as-is.
 
 ---
 
@@ -11,159 +11,94 @@ to GitHub and Vercel serves it as-is.
 | File / folder | What it is |
 |---|---|
 | `index.html` | Home / landing page |
-| `project-ui-ux.html` | UI/UX case studies (FinTrack, CoinWave, MotoCare…) |
-| `project-gen-ai.html` | Generative-AI projects |
-| `project-3d.html` | 3D projects |
+| `project-ui-ux.html` · `project-gen-ai.html` · `project-3d.html` | Category pages (case studies) |
 | `resume.html` | Résumé page (+ downloadable PDF) |
-| `portfolio-data.json` | **All case-study content** — visitors load this automatically |
-| `media/` | Every image / PDF / video / 3D model the content points to |
-| `admin.js` | Case-study editor (password-protected; visitors never see it) |
-| `site-content.json` | **All other page content you've edited** — text, photos, links, colours, SEO |
-| `site-content.js` | Applies `site-content.json` on every page (tiny; always loaded) |
-| `site-edit.js` | The on-page site editor — downloaded only when an admin unlocks |
-| `site-package.js` | Builds the publish ZIP (changes-only or whole website) — loaded on demand by the editor and the admin export |
-| `layout-studio.js`, `studio-templates.js` | Loaded on demand by the editor's Layout Studio |
+| `portfolio-data.json` | All case-study + home-page data — visitors load this |
+| `media/` | Every image / PDF / video / 3D model the site uses |
+| `admin.js` | Renders the case studies; also their editor (admin only) |
+| `site-content.js` | Tiny admin loader on every page (~1 KB). Visitors: does nothing |
+| `site-edit.js` | **The admin mode** — login, admin bar, publish panel. Admin only |
+| `site-package.js` | The publish pipeline + image optimiser. Admin only, loaded on demand |
+| `layout-studio.js`, `studio-templates.js` | Layout Studio, loaded on demand by the editor |
 | `theme-ripple.js` | Shared light/dark toggle transition |
 | `scroll-progress.js` | Reading-progress bar inside an opened project |
-| `vercel.json` | Clean URLs (`/resume` instead of `/resume.html`) |
+| `vercel.json` | Clean URLs (`/resume`), cache headers |
 | `robots.txt` | Allows all crawlers |
 
-Every page carries its own `<meta>` description, Open Graph / Twitter card tags and an inline
-SVG favicon — nothing extra to add.
-
-> **After you point a domain at this site**, make the two social-preview URLs absolute so
-> LinkedIn / WhatsApp / X can fetch the image. In each HTML file change
-> `content="media/home/profile-photo.webp"` to
-> `content="https://YOURDOMAIN.com/media/home/profile-photo.webp"` (two lines per page:
-> `og:image` and `twitter:image`).
+> **After you point a domain at this site**, make the social-preview URLs absolute so
+> LinkedIn / WhatsApp / X can fetch the image: in each HTML file change
+> `content="media/home/profile-photo.webp"` to `content="https://YOURDOMAIN.com/media/home/profile-photo.webp"`
+> (`og:image` and `twitter:image`).
 
 ---
 
-## How content is saved (read this once — it's the whole system)
+## Admin mode — one login, one bar, one publish
 
-There are two layers:
+**Log in / log out:** the admin (cog) button in the header. Locked (grey) → click to log in;
+unlocked (orange, green dot) → click to log out. Or add `#edit` to any page URL.
+Enter your password. The page reloads in admin mode and stays unlocked for this browser tab
+on every page.
 
-1. **While you edit** — open a project page, click **Admin**, add/change things.
-   Those edits are saved **in your browser** as you go. Nobody else can see them yet.
-2. **To publish** — click **Admin → Export site data**. You get a
-   **`portfolio-site-data.zip`** containing `portfolio-data.json` + a `media/` folder.
-   That ZIP is what makes your changes real on the live site.
+The **admin bar** (bottom-right) is the only admin control:
 
-So: **editing ≠ publishing.** Your edits aren't live until you Export and push.
-
----
-
-## Editing the whole site yourself (no code, no help)
-
-Everything outside the case studies — headings, paragraphs, buttons, nav labels,
-photos, link destinations, section order, colours, SEO — is editable **on the page
-itself**, on phone, tablet or desktop.
-
-**Get in:** add `#edit` to the end of any page URL (e.g. `yoursite.com/resume#edit`),
-enter your admin password. A small bar appears bottom-right. Once unlocked it appears
-on every page for the rest of the browser session.
-
-| Bar button | What it does |
+| Button | What it does |
 |---|---|
-| **Edit** | Turns edit mode on. Tap any text to retype it, tap any photo to swap it. Tap Edit again to preview exactly what visitors see. |
-| **Undo** | Steps back through your changes (⌘Z / Ctrl-Z also works). |
-| **Settings** | Draft · Projects · Sections · Theme · SEO · Links · Files · Versions · Publish. |
-| **Publish** | The badge counts unpublished changes. |
+| **Edit** | Tap any text to retype it, tap any photo to swap it. Tap again to preview. |
+| **Add** | On a category page's project grid: add a new project. Inside a project use **Add content** (header) and **Layout Studio** (header, left). |
+| **Undo** | Steps back through page edits (⌘Z / Ctrl-Z). |
+| **Publish** | Opens the panel: Publish · Projects · Sections · Theme · SEO · Links · Files · Versions · Tools. The badge counts everything not yet published. |
 
-**The Settings panel**
+**Tools** holds Optimise images, Restore case studies from a file, and Change password.
 
-- **Projects** — every case study across your three category pages, with its file
-  count and a **New / Edited / Live** badge. Projects you just added (and the files
-  dropped into them) show up here before you publish, and they're counted in the
-  Draft summary too. Read-only list — projects are still added on the category page.
-- **Sections** — hide a section from visitors, or move it up/down. This page only.
-- **Theme** — every colour, dark and light. Scoped to the current page unless you turn
-  on *Apply to every page*. (The home page deliberately runs a darker palette.)
-- **SEO** — page title, description and the social-preview image.
-- **Links** — every link on the page with its destination, in one list.
-- **Files** — replace a downloadable PDF (e.g. the résumé).
-- **Versions** — your last 10 saved states, one tap to restore, plus
-  *Discard all my local changes*.
-- **Publish** — a summary of exactly what changed, then the ZIP.
+Everything you change is saved **in this browser** as a draft. Nobody sees it until you publish.
 
-**Publishing (same idea as the case studies):**
+### Publishing
 
-1. Settings → **Publish** → *Download publish ZIP* → re-enter your password.
-2. Unzip. Copy **site-content.json** and the **media** folder into this repo,
-   replacing what's there.
-3. Push to GitHub. Vercel redeploys in ~1 minute. ✅
+1. Admin bar → **Publish** → **Publish N changes** → re-enter your password.
+2. You get **one ZIP with only the files that differ from the live site**. Unzip it and copy
+   everything inside `Ajaykatta_Website/GitRepo` into this repo (same folders, replacing files).
+3. Push to GitHub. Vercel redeploys in about a minute. ✅
 
-Until you do step 3 your edits live only in your own browser — the live site is untouched.
+`WHAT-CHANGED.txt` in the ZIP lists every file, and any files the site **no longer uses** —
+delete those from the repo after pushing so nothing is stored twice.
 
-**How it works, in one line:** `site-content.js` (~3 KB, on every page) reads
-`site-content.json` and applies your overrides. `site-edit.js` — the whole editor —
-is only downloaded once an admin session is unlocked, so visitors never pay for it.
+How it works:
 
-> Two separate exports, on purpose: **Admin → Export site data** publishes case studies
-> (`portfolio-data.json`); the **Publish** button above publishes everything else
-> (`site-content.json`). They never overwrite each other.
+- **Page edits are written straight into the HTML** (text, photos, links, hidden/reordered
+  sections, colours, title/description/social tags). Visitors get plain static pages — no
+  content file to fetch, nothing patched in after load, and crawlers see your real SEO tags.
+- **Case studies and home-page data** go into `portfolio-data.json` (minified).
+- **Uploads become files named by their content** (`fintrack-cover-1a2b3c4d5e.webp`). The same
+  picture always gets the same name, so it is shipped once — never re-shipped by a later
+  publish, never duplicated under two names. An upload identical to a file already live
+  reuses that file.
+- Once a publish is live, the editor notices (the page matches what it wrote) and retires
+  those drafts, so the next ZIP only carries what's new.
 
 ---
 
-## Updating case studies (no coding)
+## Speed
 
-1. Open any project page → **Admin** → make your changes.
-2. **Admin → Export site data** → downloads `portfolio-site-data.zip`.
-3. **Unzip it.** Inside: `portfolio-data.json` and a `media/` folder.
-4. Put both into this folder, **replacing** the old `portfolio-data.json` and `media/`.
-5. Push to GitHub (drag-and-drop on github.com is fine).
-6. Vercel redeploys automatically. Live in ~1 minute. ✅
-
-> **Check the ZIP before you replace `media/`.** Large files (videos, `.glb` models) are the
-> ones that go missing from an interrupted export. If a file listed in `portfolio-data.json`
-> isn't in `media/`, the site now shows a tidy "unavailable" placeholder instead of a broken
-> box — but the content is still gone until you drop the real file in.
-
----
-
-## Speed — how the site stays fast
-
-**The site is WebP-only, and it asks before converting.** Drop a PNG, JPEG or HEIC anywhere in
-the editor and a small dialog appears: **Convert to WebP** or **Keep PNG**, with both file
-sizes side by side so the choice is obvious. Tick *do the same for the rest of this upload* and
-a batch of twenty asks once. Keep the original and a reminder says the rest of the site is
-WebP. GIF and SVG (animation and vector, which WebP can't replace) are never touched — they
-just get the reminder. Should a browser be unable to write WebP, the note names the file so it
-can be re-uploaded from Chrome or Edge. **Admin → Optimise images** lists any published file
-that is not WebP.
-
-**Images are capped at 2560px on the long edge.** Anything you drop into the editor is
-downscaled to that before it is stored, so a 7000px Figma export can't reach the live site.
-At those sizes the phone spends longer *decoding* the picture than downloading it, and the
-very biggest ones simply fail to paint on iOS. 2560px is still full-bleed sharp on a retina
-screen — nothing visible is lost.
-
-**Admin → Optimise images** re-checks what is already published: it downscales any file over
-the cap and downloads `optimised-images.zip` with just those files. Copy the `media` folder
-from it into the repo and push. Run it any time the site feels slow.
-
-You choose the scope: **Everything**, one category (UI/UX · Gen AI · 3D), or a single
-project — so a newly added project can be optimised on its own. Each row shows how many of
-its images are oversized before you commit to anything, and the **Publish** tab and the
-**Export site data** dialog both show the same check, so nothing oversized ships unnoticed.
-
-Very large files (the two 5684×16383 and 5684×11676 Motocare exports, for example) used to
-be skipped without saying so — the browser refused them in one go. They are now scaled down
-in halving steps, and anything a browser still can't re-save is listed by name with the
-reason, so nothing disappears quietly. If a file is listed, run the pass again in desktop
-Chrome or Edge, or resize it to 2560px by hand and re-upload it.
-
-Also in place: covers on the category pages are `<link rel="preload">`ed in the HTML so they
-start downloading before `admin.js` and `portfolio-data.json` have even arrived; three.js and
-GSAP load *after* the homepage paints instead of blocking it; `portfolio-data.json` is
-revalidated (a 304) instead of re-downloaded on every visit; `media/` is cached for 30 days.
+- **WebP only, and it asks first.** Drop a PNG/JPEG/HEIC and a dialog offers **Convert to
+  WebP** or **Keep original**, with both sizes. GIF and SVG are left alone — an SVG's fonts
+  are embedded inside the file on upload (`svg-embed.js`) so its text never falls back.
+- **2560px cap** on the long edge for everything you upload. Canvas photos are shipped at the
+  size they're drawn.
+- **Tools → Optimise images** finds anything already published that's over the cap (by
+  category or single project), shrinks it in the browser, and the fixed files **ship with your
+  next Publish** — no separate download.
+- Visitors never download any admin code: `admin.js` carries only what renders the case
+  studies plus their editor, and the whole admin mode (`site-edit.js`, `site-package.js`,
+  Layout Studio) loads only after login.
+- Category covers are `<link rel="preload">`ed; three.js and GSAP load after the home page
+  paints; `media/` is cached for 30 days; everything else revalidates (a 304) each visit.
 
 ---
 
 ## Missing media (as of this snapshot)
 
-`portfolio-data.json` references these 9 files that are **not** in `media/`. Each renders as a
-graceful placeholder. Drop the real files in at these exact paths (or re-export) to restore them:
+`portfolio-data.json` references these files that are **not** in `media/`. Each renders as a
+graceful placeholder. Drop the real files in at these exact paths to restore them:
 
 ```
 media/gen-ai/nike-vaporfly-4-cover.jpg
@@ -177,34 +112,25 @@ media/3d/loreal-shampoo-model-6.glb
 media/3d/office-chair-model-6.glb
 ```
 
-The whole `media/gen-ai/` folder is empty, so the **Nike Vaporfly 4** project currently has no
-imagery at all. The two "Coming soon" cards on that page are intentional placeholders.
-
 ---
 
 ## First-time deploy to Vercel
 
 1. Push this folder to a new GitHub repo.
-2. In Vercel: **Add New → Project**, import the repo.
-3. Framework Preset: **Other** (no build command, no output directory — it's static).
-4. Deploy. Vercel serves `index.html` at the root.
+2. Vercel: **Add New → Project**, import the repo, Framework Preset **Other** (no build).
+3. Deploy.
 
 ## Run locally
 
-`portfolio-data.json` is loaded with `fetch`, so opening `index.html` straight off disk will
-show empty project pages. Serve the folder instead:
+`portfolio-data.json` is loaded with `fetch`, so serve the folder instead of opening the file:
 
 ```
 npx serve .
 ```
 
----
-
 ## Notes
 
-- The Export is **self-contained** — no external libraries. It splits your content into a tiny
-  text file plus real media files, so nothing hits GitHub's 100 MB file limit and pages load fast.
-- Keep editing in the **same browser** between exports — that's where your working copy lives.
-- Set your Admin password the first time you click **Admin**. It's stored only in your browser.
-- Light/dark mode is shared across every page via the `ak-theme` key in `localStorage`.
-- Canvas is the default view everywhere; the Canvas/Grid switch is session-only, never sticky.
+- Keep editing in the **same browser** between publishes — that's where your drafts live.
+- Light/dark mode is shared across pages via `localStorage['ak-theme']`.
+- Canvas is the default view on tablet/desktop, Grid on phones; the switch is session-only.
+- Changing a script? Bump its `?v=` in the pages that load it.

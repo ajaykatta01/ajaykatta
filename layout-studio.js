@@ -1356,6 +1356,7 @@
     }
     if (c.type === "pdf") return h("iframe", { src: blobURL(c.src) + "#toolbar=0", title: "PDF", style: common + "background:#fff" });
     if (c.type === "prototype") return h("iframe", { src: c.src, allowfullscreen: "", loading: "lazy", style: common + "background:#000" });
+    if (c.type === "html") { var hf = h("iframe", { sandbox: window.AK_HTML_SANDBOX || "allow-scripts allow-popups allow-forms", loading: "lazy", title: "HTML embed", style: common + "background:transparent;color-scheme:normal" }); hf.srcdoc = window.AKHtmlDoc ? window.AKHtmlDoc(c.html) : (c.html || ""); return hf; }
     if (c.type === "model") {
       var holder = h("div", { style: common + "position:relative" });
       loadScript("https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js", "module").then(function () {
@@ -2969,7 +2970,7 @@
       var c = el.content;
       if (c) {
         if (c.type === "text") return ((c.text || "Text").split("\n")[0].trim().slice(0, 26)) || "Text";
-        return { image: "Image", media: (c.mime || "").indexOf("audio") === 0 ? "Audio" : "Video", pdf: "PDF", model: "3D model", prototype: "Prototype" }[c.type] || "Shape";
+        return { image: "Image", media: (c.mime || "").indexOf("audio") === 0 ? "Audio" : "Video", pdf: "PDF", model: "3D model", prototype: "Prototype", html: "HTML" }[c.type] || "Shape";
       }
       if (el.kind === "ellipse") return "Ellipse";
       if (isLineEl(el)) return "Line";
@@ -3781,8 +3782,9 @@
           }
         }
       }
-      if (/^\s*<svg[\s\S]*<\/svg>\s*$/i.test(txt)) {
-        addImageFromData("data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(txt))));
+      if (/^\s*(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE[^>]*>\s*)?<svg[\s\S]*<\/svg>\s*$/i.test(txt)) {
+        var sd = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(txt)));
+        (window.AK_IMG && window.AK_IMG.svg ? window.AK_IMG.svg(sd, "Pasted SVG") : Promise.resolve(sd)).then(addImageFromData, function () { addImageFromData(sd); });
         e.preventDefault();
         toast("SVG pasted as image");
         return;

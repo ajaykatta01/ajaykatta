@@ -120,6 +120,8 @@
       }
     } else if (t === "prototype") {
       w = 1040; hh = 760; content = { type: "prototype", src: b.src };
+    } else if (t === "html") {
+      w = 1040; hh = b.height || 600; content = { type: "html", html: b.html || "" };
     } else if (t === "model") {
       w = 760; hh = 620; r = 16; content = { type: "model", src: b.src, format: b.format };
     } else if (t === "pdf") {

@@ -5,8 +5,9 @@
    • Add / edit / delete case studies (projects) -> new tiles + detail view.
    • Inside a project: add Image, PDF, Prototype, Video/Audio, 3D model, Text.
    • Reorder content blocks by drag-and-drop OR up/down arrows.
-   • All edits persist locally (IndexedDB). "Publish" exports portfolio-data.json
-     which, when placed next to the HTML on your host, is what visitors load.
+   • All edits persist locally (IndexedDB). Login, publishing, image optimising
+     and backups live in the one admin shell (site-edit.js / site-package.js);
+     this file only hands it the page's data through window.AK_CASES.
 
    Each page sets window.AK_ADMIN = { page:'ui-ux', noun:'case study',
        gridSelector:'.pgrid', tileTag:'article' } BEFORE loading this script.
@@ -18,13 +19,7 @@
     { page: "page", noun: "project", gridSelector: ".pgrid", tileTag: "article" },
     window.AK_ADMIN || {}
   );
-  var PW_KEY = "ak-admin-pw";            // local override SHA-256 password hash (per browser)
-  var SESSION_KEY = "ak-admin-unlocked"; // session unlock flag (all pages)
-  // Baked-in default password hash, shipped with the site so EVERY browser/device
-  // uses the same admin password out of the box. SHA-256 of the chosen password.
-  // "Change password" stores a per-browser override in PW_KEY that takes precedence here.
-  var BAKED_PW = "fc3bc90afab65978286ab14b40b51bbe5b8ab2d3208e6a440c7844babcf89892";
-  function storedPW() { try { return localStorage.getItem(PW_KEY) || BAKED_PW; } catch (e) { return BAKED_PW; } }
+  var SESSION_KEY = "ak-admin-unlocked"; // one admin session for the whole site (site-edit.js owns the login)
 
   /* ---------- tiny helpers ---------- */
   function h(tag, attrs, kids) {
@@ -69,16 +64,9 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function $(s, r) { return (r || document).querySelector(s); }
 
-  function sha256(str) {
-    var enc = new TextEncoder().encode(str);
-    return crypto.subtle.digest("SHA-256", enc).then(function (buf) {
-      return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
-    });
-  }
-  /* Every image is capped at IMG_MAX_EDGE on its long edge before it is stored, so a 7000px
-     export can never reach the live site: at that size the browser spends longer DECODING the
-     picture than downloading it. 2560px still covers a full-bleed block on a retina screen. */
-  var IMG_MAX_EDGE = 2560, IMG_OVER_EDGE = 2592;   /* rebuilt files land on 2560±1 — only flag what is really bigger */
+  /* Uploads are NEVER resized or re-compressed automatically — the owner sizes files himself.
+     The only change an upload can get is the Convert-to-WebP he explicitly picks, at full resolution.
+     Tools → Optimise images is the manual way to downscale. */
   /* This site ships WebP and nothing else: same picture, roughly a third of a JPEG's weight,
      and one format to reason about. Nothing is converted behind the owner's back though —
      drop in a PNG or a JPEG and the editor asks first, with both file sizes on screen. */
@@ -117,12 +105,56 @@
   function readFileAsDataURL(file) {
     var rep = {};
     return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(file); })
-      .then(function (d) { return shrinkImageDataURL(d, file && file.type, rep, file && file.name); })
+      .then(function (d) {
+        if (isSvgFile(d, file && file.name) || /svg/i.test((file && file.type) || "")) return prepSvg(svgDataURL(d), file && file.name, rep);
+        return shrinkImageDataURL(d, file && file.type, rep, file && file.name);
+      })
       .then(function (out) { webpNote(file, rep); return out; });
+  }
+  /* SVGs are never rasterised. svg-embed.js puts the fonts the text uses INSIDE the file (an SVG
+     shown through <img> can't see the page's web fonts, so text otherwise falls back to a
+     system font), pulls in linked CSS / images and gives the root a real size. */
+  function prepSvg(d, name, rep) {
+    rep.from = "image/svg+xml"; rep.svg = true;
+    return loadScript("svg-embed.js?v=1").then(function () { return window.AK_SVG.prepare(d, { name: name }); })
+      .then(function (r) { rep.svgReport = r.report; return r.data; }, function () { rep.svgReport = { failed: true }; return d; });
   }
   /* Shared with Layout Studio, so a picture dropped on the canvas gets the same size cap and
      the same Convert-to-WebP question as one added to a block. */
-  window.AK_IMG = { fromFile: readFileAsDataURL, shrink: shrinkImageDataURL };
+  window.AK_IMG = { fromFile: readFileAsDataURL, shrink: shrinkImageDataURL,
+    svg: function (d, name) { var rep = {}; return prepSvg(svgDataURL(d), name, rep).then(function (o) { webpNote({ name: name }, rep); return o; }); } };
+  /* ---- HTML blocks: pasted / uploaded code runs in a sandboxed srcdoc frame (no same-origin,
+     so it can't read admin storage or restyle the site). Auto-height via postMessage. ---- */
+  var HTML_SANDBOX = "allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads";
+  function buildHtmlDoc(code) {
+    code = String(code || "");
+    var ink = (getComputedStyle(document.documentElement).getPropertyValue("--text") || "").trim() || "#11141A";
+    var head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + (/<base\s/i.test(code) ? "" : '<base target="_blank">') +
+      "<style>html,body{margin:0}body{display:flow-root;font-family:Inter,system-ui,sans-serif;color:" + ink + ";line-height:1.5}img,video{max-width:100%}</style>";
+    var tail = '<script>(function(){function s(){var b=document.body;if(!b)return;parent.postMessage({akHtmlH:Math.max(b.scrollHeight,b.offsetHeight)},"*")}addEventListener("load",s);if(window.ResizeObserver&&document.body)new ResizeObserver(s).observe(document.body);setTimeout(s,60);setTimeout(s,900)})()<\/script>';
+    var m = /<head[^>]*>/i.exec(code);
+    if (m) code = code.slice(0, m.index + m[0].length) + head + code.slice(m.index + m[0].length);
+    else if ((m = /<html[^>]*>/i.exec(code))) code = code.slice(0, m.index + m[0].length) + "<head>" + head + "</head>" + code.slice(m.index + m[0].length);
+    else code = "<!DOCTYPE html><html><head>" + head + "</head><body>" + code + "</body></html>";
+    return code + tail;
+  }
+  function dataURLText(d) {
+    d = String(d || ""); var i = d.indexOf(","); if (d.indexOf("data:") !== 0 || i < 0) return d;
+    var meta = d.slice(0, i), body = d.slice(i + 1);
+    if (!/;base64/i.test(meta)) { try { return decodeURIComponent(body); } catch (e) { return body; } }
+    var bin = atob(body), u = new Uint8Array(bin.length);
+    for (var k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k);
+    return new TextDecoder("utf-8").decode(u);
+  }
+  window.AKHtmlDoc = buildHtmlDoc; window.AK_HTML_SANDBOX = HTML_SANDBOX;
+  addEventListener("message", function (e) {
+    var d = e.data; if (!d || typeof d.akHtmlH !== "number") return;
+    var fs = document.querySelectorAll("iframe[data-ak-autoh]");
+    for (var i = 0; i < fs.length; i++) if (fs[i].contentWindow === e.source) {
+      if (!fs[i].closest(".ak-block[data-bento]")) fs[i].style.height = Math.min(8000, Math.max(40, Math.ceil(d.akHtmlH))) + "px";
+      return;
+    }
+  });
   function shrinkImageDataURL(d, mime, rep, name) {
     rep = rep || {};
     if (typeof d !== "string" || d.indexOf("data:image/") !== 0) return d;
@@ -134,20 +166,9 @@
       im.onload = function () {
         var w = im.naturalWidth, hh = im.naturalHeight, m = Math.max(w, hh);
         if (!m) { rep.failed = true; return res(d); }
-        var over = m > IMG_OVER_EDGE, k = over ? IMG_MAX_EDGE / m : 1;
-        var tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(hh * k));
-        if (over) rep.resized = w + "\u00d7" + hh + " \u2192 " + tw + "\u00d7" + th;
-        var sameType = mime === "image/png" ? "image/png" : "image/jpeg";
-        if (mime === "image/webp") {                       // already the site format: only the size cap applies
-          rep.to = mime;
-          if (!over) return res(d);
-          var re = null; try { re = encodeAt(im, tw, th, "image/webp", 0.92); } catch (e) {}
-          return res(re && re.length < d.length ? re : d);
-        }
-        var webp = null;
-        try { webp = encodeAt(im, tw, th, "image/webp", 0.92); } catch (e) {}
-        var keep = d;
-        if (over) { try { keep = encodeAt(im, tw, th, sameType, 0.92) || d; } catch (e) {} }
+        if (mime === "image/webp") { rep.to = mime; return res(d); }   // already WebP: stored byte-for-byte
+        var tw = w, th = hh, keep = d, webp = null;
+        try { webp = encodeAt(im, tw, th, "image/webp", 0.95); } catch (e) {}
         if (!webp) { rep.failed = true; rep.to = mime; return res(keep); }   // this browser cannot write WebP
         askConvert({ name: name, from: mime, webp: webp, keep: keep, dim: tw + "\u00d7" + th }).then(function (choice) {
           if (choice === "webp") { rep.to = "image/webp"; return res(webp); }
@@ -180,11 +201,11 @@
           ov.remove(); done(choice);
         }
         function onKey(e) { if (e.key === "Escape") pick("keep"); }
-        var keepBtn = h("button", { class: "ak-btn ghost", onclick: function () { pick("keep"); } }, ["Keep " + fmtName(info.from)]);
+        var keepBtn = h("button", { class: "ak-btn ghost", onclick: function () { pick("keep"); } }, ["Keep original " + fmtName(info.from)]);
         var convBtn = h("button", { class: "ak-btn", onclick: function () { pick("webp"); } }, ["Convert to WebP"]);
         ov.appendChild(h("div", { class: "ak-modal", style: "width:min(440px,100%)" }, [
           h("h3", {}, ["Convert to WebP?"]),
-          h("div", { class: "sub" }, [nm + " \u00b7 " + fmtName(info.from) + " \u00b7 " + info.dim]),
+          h("div", { class: "sub" }, [nm + " \u00b7 " + fmtName(info.from) + " \u00b7 " + info.dim + " \u00b7 full resolution either way"]),
           h("div", { class: "ak-xrows", style: "margin-top:14px" }, [
             h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["As WebP"]), h("span", { class: "v" }, [dataKB(info.webp)])]),
             h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["As " + fmtName(info.from)]), h("span", { class: "v" }, [dataKB(info.keep)])])
@@ -202,13 +223,21 @@
     return p;
   }
   function webpNote(file, rep) {
+    if (rep && rep.svg) {
+      var sr = rep.svgReport || {}, sn = (file && file.name) || "That SVG", ss = sn.length > 26 ? sn.slice(0, 24) + "\u2026" : sn;
+      if (sr.invalid) return showNoteToast("\u26A0 " + ss + " has an error in its code \u2014 added as is, it may not display.", true);
+      if (sr.failed) return showNoteToast("\u26A0 " + ss + " added as is \u2014 its fonts couldn't be embedded (offline?).", true);
+      if (sr.missing && sr.missing.length) return showNoteToast("\u26A0 " + ss + ": " + sr.missing.join(", ") + " not embedded \u2014 that text shows in a fallback font.", true);
+      if (sr.badRefs && sr.badRefs.length) return showNoteToast("\u26A0 " + ss + " links to " + sr.badRefs.length + " outside file" + (sr.badRefs.length > 1 ? "s" : "") + " that couldn't be pulled in \u2014 export it with images embedded.", true);
+      if (sr.approx && sr.approx.length) return showNoteToast("\u26A0 " + ss + ": nearest available style used for " + sr.approx.join(", "), true);
+      return showNoteToast("SVG kept as vector" + (sr.fonts && sr.fonts.length ? " \u00b7 fonts embedded: " + sr.fonts.join(", ") : "") + " \u2713");
+    }
     if (!rep || !rep.from || rep.from.indexOf("image/") !== 0) return;
     var name = (file && file.name) || "That image", short = name.length > 26 ? name.slice(0, 24) + "\u2026" : name;
     if (rep.kept) return showNoteToast("\u26A0 " + short + " stays " + fmtName(rep.from) + ". This site uses WebP \u2014 keep " + fmtName(rep.from) + " only if you need the " + (rep.from.indexOf("svg") > -1 ? "vector" : "animation") + ".", true);
     if (rep.declined) return showNoteToast("\u26A0 " + short + " kept as " + fmtName(rep.from) + (rep.resized ? " \u00b7 " + rep.resized : "") + " \u2014 the rest of the site is WebP.", true);
     if (rep.to === "image/webp" && rep.from !== "image/webp") return showNoteToast(fmtName(rep.from) + " converted to WebP" + (rep.resized ? " \u00b7 " + rep.resized : "") + " \u2713");
     if (rep.failed && rep.from !== "image/webp") return showNoteToast("\u26A0 " + short + " is still " + fmtName(rep.from) + " \u2014 this browser could not write WebP. Re-upload it in Chrome or Edge.", true);
-    if (rep.resized) showNoteToast("Resized \u00b7 " + rep.resized + " \u2713");
   }
   /* ---- cover crop editor: pan + zoom, outputs a cropped data URL at the cover aspect ---- */
   function makeCropper(aspect, onChange) {
@@ -356,7 +385,6 @@
 
   /* ---------- state ---------- */
   var DATA = { items: [] };          // { items:[ {id,title,tag,desc,cover,meta:{role,timeline,platform,focus}, blocks:[]} ] }
-  var UNLOCKED = false;
   var openItemId = null;
   var openCaseKey = null;
 
@@ -393,7 +421,7 @@
          work is gone. It must never pass silently. */
       if (!_saveWarned) {
         _saveWarned = true;
-        try { showNoteToast("Couldn't save to this browser \u2014 its storage is full. Export your site data now (Settings \u2192 Export), and don't reload this tab until you have.", true); } catch (e) {}
+        try { showNoteToast("Couldn't save to this browser \u2014 its storage is full. Publish now (admin bar \u2192 Publish), and don't reload this tab until you have.", true); } catch (e) {}
       }
       return null;   // the copy in memory is still complete, so editing and exporting carry on
     });
@@ -420,6 +448,8 @@
       background:var(--surface);border:1px solid var(--line);color:var(--muted);box-shadow:none}
     .ak-btn.ak-admin-toggle:hover{color:var(--text);border-color:var(--accent);filter:none;transform:translateY(-1px)}
     .ak-btn.ak-admin-toggle svg{width:18px;height:18px}
+    .ak-btn.ak-admin-toggle::after{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)} /* 44px hit area, 36px visual */
+    @media(max-width:360px){body.ak-on .nav-right{gap:8px}} /* admin header fits a 320px phone */
     .ak-admin-toggle .ak-dot{position:absolute;top:-1px;right:-1px;width:10px;height:10px;border-radius:50%;
       background:var(--muted);border:2px solid var(--bg);opacity:0;transform:scale(.3);transition:.22s}
     body.ak-on .ak-btn.ak-admin-toggle{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;
@@ -465,6 +495,10 @@
       z-index:250;display:none;flex-direction:column;gap:0}
     .ak-menu.on{display:flex;animation:akpop .18s ease}
     @keyframes akpop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+    /* the admin bar sits at the bottom — a header-anchored menu stops above it and scrolls */
+    body.ak-on .ak-menu:not(.from-bar){max-height:calc(100dvh - 62px - 104px - env(safe-area-inset-bottom))}
+    @media(max-width:640px){body.ak-on .ak-menu:not(.from-bar){max-height:calc(100dvh - 64px - 96px - env(safe-area-inset-bottom))}}
+    .ak-menu.from-bar{top:auto;right:14px;bottom:calc(98px + env(safe-area-inset-bottom));max-height:calc(100vh - 170px - env(safe-area-inset-bottom));max-height:calc(100dvh - 170px - env(safe-area-inset-bottom))}
     .ak-mi{display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:500;font-size:.8rem;line-height:1.15;color:var(--text);
       background:none;border:none;text-align:left;padding:5px 9px;border-radius:7px;cursor:pointer;transition:.15s;width:100%}
     .ak-mi:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
@@ -730,6 +764,10 @@
     .ak-block audio.media{width:100%}
     .ak-pdf{height:min(82vh,860px);border-radius:12px;border:1px solid var(--line);overflow:hidden}
     .ak-pdf iframe{width:100%;height:100%;border:0}
+    .ak-html{position:relative;overflow:hidden;border-radius:12px}
+    .ak-html iframe{display:block;width:100%;height:480px;border:0;background:transparent;color-scheme:normal}
+    .ak-block[data-bento] .ak-html{height:var(--bh)}
+    .ak-block[data-bento] .ak-html iframe{height:100% !important}
     .ak-text h2{font-family:'Inter',sans-serif;font-size:clamp(1.4rem,3vw,2rem);color:var(--text);margin:0 0 12px;letter-spacing:-.02em}
     .ak-text h3{font-family:'Inter',sans-serif;font-size:clamp(1.05rem,2vw,1.35rem);font-weight:600;color:var(--text);margin:0 0 10px;letter-spacing:-.01em}
     .ak-text p{color:var(--muted);font-size:1.05rem;line-height:1.7;white-space:pre-wrap;max-width:760px}
@@ -749,6 +787,7 @@
     .ak-size-opt:hover{color:var(--text);border-color:var(--accent)}
     .ak-size-opt.on{color:#fff;background:var(--accent);border-color:transparent}
     .ak-fab{position:fixed;right:22px;bottom:22px;z-index:115}
+    @media(max-width:860px){.ak-menu.from-bar{left:10px;right:10px;bottom:calc(90px + env(safe-area-inset-bottom));min-width:0;max-height:calc(100vh - 162px - env(safe-area-inset-bottom));max-height:calc(100dvh - 162px - env(safe-area-inset-bottom))}}
     @media(max-width:640px){.ak-menu{position:fixed;left:12px;right:12px;top:64px;min-width:0}
       .ak-d-bar .inner{padding:8px 16px;gap:10px;flex-wrap:nowrap;justify-content:flex-start}
       .ak-d-bar .cs-back{flex:0 0 auto;padding:7px 13px;font-size:.84rem}
@@ -844,7 +883,7 @@
       var errEl = h("div", { class: "ak-err" });
       var body = (opts.fields || []).map(function (f) {
         var input, holder;
-        if (f.type === "textarea") input = h("textarea", { placeholder: f.placeholder || "" });
+        if (f.type === "textarea") input = h("textarea", { placeholder: f.placeholder || "", spellcheck: f.mono ? "false" : null, style: f.mono ? "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;line-height:1.5;min-height:200px;tab-size:2;white-space:pre;overflow:auto" : null });
         else if (f.type === "select") input = h("select", {}, (f.options || []).map(function (o) { return h("option", { value: o.value }, [o.label]); }));
         else if (f.type === "file") {
           var label = h("div", { class: "ak-file" + (f.value ? " has" : "") }, [f.value ? "✓ file ready — click to replace" : (f.placeholder || "Click to choose a file")]);
@@ -977,7 +1016,9 @@
     plus: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
     img: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="9.5" r="1.6" fill="currentColor"/><path d="M5 18l5-5 4 3 3-2 2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     pdf: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 2h8l4 4v16H6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v4h4" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+    svg: '<svg viewBox="0 0 24 24" fill="none"><path d="M5 18C7 9 17 15 19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="3" y="16" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.8"/><rect x="17" y="4" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.8"/></svg>',
     proto: '<svg viewBox="0 0 24 24" fill="none"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>',
+    code: '<svg viewBox="0 0 24 24" fill="none"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     media: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="2"/><path d="M10 9.5v5l4-2.5z" fill="currentColor"/></svg>',
     cube: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5l8 4.5v9l-8 4.5-8-4.5v-9z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 11.5l8-4.5M12 11.5v9M12 11.5L4 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
     text: '<svg viewBox="0 0 24 24" fill="none"><path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
@@ -1173,90 +1214,13 @@
     ]
   };
 
-  /* ============================================================ AUTH */
-  function isUnlocked() { return UNLOCKED || sessionStorage.getItem(SESSION_KEY) === "1"; }
-  function setupPassword() {
-    return modal({
-      title: "Set your admin password",
-      sub: "This protects the admin tools. You'll enter it to make changes. Stored only in your browser.",
-      fields: [
-        { key: "p1", label: "New password", type: "password", placeholder: "Choose a strong password" },
-        { key: "p2", label: "Confirm password", type: "password", placeholder: "Re-enter password" }
-      ],
-      submitLabel: "Set password",
-      validate: function (v) { if (!v.p1 || v.p1.length < 4) return "Use at least 4 characters."; if (v.p1 !== v.p2) return "Passwords don't match."; }
-    }).then(function (v) {
-      if (!v) return false;
-      return sha256(v.p1).then(function (hash) { localStorage.setItem(PW_KEY, hash); sessionStorage.setItem(SESSION_KEY, "1"); UNLOCKED = true; return true; });
-    });
-  }
-  function login() {
-    return modal({
-      title: "Admin login", sub: "Enter your password to unlock editing.",
-      fields: [{ key: "p", label: "Password", type: "password", placeholder: "Your password" }],
-      submitLabel: "Unlock"
-    }).then(function (v) {
-      if (!v) return false;
-      return sha256(v.p).then(function (hash) {
-        if (hash === storedPW()) { sessionStorage.setItem(SESSION_KEY, "1"); UNLOCKED = true; return true; }
-        alert("Incorrect password."); return false;
-      });
-    });
-  }
-  function changePassword() {
-    return modal({
-      title: "Change password",
-      fields: [
-        { key: "cur", label: "Current password", type: "password" },
-        { key: "p1", label: "New password", type: "password" },
-        { key: "p2", label: "Confirm new password", type: "password" }
-      ], submitLabel: "Update",
-      validate: function (v) { if (!v.p1 || v.p1.length < 4) return "Use at least 4 characters."; if (v.p1 !== v.p2) return "Passwords don't match."; }
-    }).then(function (v) {
-      if (!v) return;
-      return sha256(v.cur).then(function (cur) {
-        if (cur !== storedPW()) { alert("Current password is incorrect."); return; }
-        return sha256(v.p1).then(function (nh) { localStorage.setItem(PW_KEY, nh); showBakeHash(nh); });
-      });
-    });
-  }
-  // Show the new hash + the exact code line so the owner can make the new password
-  // site-wide (update BAKED_PW in admin.js and redeploy). Owner stays in full control.
-  function showBakeHash(nh) {
-    var line = 'var BAKED_PW = "' + nh + '";';
-    var ov = h("div", { class: "ak-ov" });
-    function close() { ov.remove(); document.removeEventListener("keydown", onKey); }
-    function onKey(e) { if (e.key === "Escape") close(); }
-    var code = h("textarea", { readonly: "", style: "width:100%;min-height:70px;resize:none;font-family:'Inter',sans-serif;font-size:.78rem;line-height:1.5;color:var(--text);background:color-mix(in srgb,var(--bg) 60%,var(--surface));border:1px solid var(--line);border-radius:10px;padding:11px 13px" });
-    code.value = line;
-    var copyBtn = h("button", { class: "ak-btn ghost", html: I.dl + "<span>Copy code line</span>", onclick: function () {
-      code.select(); try { document.execCommand("copy"); } catch (e) {}
-      try { if (navigator.clipboard) navigator.clipboard.writeText(line); } catch (e) {}
-      copyBtn.querySelector("span").textContent = "Copied \u2713";
-    } });
-    var m = h("div", { class: "ak-modal", style: "width:min(560px,100%)" }, [
-      h("h3", {}, ["Password changed on this browser"]),
-      h("div", { class: "sub" }, ["It works here right now. To make it the password for the whole live site (every browser & device), do the two steps below \u2014 you stay in full control of the master password."]),
-      h("div", { class: "ak-field" }, [
-        h("label", {}, ["1 \u00b7 Replace this line in admin.js"]),
-        code,
-        h("div", { class: "ak-hint" }, ["Find the existing line that starts with \u201cvar BAKED_PW =\u201d near the top of admin.js and replace it with this one."])
-      ]),
-      h("div", { class: "ak-hint", style: "margin-top:-4px" }, ["2 \u00b7 Save the file and redeploy (push to GitHub \u2014 Vercel redeploys automatically)."]),
-      h("div", { class: "ak-acts" }, [
-        copyBtn,
-        h("button", { class: "ak-btn", onclick: close }, ["Done"])
-      ])
-    ]);
-    ov.appendChild(m);
-    ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
-    document.addEventListener("keydown", onKey);
-    document.body.appendChild(ov);
-  }
+  /* ============================================================ AUTH
+     One login for the whole site, owned by site-edit.js. A successful login
+     reloads the page, so everything here simply boots in admin mode. */
+  function isUnlocked() { try { return sessionStorage.getItem(SESSION_KEY) === "1"; } catch (e) { return false; } }
   function requestUnlock() {
-    if (!storedPW()) return setupPassword();
-    if (!isUnlocked()) return login();
-    return Promise.resolve(true);
+    if (window.AK_SITE && window.AK_SITE.admin) window.AK_SITE.admin.login();
+    return Promise.resolve(false);
   }
 
   /* ============================================================ HEADER UI */
@@ -1282,7 +1246,7 @@
           onclick: function (e) {
             e.preventDefault(); e.stopPropagation();
             if (openItemId) { var it = DATA.items.find(function (x) { return x.id === openItemId; }); if (it) return openProjectStudio(it); }
-            newProjectStudio();
+            editItem(null, "project");
           } });
         navBar.insertBefore(lsBtn, navBar.firstChild);
       }
@@ -1290,13 +1254,14 @@
 
     btnEl.addEventListener("click", function (e) {
       e.stopPropagation();
-      openCaseKey = null;
-      if (!isUnlocked()) { requestUnlock().then(function (ok) { if (ok) { syncMode(); openMenu(); } }); return; }
-      if (menuEl.classList.contains("on")) closeMenu(); else openMenu();
+      if (!window.AK_SITE || !window.AK_SITE.admin) return;
+      if (isUnlocked()) window.AK_SITE.admin.logout(); else requestUnlock();
     });
     document.addEventListener("click", function (e) { if (menuEl.contains(e.target) || wrap.contains(e.target) || e.target.closest("[data-ak-trigger]")) return; closeMenu(); });
   }
-  function openMenu() { renderMenu(); menuEl.classList.add("on"); }
+  /* the content menu: "Add content" in the header (open project / case study) ·
+     the admin bar's Add on the project grid (new project) */
+  function openMenu(fromBar) { renderMenu(); menuEl.classList.toggle("from-bar", !!fromBar); menuEl.classList.add("on"); }
   function closeMenu() { menuEl.classList.remove("on"); }
 
   function mi(icon, label, onclick, warn) {
@@ -1308,8 +1273,10 @@
     if (openCaseKey) {
       menuEl.appendChild(h("div", { class: "ak-label" }, ["Add to this case study"]));
       menuEl.appendChild(mi(I.img, "Add image", function () { addBlock("image"); }));
+      menuEl.appendChild(mi(I.svg, "Add SVG", function () { addBlock("svg"); }));
       menuEl.appendChild(mi(I.pdf, "Add PDF", function () { addBlock("pdf"); }));
       menuEl.appendChild(mi(I.proto, "Add prototype", function () { addBlock("prototype"); }));
+      menuEl.appendChild(mi(I.code, "Add HTML", function () { addBlock("html"); }));
       menuEl.appendChild(mi(I.media, "Add video / audio", function () { addBlock("media"); }));
       menuEl.appendChild(mi(I.cube, "Add 3D model", function () { addBlock("model"); }));
       menuEl.appendChild(mi(I.text, "Add text block", function () { addBlock("text"); }));
@@ -1327,8 +1294,10 @@
       var it = DATA.items.find(function (x) { return x.id === openItemId; });
       menuEl.appendChild(h("div", { class: "ak-label" }, ["Add to this " + CFG.noun]));
       menuEl.appendChild(mi(I.img, "Add image", function () { addBlock("image"); }));
+      menuEl.appendChild(mi(I.svg, "Add SVG", function () { addBlock("svg"); }));
       menuEl.appendChild(mi(I.pdf, "Add PDF", function () { addBlock("pdf"); }));
       menuEl.appendChild(mi(I.proto, "Add prototype", function () { addBlock("prototype"); }));
+      menuEl.appendChild(mi(I.code, "Add HTML", function () { addBlock("html"); }));
       menuEl.appendChild(mi(I.media, "Add video / audio", function () { addBlock("media"); }));
       menuEl.appendChild(mi(I.cube, "Add 3D model", function () { addBlock("model"); }));
       menuEl.appendChild(mi(I.text, "Add text block", function () { addBlock("text"); }));
@@ -1349,22 +1318,15 @@
       menuEl.appendChild(mi(I.edit, "Edit " + CFG.noun + " details", function () { editItem(it); }));
       menuEl.appendChild(mi(I.trash, "Delete this " + CFG.noun, function () { deleteItem(it); }, true));
     } else {
-      menuEl.appendChild(h("div", { class: "ak-label" }, [CFG.noun + "s"]));
+      menuEl.appendChild(h("div", { class: "ak-label" }, [(/y$/.test(CFG.noun) ? CFG.noun.slice(0, -1) + "ie" : CFG.noun) + "s"]));
       menuEl.appendChild(mi(I.plus, "Add " + CFG.noun, function () { editItem(null); }));
       menuEl.appendChild(mi(I.shapes, "New " + CFG.noun + " — Layout Studio", function () { editItem(null, studioEnabled() ? "project" : true); }));
     }
-    menuEl.appendChild(h("div", { class: "ak-sep" }));
-    menuEl.appendChild(h("div", { class: "ak-label" }, ["Publish & account"]));
-    menuEl.appendChild(mi(I.dl, "Export site data", exportData));
-    menuEl.appendChild(mi(I.ul, "Import site data", importData));
-    menuEl.appendChild(mi(I.img, "Optimise images", optimiseMedia));
-    menuEl.appendChild(mi(I.lock, "Change password", changePassword));
-    menuEl.appendChild(mi(I.lock, "Lock admin", function () { sessionStorage.removeItem(SESSION_KEY); UNLOCKED = false; syncMode(); }, true));
   }
 
   function syncMode() {
     document.body.classList.toggle("ak-on", isUnlocked());
-    if (btnEl) { var on = isUnlocked(); btnEl.title = on ? "Admin — active (click for menu)" : "Admin — locked (click to unlock)"; btnEl.setAttribute("aria-label", btnEl.title); }
+    if (btnEl) { btnEl.title = isUnlocked() ? "Admin — active (click to log out)" : "Admin — locked (click to log in)"; btnEl.setAttribute("aria-label", btnEl.title); }
     renderTiles(); renderCases(); if (openItemId) renderDetail();
   }
 
@@ -1602,7 +1564,7 @@
       if (!store.blocks.length && !admin) return;
       if (admin) {
         m.appendChild(h("div", { class: "ak-case-head" }, [
-          h("span", { class: "ak-case-tag" }, [store.blocks.length ? "Added content" : "Use \u201cAdd content\u201d (top right) to add images, video, prototypes and more"])
+          h("span", { class: "ak-case-tag" }, [store.blocks.length ? "Added content" : "Use \u201cAdd\u201d in the admin bar to add images, video, prototypes and more"])
         ]));
       }
       var wrap = h("div", { class: "ak-case-blocks" });
@@ -1656,19 +1618,12 @@
     if (!navRight) return;
     var existing = navRight.querySelector(".ak-cs-actions");
     if (existing) existing.remove();
-    var group;
-    if (isUnlocked()) {
-      group = h("div", { class: "ak-cs-actions" }, [
-        h("button", { class: "ak-btn", "data-ak-trigger": "1", html: I.plus + "<span>Add content</span>",
+    navRight.insertBefore(h("div", { class: "ak-cs-actions" }, [isUnlocked()
+      ? h("button", { class: "ak-btn", "data-ak-trigger": "1", html: I.plus + "<span>Add content</span>",
           onclick: function (e) { e.stopPropagation(); var k = activeCaseKey(); if (!k) return; openItemId = null; openCaseKey = k; openMenu(); } })
-      ]);
-    } else {
-      group = h("div", { class: "ak-cs-actions" }, [
-        h("button", { class: "ak-btn ak-admin-toggle", title: "Admin — locked (click to unlock)", "aria-label": "Admin — locked (click to unlock)", html: I.cog + '<span class="ak-dot"></span>',
-          onclick: function (e) { e.stopPropagation(); requestUnlock().then(function (ok) { if (ok) syncMode(); }); } })
-      ]);
-    }
-    navRight.insertBefore(group, navRight.firstChild);
+      : h("button", { class: "ak-btn ak-admin-toggle", title: "Admin — locked (click to log in)", "aria-label": "Admin — locked (click to log in)", html: I.cog + '<span class="ak-dot"></span>',
+          onclick: function (e) { e.stopPropagation(); requestUnlock(); } })
+    ]), navRight.firstChild);
   }
 
   /* ---------- editable case-study hero / card / tab ---------- */
@@ -1967,19 +1922,12 @@
     var navRight = document.querySelector(".nav-right");
     if (navRight) {
       navRight.querySelectorAll(".ak-item-actions, .ak-cs-actions").forEach(function (n) { n.remove(); });
-      var group;
-      if (admin) {
-        group = h("div", { class: "ak-item-actions" }, [
-          h("button", { class: "ak-btn", "data-ak-trigger": "1", html: I.plus + "<span>Add content</span>",
+      navRight.insertBefore(h("div", { class: "ak-item-actions" }, [admin
+        ? h("button", { class: "ak-btn", "data-ak-trigger": "1", html: I.plus + "<span>Add content</span>",
             onclick: function (e) { e.stopPropagation(); openItemId = it.id; openCaseKey = null; openMenu(); } })
-        ]);
-      } else {
-        group = h("div", { class: "ak-item-actions" }, [
-          h("button", { class: "ak-btn ak-admin-toggle", title: "Admin — locked (click to unlock)", "aria-label": "Admin — locked (click to unlock)", html: I.cog + '<span class="ak-dot"></span>',
-            onclick: function (e) { e.stopPropagation(); requestUnlock().then(function (ok) { if (ok) syncMode(); }); } })
-        ]);
-      }
-      navRight.insertBefore(group, navRight.firstChild);
+        : h("button", { class: "ak-btn ak-admin-toggle", title: "Admin — locked (click to log in)", "aria-label": "Admin — locked (click to log in)", html: I.cog + '<span class="ak-dot"></span>',
+            onclick: function (e) { e.stopPropagation(); requestUnlock(); } })
+      ]), navRight.firstChild);
     }
     var hb = document.querySelector("header .back");
     if (hb) {
@@ -1989,7 +1937,8 @@
       }
       hb.innerHTML = '<span class="arr">&larr;</span> Back';
       hb.setAttribute("href", "#");
-      hb.onclick = function (e) { e.preventDefault(); closeDetail(); };
+      /* Back from an open project returns to the home page Projects section, on this category + card */
+      hb.onclick = function (e) { e.preventDefault(); try { sessionStorage.setItem("ak-home-ret", JSON.stringify({ cat: CFG.page, id: it.id })); } catch (_) {} location.href = "index.html#work"; };
     }
   }
   function clearItemActions() {
@@ -2129,6 +2078,9 @@
       } else if (b.type === "pdf") {
         badge = "PDF";
         thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u25A4"]));
+      } else if (b.type === "html") {
+        badge = "HTML";
+        thumb.appendChild(h("div", { class: "ps-glyph" }, ["</>"]));
       } else if (b.type === "prototype") {
         badge = "Live";
         thumb.appendChild(h("div", { class: "ps-glyph" }, ["\u2196"]));
@@ -2191,7 +2143,7 @@
     if (!it.blocks.length) {
       blocksWrap.appendChild(h("div", { class: "ak-empty" }, [
         h("h4", {}, [admin ? "No content yet" : "Coming soon"]),
-        h("p", { style: "color:var(--muted);margin:0" }, [admin ? "Use the Admin menu to add images, PDFs, prototypes, video, 3D models or text." : "This project is being prepared."])
+        h("p", { style: "color:var(--muted);margin:0" }, [admin ? "Use \u201cAdd\u201d in the admin bar to add images, PDFs, prototypes, video, 3D models or text." : "This project is being prepared."])
       ]));
     } else {
       var _i = 0;
@@ -2826,6 +2778,12 @@
         ])
       ]);
       inner = h("div", {}, [protoInfo, h("div", { class: "ak-wide" }, [h("iframe", { class: "media", style: rad, src: b.src, allowfullscreen: "", loading: "lazy" })])]);
+    } else if (b.type === "html") {
+      var htmlHold = h("div", { class: "ak-html", style: rad });
+      var hFrame = h("iframe", { title: b.caption || "HTML embed", sandbox: HTML_SANDBOX, allowfullscreen: "", loading: "lazy", "data-ak-autoh": b.height ? null : "1", style: "height:" + (b.height || 480) + "px" });
+      hFrame.srcdoc = buildHtmlDoc(b.html);
+      htmlHold.appendChild(hFrame);
+      inner = h("div", {}, [htmlHold, b.caption ? h("div", { class: "ak-cap" }, [b.caption]) : null]);
     } else if (b.type === "media") {
       var isAudio = (b.mime || "").indexOf("audio") === 0;
       var mEl = isAudio ? h("audio", { class: "media", src: dataURLtoBlobURL(b.src), controls: "", preload: "metadata" }) : h("video", { class: "media", style: rad, src: dataURLtoBlobURL(b.src), controls: "", playsinline: "", preload: "metadata" });
@@ -2932,7 +2890,7 @@
     }
     return block;
   }
-  function typeLabel(t) { return ({ image: "Image", pdf: "PDF", prototype: "Prototype", media: "Video / Audio", model: "3D model", text: "Text", canvas: "Layout canvas" })[t] || t; }
+  function typeLabel(t) { return ({ image: "Image", pdf: "PDF", prototype: "Prototype", html: "HTML", media: "Video / Audio", model: "3D model", text: "Text", canvas: "Layout canvas" })[t] || t; }
 
   // Wrap a rerender so the page scroll position is preserved across the
   // full DOM rebuild (move/reorder/delete blocks should NOT jump to top).
@@ -3037,7 +2995,6 @@
       else Promise.resolve(T.buildFromItem(it, CFG.page, TEMPLATES[CFG.page])).then(launch);
     }).catch(function () { alert("Couldn't load Layout Studio (layout-studio.js / studio-templates.js missing next to this page)."); });
   }
-  function newProjectStudio() { editItem(null, "project"); }
 
   /* ---------- keeping "Add content" / "Template" alive inside a Studio project ----------
      A project with a saved it.studio renders the canvas INSTEAD of the block stack,
@@ -3360,6 +3317,7 @@
     if (!item) return;
     rerender = rerender || renderDetail;
     type = b ? b.type : type;
+    var svgMode = type === "svg"; if (svgMode) type = "image";
     if (type === "canvas") { openStudio(item, b, rerender); return; }
     var creating = !b;
     var radField = { key: "radius", label: "Corner radius", type: "range", min: 0, max: 60, step: 1, unit: "px", preview: "radius", value: b && b.radius != null ? b.radius : 15, hint: "Roundness of the corners — 0 is square, 15 is the default." };
@@ -3367,8 +3325,10 @@
     var isSection = !!(b && b.section);
     var fields, title;
     if (type === "image") {
-      title = "image"; fields = [
-        { key: "src", label: "Image file", type: "file", accept: "image/*", multiple: creating, value: b ? b.src : "", hint: "PNG, JPG, GIF or WEBP. You can select multiple files to add several images at once." },
+      title = svgMode ? "SVG" : "image"; fields = [
+        svgMode
+          ? { key: "src", label: "SVG file", type: "file", accept: ".svg,image/svg+xml", multiple: creating, value: "", placeholder: "Click to choose an .svg file", hint: "Kept as SVG, never converted. Fonts used by its text are embedded in the file so it looks identical everywhere. You can select several at once." }
+          : { key: "src", label: "Image file", type: "file", accept: "image/*", multiple: creating, value: b ? b.src : "", hint: "PNG, JPG, GIF, WEBP or SVG. You can select multiple files to add several images at once." },
         { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" },
         radField, shField
       ];
@@ -3382,6 +3342,14 @@
       title = "prototype"; fields = [
         { key: "raw", label: "Figma link or <iframe> embed code", type: "textarea", value: b ? b.raw : "", placeholder: "https://www.figma.com/proto/…  or  full <iframe …> code", hint: "Paste a Figma prototype share link, or any iframe embed code. To add several, put each link on its own line." },
         { key: "caption", label: "Title shown above the prototype (optional)", value: b ? b.caption : "", placeholder: "e.g. Try the FinTrack prototype", hint: "Shown as the heading on top of the prototype, on a black stage." },
+        radField, shField
+      ];
+    } else if (type === "html") {
+      title = "HTML"; fields = [
+        { key: "html", label: "HTML code", type: "textarea", mono: true, value: b ? b.html : "", placeholder: "<div>…</div>  — a snippet, or a full page with <style> and <script>", hint: "Runs in a sealed frame: its CSS and scripts can't affect the rest of the site. Links open in a new tab." },
+        { key: "file", label: "…or upload an .html file (optional)", type: "file", accept: ".html,.htm,text/html", placeholder: "Click to choose an .html file", hint: "Replaces the code above. Use full https:// links for images and scripts — relative paths won't load." },
+        { key: "caption", label: "Caption (optional)", value: b ? b.caption : "" },
+        { key: "height", label: "Height", type: "range", min: 0, max: 2000, step: 20, unit: "px", value: b && b.height ? b.height : 0, hint: "0 = grow to fit the content automatically." },
         radField, shField
       ];
     } else if (type === "media") {
@@ -3406,7 +3374,9 @@
       title: (creating ? "Add " : "Edit ") + title, fields: fields, submitLabel: creating ? "Add" : "Save", compact: true,
       validate: function (v) {
         if ((type === "image" || type === "pdf" || type === "media" || type === "model") && !v.src && creating) return "Please choose a file.";
+        if (svgMode && v.src) { var sf = (v.src_files && v.src_files.length) ? v.src_files : [{ data: v.src, name: v.src_name }]; if (sf.some(function (f) { return !isSvgFile(f.data, f.name); })) return "Please choose .svg files only."; }
         if (type === "prototype" && !v.raw && creating) return "Please paste a link or embed code.";
+        if (type === "html" && !v.html && !v.file) return "Paste some HTML or choose an .html file.";
         if (type === "text" && v.tstyle && !v.tstyle.body && !v.tstyle.heading && !v.tstyle.heading2) return "Add a heading or some text.";
       }
     }).then(function (v) {
@@ -3416,6 +3386,7 @@
       if (isNaN(shVal) && v.tstyle && v.tstyle.shadow != null && v.tstyle.shadow !== "") shVal = parseInt(v.tstyle.shadow, 10);
       if (isNaN(radVal) && v.tstyle && v.tstyle.radius != null && v.tstyle.radius !== "") radVal = parseInt(v.tstyle.radius, 10);
       var multiFiles = v.src_files || [];
+      if (svgMode) { if (v.src) v.src = svgDataURL(v.src); multiFiles.forEach(function (f) { f.data = svgDataURL(f.data); }); }
       if (creating && (type === "image" || type === "pdf" || type === "media" || type === "model") && multiFiles.length > 1) {
         multiFiles.forEach(function (fobj) {
           var nb = { id: uid(), type: type, src: fobj.data, caption: v.caption };
@@ -3447,6 +3418,10 @@
       if (type === "image") { if (v.src) block.src = v.src; block.caption = v.caption; }
       else if (type === "pdf") { if (v.src) block.src = v.src; block.caption = v.caption; }
       else if (type === "prototype") { if (v.raw) { block.raw = v.raw; block.src = protoSrc(v.raw); } block.caption = v.caption; }
+      else if (type === "html") {
+        block.html = v.file ? dataURLText(v.file) : v.html; block.caption = v.caption;
+        var hv = parseInt(v.height, 10); if (hv > 0) block.height = hv; else delete block.height;
+      }
       else if (type === "media") { if (v.src) { block.src = v.src; block.mime = (v.src.match(/^data:(.*?);/) || [])[1] || ""; } block.caption = v.caption; }
       else if (type === "model") { if (v.src) { block.src = v.src; block.format = modelFormat(v.src_name || v.src); } block.caption = v.caption; }
       else if (type === "text") {
@@ -3507,6 +3482,9 @@
       return u.toString();
     } catch (e) { return null; }
   }
+  function isSvgFile(d, name) { return /^data:image\/svg\+xml/i.test(d || "") || /\.svg$/i.test(name || ""); }
+  // some OSes hand over .svg with an empty / octet-stream type — give it the real MIME so <img> renders it and Publish names it .svg
+  function svgDataURL(d) { return /^data:image\/svg\+xml/i.test(d || "") ? d : String(d || "").replace(/^data:[^;,]*/i, "data:image/svg+xml"); }
   function modelFormat(s) { var m = (s || "").toLowerCase().match(/\.(glb|gltf|obj|fbx)(\?|$|;)/); return m ? m[1] : "glb"; }
 
   /* ============================================================ 3D viewers */
@@ -3587,1080 +3565,30 @@
     (function loop() { if (!holder.isConnected) { ro.disconnect(); renderer.dispose && renderer.dispose(); return; } controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
   }
 
-  /* ============================================================ EXPORT / IMPORT */
-  /* ---- dependency-free ZIP writer (STORE method, no compression) ---- */
-  var _crcTable = (function () {
-    var t = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t;
-  })();
-  function crc32(buf) { var c = 0xFFFFFFFF; for (var i = 0; i < buf.length; i++) c = _crcTable[(c ^ buf[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
-  function makeZip(files) {
-    var enc = new TextEncoder();
-    function u16(n) { return [n & 0xFF, (n >>> 8) & 0xFF]; }
-    function u32(n) { return [n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF]; }
-    var parts = [], central = [], offset = 0;
-    files.forEach(function (f) {
-      var name = enc.encode(f.name), data = f.bytes, crc = crc32(data);
-      var lh = new Uint8Array([].concat(u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0)));
-      parts.push(lh, name, data);
-      var ch = new Uint8Array([].concat(u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset)));
-      central.push(ch, name);
-      offset += lh.length + name.length + data.length;
-    });
-    var cs = 0; central.forEach(function (c) { cs += c.length; });
-    var end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cs), u32(offset), u16(0)));
-    return new Blob(parts.concat(central, [end]), { type: "application/zip" });
-  }
-  /* ---- one-click image optimiser ------------------------------------------------
-     Re-encodes anything already live in media/ that is wider or taller than
-     IMG_MAX_EDGE, in this browser, and hands the fixed files back as a small ZIP to
-     drop into media/. An oversized export (5000–8000px) is the single biggest cause
-     of a slow case study: the phone spends longer DECODING the picture than
-     downloading it, and the biggest ones fail outright on iOS. New uploads are capped
-     automatically (see readFileAsDataURL) — this is for files published before that. */
-  /* Every image the owner could act on: files already live in media/, AND uploads that are
-     still only in this browser (a project added five minutes ago is base64 in IndexedDB —
-     it used to be invisible here, so its oversized photos sailed straight into a publish). */
-  function _optRefs(o) {
-    var out = {};
-    (function walk(v) {
-      if (!v) return;
-      if (typeof v === "string") {
-        if (/^media\/.+\.(webp|jpe?g|png)$/i.test(v)) out[v] = 1;
-        else if (/^data:image\/(webp|jpe?g|png)[;,]/i.test(v) && v.length >= 2048) out[v] = 1;
-        return;
-      }
-      if (typeof v !== "object") return;
-      if (Array.isArray(v)) { v.forEach(walk); return; }
-      Object.keys(v).forEach(function (k) { walk(v[k]); });
-    })(o);
-    return Object.keys(out);
-  }
-  var _optNames = {};                       // data: URL -> something readable in the list
-  function _optIsLocal(p) { return typeof p === "string" && p.indexOf("data:") === 0; }
-  function _optShow(p) { return _optIsLocal(p) ? (_optNames[p] || "new upload") : p.split("/").pop(); }
-  /* Decoding and re-encoding both differ per browser (Safari has ignored createImageBitmap's
-     resize options, iPad throws on very large decodes, older engines refuse image/webp from
-     toBlob). Every step below therefore has a fallback, and anything that still fails comes
-     back with a reason so the owner sees which file to handle by hand instead of a silent
-     "nothing needed changing". */
-  function _optDecodeImg(blob) {
-    return new Promise(function (res, rej) {
-      var u = URL.createObjectURL(blob), im = new Image();
-      im.onload = function () {
-        if (!im.naturalWidth) { URL.revokeObjectURL(u); return rej(new Error("empty")); }
-        res({ w: im.naturalWidth, h: im.naturalHeight, src: im, release: function () { URL.revokeObjectURL(u); } });
-      };
-      im.onerror = function () { URL.revokeObjectURL(u); rej(new Error("decode")); };
-      im.src = u;
-    });
-  }
-  function _optDecode(blob) {
-    if (typeof createImageBitmap === "function") {
-      return createImageBitmap(blob).then(function (bm) {
-        return { w: bm.width, h: bm.height, src: bm, release: function () { if (bm.close) bm.close(); } };
-      }, function () { return _optDecodeImg(blob); });
+  /* ============================================================ ADMIN BRIDGE
+     The admin shell (site-edit.js) owns login, publishing, image optimising and
+     backups for every page. It reads this page's live data from here, and opens
+     the content menu from its Add button. */
+  window.AK_CASES = {
+    page: CFG.page,
+    current: function () { return { page: CFG.page, data: DATA }; },
+    openMenu: function () {
+      if (menuEl && menuEl.classList.contains("on")) return closeMenu();
+      openItemId = null; openCaseKey = null;     // the bar's Add is the grid entry: new project
+      openMenu(true);
     }
-    return _optDecodeImg(blob);
-  }
-  /* halve repeatedly before the final draw — one big downscale in a single drawImage is what
-     makes re-saved photos look soft */
-  function _optScaleTo(dec, w, h) {
-    var src = dec.src, curW = dec.w, curH = dec.h, guard = 0;
-    while (curW > w * 2 && guard++ < 8) {
-      var t = document.createElement("canvas");
-      t.width = Math.max(w, Math.round(curW / 2)); t.height = Math.max(h, Math.round(curH / 2));
-      var tx = t.getContext("2d");
-      tx.imageSmoothingEnabled = true; tx.imageSmoothingQuality = "high";
-      tx.drawImage(src, 0, 0, t.width, t.height);
-      src = t; curW = t.width; curH = t.height;
-    }
-    var cv = document.createElement("canvas");
-    cv.width = w; cv.height = h;
-    var cx = cv.getContext("2d");
-    if (!cx) throw new Error("no canvas");
-    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
-    cx.drawImage(src, 0, 0, w, h);
-    return cv;
-  }
-  /* keep transparency where the original had it; otherwise prefer the format already on disk */
-  function _optTargets(p) {
-    /* WebP first everywhere — the site ships WebP only; the others exist purely as a fallback
-       for a browser that refuses to write it */
-    if (/\.png$/i.test(p)) return [["image/webp", 0.92], ["image/png", undefined], ["image/jpeg", 0.88]];
-    return [["image/webp", 0.92], ["image/jpeg", 0.88]];
-  }
-  function _optToBlob(cv, type, q) {
-    return new Promise(function (res) {
-      var done = false, t = setTimeout(function () { if (!done) { done = true; res(null); } }, 20000);
-      function give(b) { if (done) return; done = true; clearTimeout(t); res(b); }
-      try {
-        if (cv.toBlob) return cv.toBlob(give, type, q);
-        var d = cv.toDataURL(type, q), bin = atob(d.split(",")[1]), u8 = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-        give(new Blob([u8], { type: (d.slice(5).split(";")[0] || type) }));
-      } catch (e) { give(null); }
-    });
-  }
-  function _optEncode(cv, list, origSize) {
-    var best = null, i = 0;
-    function step() {
-      if (i >= list.length) return Promise.resolve(best);
-      var t = list[i++];
-      return _optToBlob(cv, t[0], t[1]).then(function (b) {
-        if (b && b.size && (!best || b.size < best.size)) best = b;
-        if (best && best.size < origSize) return best;
-        return step();
-      });
-    }
-    return step();
-  }
-  function _optImage(url) {
-    return fetch(url, { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error("not on the server (" + r.status + ")"); return r.blob(); })
-      .then(function (blob) {
-        if (!blob || !blob.size) throw new Error("empty file");
-        var t = blob.type || "";
-        if (t === "image/gif" || t.indexOf("svg") > -1 || (t && t.indexOf("image/") !== 0)) return { skip: "not a resizable image" };
-        return _optDecode(blob).then(function (dec) {
-          var long = Math.max(dec.w, dec.h), from = dec.w + "\u00d7" + dec.h;
-          if (long <= IMG_OVER_EDGE) { dec.release(); return { skip: "already " + from }; }
-          var w = Math.max(1, Math.round(dec.w * IMG_MAX_EDGE / long)),
-              hh = Math.max(1, Math.round(dec.h * IMG_MAX_EDGE / long)), cv;
-          try { cv = _optScaleTo(dec, w, hh); }
-          catch (e) { dec.release(); return { fail: "too big for this browser to redraw — try a desktop browser" }; }
-          dec.release();
-          return _optEncode(cv, _optTargets(url), blob.size).then(function (out) {
-            cv.width = cv.height = 1;   /* release the backing store on iOS */
-            if (!out || !out.size) return { fail: "this browser could not re-save it" };
-            /* a smaller file is the goal, but halving the pixels already cuts decode time —
-               accept a near-identical size, reject only a genuinely worse one */
-            if (out.size > blob.size * 1.15) return { skip: "already efficient at " + from };
-            return out.arrayBuffer().then(function (ab) {
-              return { bytes: new Uint8Array(ab), was: blob.size, now: out.size, from: from, to: w + "\u00d7" + hh };
-            });
-          });
-        }, function () { return { fail: "could not open this file — it may be damaged" }; });
-      })
-      .catch(function (e) { return { fail: (e && e.message) || "could not be read" }; });
-  }
-  var _optMeas = {}, _optLastIx = null;
-  /* a new or edited project invalidates the pre-flight size check, so it re-reads
-     instead of quoting the last scan */
-  try { document.addEventListener("ak-cases-changed", function () { _optLastIx = null; }); } catch (e) {}
-  var _OPT_LABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
-  function _optMeasure(url) {
-    if (_optMeas[url]) return Promise.resolve(_optMeas[url]);
-    return fetch(url).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) {
-      if (!b || b.type.indexOf("image/") !== 0 || b.type === "image/gif" || b.type.indexOf("svg") > -1) return (_optMeas[url] = { skip: true });
-      return createImageBitmap(b).then(function (bm) {
-        var m = { w: bm.width, h: bm.height, size: b.size, fmt: b.type };
-        m.over = Math.max(m.w, m.h) > IMG_OVER_EDGE;
-        m.notWebp = b.type !== "image/webp";
-        if (bm.close) bm.close();
-        return (_optMeas[url] = m);
-      });
-    }).catch(function () { return (_optMeas[url] = { skip: true }); });
-  }
-  /* measures every path once, four at a time, so a 130-file check stays quick */
-  function _optScan(paths, onEach) {
-    var i = 0, live = 0;
-    return new Promise(function (done) {
-      function next() {
-        if (i >= paths.length && !live) return done();
-        while (live < 4 && i < paths.length) {
-          live++;
-          _optMeasure(paths[i++]).then(function () { live--; if (onEach) onEach(); next(); });
-        }
-      }
-      next();
-    });
-  }
-  /* the scopes the owner can act on: everything · a category · one project · the home page.
-     Categories come from the data itself, so a page added later lists itself. */
-  function _optGroups(src) {
-    var data = (src && src.data) || {}, pubIds = (src && src.pubIds) || {};
-    var gs = [], all = {};
-    Object.keys(data).forEach(function (k) {
-      if (k === "home") return;
-      var page = data[k]; if (!page) return;
-      var pagePaths = _optRefs(page); if (!pagePaths.length) return;
-      pagePaths.forEach(function (p) { all[p] = 1; });
-      gs.push({ key: "page:" + k, label: (_OPT_LABEL[k] || k), kind: "page", paths: pagePaths });
-      (page.items || []).forEach(function (it) {
-        var ip = _optRefs(it);
-        if (!ip.length) return;
-        var title = it.title || "Untitled", fresh = !pubIds[it.id];
-        ip.forEach(function (r, n) { if (_optIsLocal(r)) _optNames[r] = title + " \u00b7 photo " + (n + 1); });
-        gs.push({ key: "item:" + it.id, label: title + (fresh ? " \u00b7 not published yet" : ""), kind: "item", paths: ip });
-      });
-    });
-    if (data.home) {
-      var hp = _optRefs(data.home);
-      if (hp.length) {
-        hp.forEach(function (p) { all[p] = 1; if (_optIsLocal(p)) _optNames[p] = "Home page photo"; });
-        gs.push({ key: "home", label: "Home page", kind: "page", paths: hp });
-      }
-    }
-    return { all: Object.keys(all), groups: gs };
-  }
-  /* What to check = the published site MERGED with this device's working copies, the same
-     merge the export uses. Without it the panel only ever saw the last publish. */
-  function _optSource() {
-    return Promise.all([
-      fetch("portfolio-data.json", { cache: "no-store" })
-        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
-      _idbDataKeys()
-    ]).then(function (pre) {
-      var pub = pre[0] || {}, keys = _pageKeys(pub, pre[1]);
-      return Promise.all(keys.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
-        var data = {}, pubIds = {};
-        keys.forEach(function (k, i) {
-          var local = vals[i], usable = !!(local && local.items && local.items.length);
-          var flagged = false; try { flagged = !!localStorage.getItem("ak-local-edits:" + k); } catch (e) {}
-          var pick = (flagged && usable) ? local : ((pub[k] && pub[k].items) ? pub[k] : (usable ? local : null));
-          if (pick) data[k] = pick;
-          (((pub[k] || {}).items) || []).forEach(function (it) { if (it && it.id) pubIds[it.id] = 1; });
-        });
-        if (DATA && DATA.items && DATA.items.length) data[CFG.page] = DATA;   // the page on screen is the freshest
-        var home = {}, ls = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
-        try { var raw = ls("ak-certs"); if (raw) { var a = JSON.parse(raw); if (Array.isArray(a)) home.certs = a; } } catch (e) {}
-        if (!home.certs && pub.home && pub.home.certs) home.certs = pub.home.certs;
-        var covers = {};
-        keys.forEach(function (k) {
-          var v = ls("ak-cover-" + k);
-          if (v) covers[k] = v;
-          else if (pub.home && pub.home.covers && pub.home.covers[k]) covers[k] = pub.home.covers[k];
-        });
-        if (Object.keys(covers).length) home.covers = covers;
-        var prof = ls("ak-profile-photo") || (pub.home && pub.home.profile);
-        if (prof) home.profile = prof;
-        if (home.certs || home.covers || home.profile) data.home = home;
-        return { data: data, pubIds: pubIds };
-      });
-    });
-  }
-  /* An unpublished upload can't be handed back as a repo file — the fix is written into the
-     working copy instead, so it exports at the right size on the next publish. */
-  function _optLocal(ref) {
-    return fetch(ref).then(function (r) { return r.blob(); }).then(function (blob) {
-      var t = blob.type || "";
-      if (t === "image/gif" || t.indexOf("svg") > -1 || t.indexOf("image/") !== 0) return { skip: "not a resizable image" };
-      return _optDecode(blob).then(function (dec) {
-        var long = Math.max(dec.w, dec.h), from = dec.w + "\u00d7" + dec.h;
-        if (long <= IMG_OVER_EDGE) { dec.release(); return { skip: "already " + from }; }
-        var k = IMG_MAX_EDGE / long, w = Math.max(1, Math.round(dec.w * k)), hh = Math.max(1, Math.round(dec.h * k)), cv;
-        try { cv = _optScaleTo(dec, w, hh); }
-        catch (e) { dec.release(); return { fail: "too big for this browser to redraw \u2014 try a desktop browser" }; }
-        dec.release();
-        var out = null;
-        try { out = cv.toDataURL("image/webp", 0.9); } catch (e) {}
-        cv.width = cv.height = 1;
-        if (!out || out.indexOf("data:image/webp") !== 0) return { fail: "this browser could not re-save it" };
-        var now = Math.round((out.length - out.indexOf(",") - 1) * 0.75);
-        if (now > blob.size * 1.15) return { skip: "already efficient at " + from };
-        return { src: out, was: blob.size, now: now, from: from, to: w + "\u00d7" + hh };
-      }, function () { return { fail: "could not open this file \u2014 it may be damaged" }; });
-    })["catch"](function (e) { return { fail: (e && e.message) || "could not be read" }; });
-  }
-  function _optWriteLocal(map) {
-    if (!Object.keys(map).length) return Promise.resolve(0);
-    function swap(node, depth) {
-      var n = 0;
-      if (!node || typeof node !== "object" || depth > 14) return 0;
-      Object.keys(node).forEach(function (k) {
-        var v = node[k];
-        if (typeof v === "string") { if (map[v]) { node[k] = map[v]; n++; } return; }
-        if (v && typeof v === "object") n += swap(v, depth + 1);
-      });
-      return n;
-    }
-    return _idbDataKeys().then(function (ks) {
-      return Promise.all(ks.map(function (k) {
-        return idbGet("data:" + k).then(function (d) {
-          if (!d || !swap(d, 0)) return 0;
-          if (k === CFG.page && DATA) swap(DATA, 0);          // keep the page on screen in step
-          return idbSet("data:" + k, d).then(function () { return 1; });
-        })["catch"](function () { return 0; });
-      })).then(function (r) {
-        var tot = r.reduce(function (a, b) { return a + b; }, 0);
-        try {                                                 // home-page photos live in localStorage
-          ks.map(function (k) { return "ak-cover-" + k; }).concat(["ak-profile-photo"]).forEach(function (k) {
-            var v = localStorage.getItem(k); if (v && map[v]) { localStorage.setItem(k, map[v]); tot++; }
-          });
-          var raw = localStorage.getItem("ak-certs");
-          if (raw) { var a = JSON.parse(raw); if (Array.isArray(a) && swap({ a: a }, 0)) { localStorage.setItem("ak-certs", JSON.stringify(a)); tot++; } }
-        } catch (e) {}
-        try { renderTiles(); if (typeof openItemId !== "undefined" && openItemId) renderDetail(); } catch (e) {}
-        return tot;
-      });
-    });
-  }
-  function _optStat(paths) {
-    var s = { total: paths.length, known: 0, over: 0, zipped: 0, bytes: 0, notWebp: 0, other: [] };
-    paths.forEach(function (p) {
-      var m = _optMeas[p]; if (!m) return;
-      s.known++;
-      if (m.notWebp && !m.skip) { s.notWebp++; if (s.other.length < 8) s.other.push(_optShow(p) + " \u00b7 " + fmtName(m.fmt)); }
-      if (m.zipped) s.zipped++;
-      else if (m.over) { s.over++; s.bytes += m.size; }
-    });
-    return s;
-  }
-  function _optSizeLabel(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB"; }
-  function optimiseMedia() {
-    var ov = h("div", { class: "ak-ov" });
-    var status = h("div", { class: "sub" }, ["Reading your images\u2026"]);
-    var rowsWrap = h("div", {});
-    var steps = h("div", {});
-    ov.appendChild(h("div", { class: "ak-modal", style: "width:min(580px,100%)" }, [
-      h("h3", {}, ["Optimise images"]),
-      status, rowsWrap, steps,
-      h("div", { class: "ak-hint", style: "margin-top:10px" }, ["Anything wider or taller than " + IMG_MAX_EDGE + "px is re-saved at " + IMG_MAX_EDGE + "px \u2014 same visible quality, a fraction of the weight. Files you upload from now on are capped automatically."]),
-      h("div", { class: "ak-acts" }, [h("button", { class: "ak-btn ghost", onclick: function () { ov.remove(); } }, ["Close"])])
-    ]));
-    ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
-    document.body.appendChild(ov);
-
-    _optSource()
-      .then(function (src) {
-        var ix = _optGroups(src || {}); _optLastIx = ix;
-        if (!ix.all.length) { status.textContent = "No images to check yet."; return; }
-        var rowFor = {};
-        function mkRow(g) {
-          var val = h("span", { class: "v" }, ["\u2026"]);
-          var btn = h("button", { class: "ak-btn ghost", style: "display:none;padding:4px 10px;font-size:.7rem;flex:0 0 auto", onclick: function () { run(g); } }, ["Optimise"]);
-          rowFor[g.key] = { val: val, btn: btn, g: g };
-          return h("div", { class: "ak-xrow" }, [
-            h("span", { class: "k", style: g.kind === "item" ? "padding-left:16px;opacity:.86" : (g.kind === "all" ? "font-weight:600" : "") }, [g.label]),
-            h("span", { style: "display:flex;align-items:center;gap:9px;justify-content:flex-end" }, [val, btn])
-          ]);
-        }
-        var allG = { key: "all", label: "Everything", kind: "all", paths: ix.all };
-        rowsWrap.appendChild(h("div", { class: "ak-xsec" }, ["What to optimise"]));
-        rowsWrap.appendChild(h("div", { class: "ak-xrows" }, [mkRow(allG)].concat(ix.groups.map(mkRow))));
-        function paint() {
-          Object.keys(rowFor).forEach(function (k) {
-            var e = rowFor[k], s = _optStat(e.g.paths);
-            if (s.known < s.total) { e.val.textContent = s.known + " / " + s.total + " checked"; return; }
-            var fmtTail = s.notWebp ? " \u00b7 " + s.notWebp + " not WebP" : "";
-            if (s.over) { e.val.textContent = s.over + " of " + s.total + " oversized \u00b7 " + _optSizeLabel(s.bytes) + fmtTail; e.btn.style.display = ""; return; }
-            e.btn.style.display = "none";
-            e.val.textContent = (s.zipped ? (s.zipped + " fixed \u2713") : (s.total + " image" + (s.total === 1 ? "" : "s") + " \u00b7 all good \u2713")) + fmtTail;
-          });
-        }
-        paint();
-        var n = 0;
-        _optScan(ix.all, function () {
-          n++; status.textContent = "Checking " + n + " of " + ix.all.length + "\u2026";
-          if (n % 3 === 0) paint();
-        }).then(function () {
-          paint();
-          var s = _optStat(ix.all);
-          status.textContent = s.over
-            ? (s.over + " of " + s.total + " images are oversized \u2014 pick a scope below.")
-            : ("All " + s.total + " images are already the right size \u2014 nothing to do.");
-          if (s.notWebp) {
-            var box = h("div", { style: "margin-top:12px" }, [
-              h("div", { class: "ak-xsec" }, [s.notWebp + " image" + (s.notWebp === 1 ? " is" : "s are") + " not WebP"])
-            ]);
-            box.appendChild(h("div", { class: "ak-xrows" }, s.other.map(function (t) {
-              var bits = t.split(" \u00b7 ");
-              return h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, [bits[0]]), h("span", { class: "v", style: "color:var(--accent)" }, [bits[1]])]);
-            })));
-            box.appendChild(h("div", { class: "ak-hint", style: "margin-top:8px" }, [
-              "This site is WebP-only. Re-upload " + (s.notWebp === 1 ? "this one" : "these") + " through the editor \u2014 anything you drop in is converted to WebP automatically \u2014 then publish."
-            ]));
-            rowsWrap.appendChild(box);
-          }
-        });
-        function run(g) {
-          var queue = g.paths.filter(function (p) { var m = _optMeas[p]; return m && m.over && !m.zipped; });
-          if (!queue.length) { status.textContent = "Nothing left to optimise in " + g.label + "."; return; }
-          var count = queue.length, done = 0, fixed = [], localMap = {}, localN = 0, saved = 0, failed = [];
-          steps.innerHTML = "";
-          var detail = h("div", { class: "ak-xrows" });
-          steps.appendChild(h("div", { class: "ak-xsec" }, [g.label]));
-          steps.appendChild(detail);
-          (function nextOne() {
-            if (!document.body.contains(ov)) return;
-            if (!queue.length) return finish();
-            var p = queue.shift(), isLocal = _optIsLocal(p);
-            status.textContent = "Optimising " + (done + 1) + " of " + count + "\u2026";
-            (isLocal ? _optLocal(p) : _optImage(p)).then(function (r) {
-              done++;
-              r = r || { fail: "could not be read" };
-              if (r.bytes || r.src) {
-                if (r.src) { localMap[p] = r.src; localN++; }
-                else fixed.push({ name: p, bytes: r.bytes });
-                saved += (r.was - r.now);
-                var m = _optMeas[p]; if (m) { m.zipped = true; m.size = r.now; }
-                detail.appendChild(h("div", { class: "ak-xrow" }, [
-                  h("span", { class: "k" }, [_optShow(p)]),
-                  h("span", { class: "v" }, [r.from + " \u2192 " + r.to + " \u00b7 " + Math.round(r.was / 1024) + " \u2192 " + Math.round(r.now / 1024) + " KB"])
-                ]));
-              } else {
-                var why = r.fail || r.skip;
-                if (r.skip) { var mm = _optMeas[p]; if (mm) mm.over = false; }
-                else failed.push(p);
-                detail.appendChild(h("div", { class: "ak-xrow" }, [
-                  h("span", { class: "k" }, [_optShow(p)]),
-                  h("span", { class: "v", style: r.fail ? "color:var(--accent)" : "" }, [(r.fail ? "\u26A0 " : "") + why])
-                ]));
-              }
-              paint(); nextOne();
-            });
-          })();
-          function failNote() {
-            steps.appendChild(h("div", { class: "ak-hint", style: "margin-top:8px" }, [
-              failed.length + " file" + (failed.length === 1 ? " was" : "s were") + " skipped above. Re-run this on a desktop Chrome or Edge window \u2014 it handles the very large ones \u2014 or resize " + (failed.length === 1 ? "it" : "them") + " to " + IMG_MAX_EDGE + "px in Preview/Photos and re-upload."
-            ]));
-          }
-          function finish() {
-            /* two kinds of fix: a published file comes back as a repo file in the ZIP, an
-               unpublished upload is rewritten in the working copy right here */
-            var wrote = Object.keys(localMap).length
-              ? _optWriteLocal(localMap).then(function () { return save(); })["catch"](function () {})
-              : Promise.resolve();
-            wrote.then(function () {
-              if (!fixed.length) {
-                status.textContent = localN
-                  ? (localN + " new upload" + (localN === 1 ? "" : "s") + " shrunk \u00b7 " + _optSizeLabel(saved) + " lighter \u00b7 saved here \u2014 publish to send " + (localN === 1 ? "it" : "them") + " live")
-                  : (failed.length
-                      ? (failed.length + " image" + (failed.length === 1 ? "" : "s") + " could not be re-saved here \u2014 see below.")
-                      : ("Nothing needed changing in " + g.label + "."));
-                if (failed.length) failNote();
-                return;
-              }
-              var zip = makeZip(fixed.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; }));
-              var a2 = h("a", { href: URL.createObjectURL(zip), download: "optimised-images.zip" });
-              document.body.appendChild(a2); a2.click(); a2.remove();
-              status.textContent = (fixed.length + localN) + " image" + ((fixed.length + localN) === 1 ? "" : "s") + " shrunk \u00b7 " + _optSizeLabel(saved) + " lighter \u00b7 optimised-images.zip downloaded";
-              steps.appendChild(h("div", { class: "ak-xsec" }, ["To publish"]));
-              steps.appendChild(h("ol", { class: "ak-xsteps" }, [
-                h("li", {}, ["Unzip optimised-images.zip."]),
-                h("li", {}, ["From Ajaykatta_Website / GitRepo, copy the media folder into your repo \u2014 replace the old files."]),
-                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
-              ]));
-              if (localN) steps.appendChild(h("div", { class: "ak-hint", style: "margin-top:8px" }, [
-                localN + " not-yet-published upload" + (localN === 1 ? " was" : "s were") + " fixed inside your working copy \u2014 " + (localN === 1 ? "it goes" : "they go") + " live with your next publish."
-              ]));
-              if (failed.length) failNote();
-            });
-          }
-        }
-      });
-  }
-  /* the size check shown in the Export / Publish pre-flight, so nothing oversized ships by accident */
-  function optCheckRow() {
-    var val = h("span", { class: "v" }, []);
-    var row = h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Image sizes"]), val]);
-    function txt(t) { val.innerHTML = ""; val.appendChild(document.createTextNode(t)); }
-    function render() {
-      if (!_optLastIx) {
-        val.innerHTML = "";
-        val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem", onclick: check }, ["Check now"]));
-        return;
-      }
-      var s = _optStat(_optLastIx.all);
-      if (s.known < s.total) return txt("checking " + s.known + " / " + s.total + "\u2026");
-      if (s.over) {
-        val.innerHTML = "";
-        val.appendChild(h("strong", { style: "color:var(--accent)" }, ["\u26A0 " + s.over + " oversized" + (s.notWebp ? " \u00b7 " + s.notWebp + " not WebP" : "")]));
-        val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem;margin-left:8px", onclick: function () { optimiseMedia(); } }, ["Optimise"]));
-        return;
-      }
-      if (s.notWebp) {
-        val.innerHTML = "";
-        val.appendChild(h("strong", { style: "color:var(--accent)" }, ["\u26A0 " + s.notWebp + " not WebP"]));
-        val.appendChild(h("button", { class: "ak-btn ghost", style: "padding:4px 10px;font-size:.7rem;margin-left:8px", onclick: function () { optimiseMedia(); } }, ["Show"]));
-        return;
-      }
-      txt(s.zipped ? (s.zipped + " fixed \u2014 publish to send " + (s.zipped === 1 ? "it" : "them") + " live") : ("All " + s.total + " optimised \u00b7 WebP \u2713"));
-    }
-    function check() {
-      txt("Reading\u2026");
-      _optSource()
-        .then(function (src) {
-          _optLastIx = _optGroups(src || {});
-          if (!_optLastIx.all.length) return txt("no images yet");
-          var n = 0;
-          _optScan(_optLastIx.all, function () { n++; txt("Checking " + n + " of " + _optLastIx.all.length + "\u2026"); }).then(render);
-        });
-    }
-    render();
-    return row;
-  }
-  window.AK_OPTIMISE = optimiseMedia;   /* so the site editor can deep-link the fixer */
-  /* ---- media extraction helpers ---- */
-  function _slug(s) { return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
-  function _extFor(mime, fallback) {
-    var map = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg",
-      "application/pdf": "pdf", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/ogg": "ogv",
-      "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "oga",
-      "model/gltf-binary": "glb", "model/gltf+json": "gltf" };
-    return map[(mime || "").toLowerCase()] || fallback || "bin";
-  }
-  function _dataURLBytes(d) {
-    var comma = d.indexOf(","), meta = d.slice(5, comma), body = d.slice(comma + 1), bytes;
-    if (/;base64/i.test(meta)) { var bin = atob(body); bytes = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); }
-    else { bytes = new TextEncoder().encode(decodeURIComponent(body)); }
-    return { mime: (meta.split(";")[0] || ""), bytes: bytes };
-  }
-  /* Same result, but the browser does the base64 for us. atob() + a per-character loop over a
-     100 MB video is where the export used to stall or run the tab out of memory — and a video
-     that never finished decoding was a video missing from the ZIP. */
-  function _dataBytesAsync(d) {
-    var mime = (d.slice(5).split(";")[0] || "").split(",")[0];
-    if (typeof fetch === "function") {
-      return fetch(d).then(function (r) { return r.arrayBuffer(); })
-        .then(function (b) { return { mime: mime, bytes: new Uint8Array(b) }; })
-        ["catch"](function () { return _dataURLBytes(d); });
-    }
-    return Promise.resolve(_dataURLBytes(d));
-  }
-  function _kindOf(mime, ext) {
-    var m = String(mime || "").toLowerCase(), e = String(ext || "").toLowerCase();
-    if (m.indexOf("image/") === 0 || /^(webp|jpe?g|png|gif|svg|avif)$/.test(e)) return "photo";
-    if (m.indexOf("video/") === 0 || /^(mp4|webm|mov|m4v|ogv)$/.test(e)) return "video";
-    if (m.indexOf("audio/") === 0 || /^(mp3|wav|m4a|aac|oga|ogg)$/.test(e)) return "audio";
-    if (m === "application/pdf" || e === "pdf") return "pdf";
-    if (m.indexOf("model/") === 0 || /^(glb|gltf|usdz|obj|fbx|stl)$/.test(e)) return "model";
-    return "other";
-  }
-  function _sizeLabel(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
-
-  /* ---- canvas images: ship them at the size they are actually shown --------------------
-     A reference photo dropped on a canvas at 280 units wide was still a full-size file — the
-     visitor downloaded roughly ten times the pixels the browser drew. The canvas is 1200
-     units fitted to the column, so 2.5× the element's own box covers a retina screen at any
-     realistic column width; the floor keeps a small thumbnail from turning to mush. Only
-     images ON A CANVAS are touched — covers and full-width blocks keep their full size. */
-  var CANVAS_PX_PER_UNIT = 2.5, CANVAS_MIN_EDGE = 1280;
-  function _canvasTarget(el) {
-    var long = Math.max(+el.w || 0, +el.h || 0);
-    if (!long) return 0;
-    return Math.min(IMG_MAX_EDGE, Math.max(CANVAS_MIN_EDGE, Math.round(long * CANVAS_PX_PER_UNIT)));
-  }
-  function _refit(src, target) {
-    return fetch(src).then(function (r) { return r.ok ? r.blob() : null; }).then(function (blob) {
-      if (!blob || blob.type.indexOf("image/") !== 0 || blob.type === "image/gif" || blob.type.indexOf("svg") > -1) return null;
-      return _optDecode(blob).then(function (dec) {
-        var long = Math.max(dec.w, dec.h);
-        if (!long || (long <= target * 1.15 && blob.type === "image/webp")) { dec.release(); return null; }
-        var k = Math.min(1, target / long);
-        var w = Math.max(1, Math.round(dec.w * k)), hh = Math.max(1, Math.round(dec.h * k)), cv;
-        try { cv = _optScaleTo(dec, w, hh); } catch (e) { dec.release(); return null; }
-        dec.release();
-        var out = null;
-        try { out = cv.toDataURL("image/webp", 0.86); } catch (e) {}
-        cv.width = cv.height = 1;
-        if (!out || out.indexOf("data:image/webp") !== 0) return null;
-        var bytes = (out.length - out.indexOf(",") - 1) * 0.75;
-        if (bytes > blob.size * 0.9) return null;          // no real saving — keep the original
-        return { src: out, saved: blob.size - bytes };
-      });
-    })["catch"](function () { return null; });
-  }
-  function _rightSizeCanvas(bundle, showUI) {
-    var jobs = [];    (function walk(node, depth) {
-      if (!node || typeof node !== "object" || depth > 12) return;
-      if (Array.isArray(node)) { node.forEach(function (v) { walk(v, depth + 1); }); return; }
-      var c = node.content;
-      if (c && c.type === "image" && typeof c.src === "string" && c.src && (+node.w || +node.h)) {
-        var t = _canvasTarget(node);
-        if (t) jobs.push({ c: c, t: t });
-      }
-      Object.keys(node).forEach(function (k) { if (node[k] && typeof node[k] === "object") walk(node[k], depth + 1); });
-    })(bundle, 0);
-    if (!jobs.length) return Promise.resolve(0);
-    /* The same picture placed in several spots is ONE file: group by source and re-encode
-       once, at the largest size any of those spots needs. */
-    var byS = {};
-    jobs.forEach(function (j) {
-      var g = byS[j.c.src] || (byS[j.c.src] = { src: j.c.src, t: 0, cs: [] });
-      g.t = Math.max(g.t, j.t); g.cs.push(j.c);
-    });
-    jobs = Object.keys(byS).map(function (k) { return byS[k]; });
-
-    var ov = null, line = null;
-    if (showUI && jobs.length > 3) {
-      line = h("div", { class: "sub" }, ["0 of " + jobs.length]);
-      ov = h("div", { class: "ak-ov", style: "z-index:2147483600" }, [
-        h("div", { class: "ak-modal", style: "width:min(380px,100%)" }, [h("h3", {}, ["Right-sizing canvas photos…"]), line])
-      ]);
-      document.body.appendChild(ov);
-    }
-    var i = 0, done = 0, saved = 0;
-    function next() {
-      if (i >= jobs.length) return Promise.resolve();
-      var j = jobs[i++];
-      return _refit(j.src, j.t).then(function (out) {
-        if (out) { j.cs.forEach(function (c) { c.src = out.src; }); saved += out.saved; }
-        done++;
-        if (line) line.textContent = done + " of " + jobs.length;
-        return next();
-      });
-    }
-    /* two at a time — decoding several large photos at once is what makes an iPad give up */
-    return Promise.all([next(), next()]).then(function () {
-      if (ov) ov.remove();
-      return saved;
-    }, function () { if (ov) ov.remove(); return 0; });
-  }
-  /* ---- one file per picture -----------------------------------------------------------
-     The same photo can arrive by several routes: uploaded twice, on a canvas AND in a block,
-     already published under two names. Identical bytes are written once and every reference
-     points at that one file — the ZIP, the repo and the visitor's browser all carry it once. */
-  function _fnv(b) { var x = 2166136261; for (var i = 0; i < b.length; i++) { x ^= b[i]; x = (x * 16777619) >>> 0; } return "f" + x.toString(36); }
-  function _hashBytes(b) {
-    try {
-      if (window.crypto && crypto.subtle && crypto.subtle.digest) {
-        var buf = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
-        return crypto.subtle.digest("SHA-1", buf).then(function (d) {
-          var a = new Uint8Array(d), s = "";
-          for (var i = 0; i < a.length; i++) s += ("0" + a[i].toString(16)).slice(-2);
-          return s;
-        })["catch"](function () { return _fnv(b); });
-      }
-    } catch (e) {}
-    return Promise.resolve(_fnv(b));
-  }
-  function _dedupeFiles(files, bundle) {
-    if (files.length < 2) return Promise.resolve(0);
-    var i = 0, byHash = {}, remap = {}, keep = [], saved = 0, dropped = 0;
-    function step() {
-      if (i >= files.length) return Promise.resolve();
-      var f = files[i++];
-      return _hashBytes(f.bytes).then(function (hx) {
-        var key = f.bytes.length + ":" + hx;
-        if (byHash[key]) { remap[f.name] = byHash[key]; saved += f.bytes.length; dropped++; }
-        else { byHash[key] = f.name; keep.push(f); }
-        return step();
-      });
-    }
-    return step().then(function () {
-      if (!dropped) return 0;
-      files.length = 0;
-      keep.forEach(function (f) { files.push(f); });
-      (function walk(node, depth) {
-        if (!node || typeof node !== "object" || depth > 14) return;
-        Object.keys(node).forEach(function (k) {
-          var v = node[k];
-          if (typeof v === "string") { if (remap[v]) node[k] = remap[v]; return; }
-          if (v && typeof v === "object") walk(v, depth + 1);
-        });
-      })(bundle, 0);
-      return saved;
-    })["catch"](function () { return 0; });
-  }
-
-  /* every "data:<page>" working copy in this browser, so a category page added later
-     is exported without a code change */
-  function _idbDataKeys() {
-    return db().then(function (d) {
-      return new Promise(function (res) {
-        try {
-          var r = d.transaction("kv").objectStore("kv").getAllKeys();
-          r.onsuccess = function () {
-            res((r.result || []).filter(function (k) { return typeof k === "string" && k.indexOf("data:") === 0; })
-                                .map(function (k) { return k.slice(5); }));
-          };
-          r.onerror = function () { res([]); };
-        } catch (e) { res([]); }
-      });
-    })["catch"](function () { return []; });
-  }
-  function _pageKeys(pub, localKeys) {
-    var out = [], seen = {};
-    ["ui-ux", "gen-ai", "3d"].concat(Object.keys(pub || {}), localKeys || []).forEach(function (k) {
-      if (!k || k === "home" || seen[k]) return;
-      seen[k] = 1; out.push(k);
-    });
-    return out;
-  }
-  /* ---- export: tiny JSON + media/ folder, zipped (GitHub & Vercel ready) ---- */
-  function exportData(silent) {
-    silent = (silent === true);
-    return save().then(function () {
-      // Read BOTH this browser's local edits (IndexedDB) AND the currently-published JSON.
-      // A page only has a local copy if it was edited on THIS device; untouched pages must
-      // fall back to the published data, otherwise they'd be dropped from the export.
-      return Promise.all([
-        fetch("portfolio-data.json", { cache: "no-store" })
-          .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
-        _idbDataKeys()
-      ]).then(function (pre) {
-        var pub = pre[0] || {};
-        var keys = _pageKeys(pub, pre[1]);
-        return Promise.all(keys.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
-        var bundle = {};
-        keys.forEach(function (k, i) {
-          var local = vals[i];
-          var localUsable = local && local.items && local.items.length > 0;
-          var hasLocalEdits = false; try { hasLocalEdits = !!localStorage.getItem("ak-local-edits:" + k); } catch (e) {}
-          if (hasLocalEdits && localUsable) { bundle[k] = local; }          // edited on this device — use working copy
-          else if (pub[k] && pub[k].items) { bundle[k] = pub[k]; }          // untouched — keep what's already published
-          else if (localUsable) { bundle[k] = local; }                      // no published copy yet — use local
-        });
-        // The page open right now: what is on screen is fresher than anything on disk. If a save
-        // failed (full quota), the stored copy is stale — shipping it would drop the new work.
-        if (DATA && DATA.items && DATA.items.length) { bundle[CFG.page] = DATA; }
-        else if (!bundle[CFG.page]) { bundle[CFG.page] = DATA; }
-
-        // ---- HOME PAGE content (certificates + project cover photos) ----
-        // These live in localStorage on the home page, NOT in any project's IndexedDB.
-        // Same merge rule as projects: this device's local edits win, else keep what's published.
-        var home = {};
-        var lsCerts = null;
-        try { var rawC = localStorage.getItem("ak-certs"); if (rawC) { var arrC = JSON.parse(rawC); if (Array.isArray(arrC)) lsCerts = arrC; } } catch (e) {}
-        if (lsCerts) { home.certs = lsCerts; }
-        else if (pub.home && Array.isArray(pub.home.certs)) { home.certs = pub.home.certs; }
-        var covers = {};
-        keys.forEach(function (k) {
-          var lv = null; try { lv = localStorage.getItem("ak-cover-" + k); } catch (e) {}
-          if (lv) { covers[k] = lv; }
-          else if (pub.home && pub.home.covers && pub.home.covers[k]) { covers[k] = pub.home.covers[k]; }
-        });
-        if (Object.keys(covers).length) { home.covers = covers; }
-        var lsProfile = null; try { lsProfile = localStorage.getItem("ak-profile-photo"); } catch (e) {}
-        if (lsProfile) { home.profile = lsProfile; }
-        else if (pub.home && pub.home.profile) { home.profile = pub.home.profile; }
-        if (home.certs || home.covers || home.profile) { bundle.home = home; }
-
-        bundle = JSON.parse(JSON.stringify(bundle)); // clone — never corrupt live data
-
-        return _rightSizeCanvas(bundle, !silent).then(function (canvasSaved) {
-
-        var files = [], used = {}, seen = {}, made = {}, fetches = [];
-        var resumeIncluded = false;
-        var mstat = { photo: 0, video: 0, audio: 0, pdf: 0, model: 0, other: 0, bytes: 0, missing: [] };
-        // include a replaced résumé PDF (admin) at media/home/ — the exact path the pages reference
-        fetches.push(idbGet("ak-resume-pdf").then(function (d) {
-          if (d && d.indexOf("data:") === 0) { var got = _dataURLBytes(d); files.push({ name: "media/home/Ajay-Katta-uiux-product-designer-2026.pdf", bytes: got.bytes }); resumeIncluded = true; }
-        }).catch(function () {}));
-        // Each asset is filed under media/<folder>/ where <folder> is the project key
-        // (ui-ux | gen-ai | 3d | home). nameFor returns the path AFTER "media/".
-        function nameFor(folder, base, ext) {
-          base = (base || "asset").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "asset";
-          var dir = folder ? folder + "/" : "";
-          var nm = dir + base + "." + ext, n = 2;
-          while (used[nm]) nm = dir + base + "-" + (n++) + "." + ext;
-          used[nm] = 1; return nm;
-        }
-        function stash(ref, folder, hintBase, hintExt) {
-          if (!ref || typeof ref !== "string") return ref;
-          if (made[ref]) return ref;                        // already a file we produced this run
-          if (ref.indexOf("data:") === 0) {                 // freshly uploaded file (inline data URL)
-            if (seen[ref]) return seen[ref];
-            var mime = (ref.slice(5).split(";")[0] || "").split(",")[0];
-            var ext = _extFor(mime, hintExt);
-            var path = "media/" + nameFor(folder, _slug(hintBase), ext);
-            seen[ref] = path; made[path] = 1;
-            mstat[_kindOf(mime, ext)]++;
-            fetches.push(_dataBytesAsync(ref).then(function (got) {
-              files.push({ name: path, bytes: got.bytes });
-              mstat.bytes += got.bytes.length;
-            })["catch"](function () { mstat.missing.push(path); }));
-            return path;
-          }
-          if (/^media\//i.test(ref)) {                      // already-published file — re-bundle AND migrate it into media/<folder>/
-            if (seen[ref]) return seen[ref];
-            var basename = ref.replace(/^media\//, "").replace(/^.*\//, "");
-            var dot = basename.lastIndexOf("."), b = dot > 0 ? basename.slice(0, dot) : basename, e = dot > 0 ? basename.slice(dot + 1) : "bin";
-            var path2 = "media/" + nameFor(folder, b, e);
-            seen[ref] = path2; made[path2] = 1;
-            mstat[_kindOf("", e)]++;
-            fetches.push(fetch(ref).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).then(function (buf) {
-              if (buf) { files.push({ name: path2, bytes: new Uint8Array(buf) }); mstat.bytes += buf.byteLength; }
-              else { mstat.missing.push(ref); }
-            })["catch"](function () { mstat.missing.push(ref); }));
-            return path2;
-          }
-          return ref; // root-level file (e.g. cert-google-ux.webp) or external URL — leave untouched
-        }
-        function walkBlocks(blocks, folder, base) {
-          (blocks || []).forEach(function (b, i) {
-            if (!b || b.type === "prototype") return; // prototype src is an embed URL
-            if (b.src) b.src = stash(b.src, folder, base + "-" + (b.type || "asset") + "-" + (i + 1), b.format);
-          });
-        }
-        /* Blocks are only ONE of the places a file lives. A Layout-Studio canvas keeps its
-           pictures in studio.els[].content.src, a block's shapes in deco.els[], a canvas block
-           in design.els[] — and none of those were ever extracted, so those photos and videos
-           stayed as base64 inside portfolio-data.json: nothing in media/, and a data file tens
-           of MB heavy. This sweeps every nested object so a file cannot hide again, wherever a
-           future feature decides to keep it. */
-        var INLINE_MIN = 2048;   // under this a data: URL stays inline — not worth its own file
-        var NOISE = { content: 1, els: 1, design: 1, blocks: 1, items: 1, cases: 1, src: 1, meta: 1, info: 1 };
-        function sweep(node, folder, base, depth) {
-          if (!node || typeof node !== "object" || depth > 12) return;
-          if (Array.isArray(node)) {
-            /* A file can also sit in a plain array of strings — Layout-Studio keeps a shape's
-               reference photos as detail.refs[] — and those used to be skipped here, so they
-               stayed base64 in the JSON (one handbag project shipped 11 MB that way). */
-            node.forEach(function (v, i) {
-              if (typeof v === "string") {
-                var isD = v.indexOf("data:") === 0, isM = /^media\//i.test(v);
-                if (!isD && !isM) return;
-                if (isD && v.length < INLINE_MIN) return;
-                node[i] = stash(v, folder, base + "-" + (i + 1));
-                return;
-              }
-              if (v && typeof v === "object") sweep(v, folder, base + "-" + (i + 1), depth + 1);
-            });
-            return;
-          }
-          if (node.type === "prototype") return;            // embed URL, not a file
-          Object.keys(node).forEach(function (k) {
-            var v = node[k];
-            if (typeof v === "string") {
-              var isData = v.indexOf("data:") === 0, isMedia = /^media\//i.test(v);
-              if (!isData && !isMedia) return;
-              if (isData && v.length < INLINE_MIN) return;   // tiny inline glyph — ships fine inside the JSON
-              node[k] = stash(v, folder, base + (NOISE[k] ? "" : "-" + _slug(k)), node.format);
-              return;
-            }
-            if (v && typeof v === "object") sweep(v, folder, base + (NOISE[k] ? "" : "-" + _slug(k)), depth + 1);
-          });
-        }
-        Object.keys(bundle).forEach(function (page) {
-          if (page === "home") return; // home images handled separately below
-          var d = bundle[page] || {};
-          (d.items || []).forEach(function (it, i) {
-            var base = _slug(it.title) || (page + "-" + i);
-            if (it.cover) it.cover = stash(it.cover, page, base + "-cover");
-            if (it.homeBg && it.homeBg.video) it.homeBg.video = stash(it.homeBg.video, page, base + "-home-bg");
-            if (it.homeBg && it.homeBg.image) it.homeBg.image = stash(it.homeBg.image, page, base + "-home-bg-image");
-            walkBlocks(it.blocks, page, base);
-            sweep(it, page, base, 0);                       // canvas layouts, shapes, anything nested
-          });
-          var cases = d.cases || {};
-          Object.keys(cases).forEach(function (ck) {
-            var c = cases[ck] || {};
-            if (c.info && c.info.cover) c.info.cover = stash(c.info.cover, page, ck + "-cover");
-            walkBlocks(c.blocks, page, ck);
-            sweep(c, page, ck, 0);
-          });
-          sweep(d, page, page, 0);                          // page-level extras (canvas themes, defaults)
-        });
-
-        // stash home-page images (certificate scans + project cover photos) under media/home/
-        if (bundle.home) {
-          (bundle.home.certs || []).forEach(function (c, i) {
-            if (c && c.img) c.img = stash(c.img, "home", "certificate-" + (_slug(c.title) || (i + 1)));
-          });
-          if (bundle.home.covers) Object.keys(bundle.home.covers).forEach(function (k) {
-            bundle.home.covers[k] = stash(bundle.home.covers[k], "home", k + "-cover");
-          });
-          if (bundle.home.profile) bundle.home.profile = stash(bundle.home.profile, "home", "profile-photo");
-          sweep(bundle.home, "home", "home", 0);
-        }
-
-        return Promise.all(fetches).then(function () {
-          return _dedupeFiles(files, bundle);
-        }).then(function (dupSaved) {
-          var jsonText = JSON.stringify(bundle, null, 2);
-          if (silent) return { json: jsonText, files: files };
-          var mediaCount = files.length; // media only — JSON not added yet
-          var mediaBytes = 0; files.forEach(function (f) { mediaBytes += f.bytes.length; });
-          // Nothing big should be left inline: a data: URL still in here means a file the ZIP does not
-          // carry. Tiny ones are deliberate (see INLINE_MIN) and must not raise a false alarm.
-          var leftInline = (jsonText.match(/"data:[^"]*"/g) || []).filter(function (s) { return s.length >= INLINE_MIN; }).length;
-          function counts(obj) { var o = { total: 0 }; keys.forEach(function (k) { var n = (obj && obj[k] && obj[k].items) ? obj[k].items.length : 0; o[k] = n; o.total += n; }); return o; }
-          var nowC = counts(bundle);
-          function doneModal(info) {
-            var ov2 = h("div", { class: "ak-ov" });
-            function close2() { ov2.remove(); }
-            ov2.appendChild(h("div", { class: "ak-modal", style: "width:min(480px,100%)" }, [
-              h("h3", {}, [!info ? "Export complete \u2713" : (info.mode === "delta" ? "Your changes are downloaded \u2713" : "Your updated website is downloaded \u2713")]),
-              h("div", { class: "sub" }, [info ? info.name + " \u00b7 " + info.sizeLabel + " \u00b7 " + info.count + " files"
-                                              : "portfolio-site-data.zip is downloading."]),
-              h("div", { class: "ak-xsec" }, ["Inside the ZIP"]),
-              h("div", { class: "ak-xrows" }, info ? (info.mode === "delta"
-                ? (info.changed || []).slice(0, 12).map(function (n) { return h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, [n]), h("span", { class: "v" }, ["changed"])]); })
-                    .concat((info.changed || []).length > 12 ? [h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["+ " + ((info.changed || []).length - 12) + " more"]), h("span", { class: "v" }, [""])])] : [])
-                : [
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Whole website"]), h("span", { class: "v" }, ["pages, scripts, photos"])]),
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["portfolio-data.json"]), h("span", { class: "v" }, ["your case studies"])]),
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["site-content.json"]), h("span", { class: "v" }, ["your page edits"])])
-              ]) : [
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["portfolio-data.json"]), h("span", { class: "v" }, ["your content"])]),
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["media/"]), h("span", { class: "v" }, [mediaCount + " file" + (mediaCount === 1 ? "" : "s")])])
-              ]),
-              h("div", { class: "ak-xsec" }, ["To publish"]),
-              h("ol", { class: "ak-xsteps" }, info ? (info.mode === "delta" ? [
-                h("li", {}, ["Unzip it."]),
-                h("li", {}, ["Open Ajaykatta_Website / GitRepo and copy these files into your repo, same folder layout \u2014 replace what's there."]),
-                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
-              ] : [
-                h("li", {}, ["Unzip it."]),
-                h("li", {}, ["Copy everything inside Ajaykatta_Website / GitRepo into your repo, keeping the same folder layout \u2014 replace the old files."]),
-                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."]),
-                h("li", {}, ["Want to check it first? Open GitRepo/index.html."])
-              ]) : [
-                h("li", {}, ["Unzip it."]),
-                h("li", {}, ["From Ajaykatta_Website / GitRepo, copy portfolio-data.json AND the media folder into your site repo, next to your HTML pages \u2014 replace the old ones."]),
-                h("li", {}, ["Push to GitHub. Vercel redeploys automatically."])
-              ]),
-              h("div", { class: "ak-acts" }, [
-                h("button", { class: "ak-btn", onclick: close2 }, ["Done"])
-              ])
-            ]));
-            ov2.addEventListener("click", function (e) { if (e.target === ov2) close2(); });
-            document.body.appendChild(ov2);
-          }
-          function legacyZip() {
-            var f2 = files.slice();
-            f2.unshift({ name: "portfolio-data.json", bytes: new TextEncoder().encode(jsonText) });
-            f2 = f2.map(function (f) { return { name: "Ajaykatta_Website/GitRepo/" + f.name, bytes: f.bytes }; });
-            var zip = makeZip(f2);
-            var a = h("a", { href: URL.createObjectURL(zip), download: "portfolio-site-data.zip" });
-            document.body.appendChild(a); a.click(); a.remove();
-            markCasesPublished();
-            setTimeout(function () { doneModal(null); }, 200);
-          }
-          function proceed(mode) {
-            if (location.protocol === "file:") return legacyZip();
-            ensurePkg().then(function (pkg) {
-              return pkg.full({ mode: mode === "delta" ? "delta" : "full", portfolioJSON: jsonText, portfolioFiles: files });
-            }).then(function (info) {
-              if (info && info.empty) { alert("Nothing to publish \u2014 the live site already matches your changes."); return; }
-              markCasesPublished();
-              setTimeout(function () { doneModal(info); }, 200);
-            })["catch"](function () { legacyZip(); });
-          }
-          // pre-flight: compare against the currently-published JSON so a partial export can't silently wipe projects
-          fetch("portfolio-data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (pub) {
-            var labels = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
-            function label(k) { return labels[k] || k; }
-            var warn = [];
-            if (pub) {
-              var pubC = counts(pub);
-              keys.forEach(function (k) { if (nowC[k] < pubC[k]) warn.push(label(k) + ": live has " + pubC[k] + ", this export has only " + nowC[k]); });
-            }
-            var homeCerts = (bundle.home && Array.isArray(bundle.home.certs)) ? bundle.home.certs.length : 0;
-            var homeCovers = (bundle.home && bundle.home.covers) ? Object.keys(bundle.home.covers).length : 0;
-            var homeProfile = !!(bundle.home && bundle.home.profile);
-            function row(k, v) { return h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, [k]), h("span", { class: "v" }, [String(v)])]); }
-            var ov = h("div", { class: "ak-ov" });
-            function close() { ov.remove(); }
-            ov.appendChild(h("div", { class: "ak-modal", style: "width:min(480px,100%)" }, [
-              h("h3", {}, ["Export site data"]),
-              h("div", { class: "sub" }, ["You get your whole website, updated \u2014 this replaces all content on your live site."]),
-              h("div", { class: "ak-xsec" }, ["Projects"]),
-              h("div", { class: "ak-xrows" }, keys.map(function (k) {
-                return row(label(k), nowC[k] + " project" + (nowC[k] === 1 ? "" : "s"));
-              })),
-              h("div", { class: "ak-xsec" }, ["Home page"]),
-              h("div", { class: "ak-xrows" }, [
-                row("Certifications", homeCerts),
-                row("Project covers", homeCovers),
-                row("Profile photo", homeProfile ? "Included" : "Default"),
-                row("R\u00e9sum\u00e9 PDF", resumeIncluded ? "Updated \u2014 in ZIP" : "Unchanged")
-              ]),
-              h("div", { class: "ak-xsec" }, ["Bundle"]),
-              h("div", { class: "ak-xrows" }, [
-                row("Photos", mstat.photo),
-                mstat.video ? row("Video", mstat.video) : null,
-                mstat.audio ? row("Audio", mstat.audio) : null,
-                mstat.pdf ? row("PDFs", mstat.pdf) : null,
-                mstat.model ? row("3D models", mstat.model) : null,
-                row("Files in media/", mediaCount + " \u00b7 " + _sizeLabel(mediaBytes)),
-                canvasSaved ? row("Canvas photos right-sized", _sizeLabel(canvasSaved) + " lighter") : null,
-                dupSaved ? row("Duplicates merged", _sizeLabel(dupSaved) + " saved") : null,
-                row("Data file", _sizeLabel(jsonText.length)),
-                optCheckRow()
-              ].filter(Boolean)),
-              (leftInline || mstat.missing.length) ? h("div", { class: "ak-xwarn" }, [
-                h("strong", {}, ["\u26A0 " + (leftInline + mstat.missing.length) + " file" + ((leftInline + mstat.missing.length) === 1 ? "" : "s") + " could not be packed."]),
-                leftInline ? h("div", { style: "margin-top:6px" }, [leftInline + " still sitting inside the data file instead of media/."]) : null,
-                mstat.missing.length ? h("div", { style: "margin-top:6px" }, ["Couldn't read: " + mstat.missing.slice(0, 4).join(", ") + (mstat.missing.length > 4 ? " +" + (mstat.missing.length - 4) + " more" : "")]) : null,
-                h("div", { style: "margin-top:6px" }, ["Tell Claude before you publish \u2014 those items would go missing on the live site."])
-              ].filter(Boolean)) : null,
-              warn.length ? h("div", { class: "ak-xwarn" }, [
-                h("strong", {}, ["\u26A0 This export has FEWER projects than your live site."]),
-                h("div", { style: "margin-top:6px" }, warn.map(function (w) { return h("div", {}, ["\u2022 " + w]); })),
-                h("div", { style: "margin-top:6px" }, ["Publishing it will DELETE those missing projects."])
-              ]) : null,
-              h("div", { class: "ak-xsec" }, ["Download"]),
-              h("div", { class: "ak-xrows" }, [
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Only my changes"]), h("span", { class: "v" }, ["about " + _sizeLabel(mediaBytes + jsonText.length)])]),
-                h("div", { class: "ak-xrow" }, [h("span", { class: "k" }, ["Whole website"]), h("span", { class: "v" }, ["much larger \u2014 every page and photo"])])
-              ]),
-              h("div", { class: "ak-hint", style: "margin-top:8px" }, ["\u201CWhole website\u201D also re-downloads every photo already on your live site, so it is always the bigger file. Both publish the same content \u2014 pick \u201COnly my changes\u201D unless you want a full backup."]),
-              h("div", { class: "ak-acts" }, [
-                h("button", { class: "ak-btn ghost", onclick: close }, ["Cancel"]),
-                h("button", { class: "ak-btn ghost", onclick: function () { close(); proceed("full"); } }, ["Whole website"]),
-                h("button", { class: "ak-btn" + (warn.length ? " danger" : ""), onclick: function () { close(); proceed("delta"); } }, [warn.length ? "Changes only (anyway)" : "Only my changes"])
-              ])
-            ]));
-            ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
-            document.body.appendChild(ov);
-          });
-        });
-        });
-        });
-      });
-    });
-  }
-  /* the whole-website packager is shared with site-edit.js — fetched on demand */
-  function ensurePkg() {
-    if (window.AK_PACKAGE) return Promise.resolve(window.AK_PACKAGE);
-    return new Promise(function (res, rej) {
-      var id = "ak-package-js";
-      if (!document.getElementById(id)) document.body.appendChild(h("script", { id: id, src: "site-package.js?v=3" }));
-      var tries = 0;
-      (function poll() {
-        if (window.AK_PACKAGE) return res(window.AK_PACKAGE);
-        if (++tries > 120) return rej(new Error("packager unavailable"));
-        setTimeout(poll, 50);
-      })();
-    });
-  }
-  // lets Settings → Publish include unpublished case-study edits from this device
-  // markPublished(): after a successful download, the projects on this device ARE the
-  // live ones — the snapshot is what stops Settings → Projects showing them as edited.
-  function markCasesPublished() {
-    return _idbDataKeys().then(function (ks) {
-      if (!ks.length) ks = ["ui-ux", "gen-ai", "3d"];
-      return Promise.all(ks.map(function (k) { return idbGet("data:" + k); })).then(function (vals) {
-      var data = {};
-      ks.forEach(function (k, i) { if (vals[i]) data[k] = vals[i]; });
-      return idbSet("case:pub-base", { at: Date.now(), data: data });
-    }).then(function () {
-      try { document.dispatchEvent(new CustomEvent("ak-cases-changed")); } catch (e) {}
-      });
-    })["catch"](function () {});
-  }
-  window.AK_ADMIN_DATA = { build: function () { return exportData(true); }, markPublished: markCasesPublished };
-
-  function importData() {
-    var fi = h("input", { type: "file", accept: "application/json,.json", style: "display:none" });
-    document.body.appendChild(fi);
-    fi.addEventListener("change", function () {
-      var f = fi.files[0]; if (!f) return;
-      f.text().then(function (txt) {
-        try {
-          var obj = JSON.parse(txt);
-          var keys = Object.keys(obj).filter(function (k) { return obj[k] && obj[k].items; });
-          if (!keys.length && obj.items) { obj = { ["" + CFG.page]: obj }; keys = [CFG.page]; }
-          return Promise.all(keys.map(function (k) { return idbSet("data:" + k, obj[k]); })).then(function () {
-            if (obj[CFG.page]) DATA = obj[CFG.page];
-            renderTiles(); renderCases(); if (openItemId) renderDetail();
-            alert("Imported successfully.");
-          });
-        } catch (e) { alert("That file isn't a valid portfolio-data.json."); }
-      });
-      fi.remove();
-    });
-    fi.click();
-  }
+  };
+  /* Optimise images / a restored backup rewrote the working copy — repaint from it */
+  document.addEventListener("ak-data-replaced", function () {
+    save(); renderTiles(); renderCases(); if (openItemId) renderDetail();
+  });
 
   /* ============================================================ INIT */
   var _revealed = false;
   function revealTiles() {
     if (_revealed) return; _revealed = true;
     document.body.classList.remove("ak-hydrating");
+    document.documentElement.classList.remove("ak-deep");
   }
   function init() {
     // Hide the tile grid up front so built-in/default tiles can't flash before
@@ -4670,6 +3598,11 @@
     setTimeout(revealTiles, 3000);
     injectCSS();
     buildHeaderButton();
+    /* category-page Back link also lands on this category on the home page */
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest("header .back");
+      if (b && !document.body.classList.contains("ak-item-detail")) { try { sessionStorage.setItem("ak-home-ret", JSON.stringify({ cat: CFG.page })); } catch (_) {} }
+    }, true);
     load().then(function () {
       DATA.cases = DATA.cases || {};
       DATA.removedSeeds = DATA.removedSeeds || [];
@@ -4680,6 +3613,13 @@
       syncMode();
       renderTiles();
       renderCases();
+      /* deep link from the home page rail: project-x.html#p=<id> opens that project directly */
+      var dl = /^#p=(.+)$/.exec(location.hash || "");
+      if (dl) {
+        var did = ""; try { did = decodeURIComponent(dl[1]); } catch (e) {}
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+        if (DATA && DATA.items && DATA.items.some(function (x) { return x.id === did; })) openDetail(did);
+      }
       requestAnimationFrame(revealTiles);
     }).catch(revealTiles);
   }
