@@ -37,22 +37,22 @@
 
   /* ---------- layout of the files INSIDE an open project: "canvas" (as designed) · "grid" (full-size vertical stack).
      Separate from the project-cover wall on each page, which keeps its own "ak-cover-view" (compact cards). ---------- */
-  /* Canvas is the default for EVERY project. The toggle is session-only and scoped to the
-     open project — reopening it (or opening another) always starts in Canvas again. */
-  var sessionView = { id: null, v: "canvas" };
+  /* Grid is the default for EVERY opened project (owner 29.10.2026). The toggle is session-only and
+     scoped to the open project — reopening it (or opening another) always starts in Grid again. */
+  var sessionView = { id: null, v: "grid" };
   function bentoView(itemId) {
-    return (itemId != null && sessionView.id === itemId && sessionView.v === "grid") ? "grid" : "canvas";
+    return (itemId != null && sessionView.id === itemId && sessionView.v === "canvas") ? "canvas" : "grid";
   }
   function setBentoView(v, itemId) {
-    sessionView = { id: itemId != null ? itemId : sessionView.id, v: v === "grid" ? "grid" : "canvas" };
+    sessionView = { id: itemId != null ? itemId : sessionView.id, v: v === "canvas" ? "canvas" : "grid" };
     document.dispatchEvent(new CustomEvent("ak-view-change", { detail: sessionView.v }));
   }
   var I_VCANVAS = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="8" height="14" rx="1.6"/><rect x="10.6" y="1" width="4.4" height="6.4" rx="1.4"/><rect x="10.6" y="8.6" width="4.4" height="6.4" rx="1.4"/></svg>';
   var I_VGRID = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="14" height="5" rx="1.5"/><rect x="1" y="7.4" width="14" height="3.4" rx="1.4"/><rect x="1" y="12.2" width="14" height="2.8" rx="1.3"/></svg>';
   function buildViewSwitch(cur, onPick, wide) {
     var sw = h("div", { class: "seg", role: "tablist", "aria-label": "Choose layout" });
-    [["canvas", "Canvas", I_VCANVAS, "Canvas \u2014 the bento layout as designed"],
-     ["grid", "Grid", I_VGRID, "Grid \u2014 every file full size, one per row"]].forEach(function (o) {
+    [["grid", "Grid", I_VGRID, "Grid \u2014 every file full size, one per row"],
+     ["canvas", "Canvas", I_VCANVAS, "Canvas \u2014 the bento layout as designed"]].forEach(function (o) {
       var b = h("button", { class: "seg-btn" + (o[0] === cur ? " active" : ""), type: "button", role: "tab", title: o[3],
         "aria-selected": o[0] === cur ? "true" : "false",
         html: o[2] + "<span>" + o[1] + "</span>", onclick: function () { onPick(o[0]); } });
@@ -440,8 +440,26 @@
       color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;border-radius:99px;padding:8px 15px;cursor:pointer;transition:.2s;white-space:nowrap}
     .ak-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
     .ak-btn.ghost{background:var(--surface);color:var(--text);border:1px solid var(--line)}
-    .ak-btn.ghost:hover{border-color:var(--accent);color:var(--accent);filter:none}
+    .ak-btn.ghost:hover{border-color:var(--accent);color:var(--accent-ink,var(--accent));filter:none}
     .ak-btn.danger{background:linear-gradient(135deg,#ef4444,#f87171)}
+    /* orbit-light pill — Resume button only (owner 28.10.2026) — a light travels the border (counter-clockwise); hover/focus lights the whole ring + glow (ref: REC 27.10.2026 "Selected work"; gold light) */
+    @property --ak-orbit{syntax:'<angle>';inherits:false;initial-value:0deg}
+    @property --ak-ring{syntax:'<color>';inherits:false;initial-value:transparent}
+    @keyframes ak-orbit{to{--ak-orbit:-360deg}}
+    .resume-btn{--ak-gold:#E3B04B;--ak-ring:color-mix(in oklab,var(--text) 15%,var(--bg));--ak-top:color-mix(in oklab,var(--text) 10%,var(--bg));--ak-bot:color-mix(in oklab,var(--text) 4%,var(--bg));--ak-hot:color-mix(in oklab,var(--ak-gold) 50%,#fff);--ak-drop:rgba(0,0,0,.5);
+      color:var(--text);border:1.5px solid transparent;filter:none;
+      background:linear-gradient(180deg,var(--ak-top),var(--ak-bot)) padding-box,conic-gradient(from var(--ak-orbit),var(--ak-ring) 0deg,var(--ak-hot) 6deg,var(--ak-gold) 30deg,var(--ak-ring) 125deg,var(--ak-ring) 360deg) border-box;
+      box-shadow:inset 0 1px 0 color-mix(in oklab,var(--text) 9%,transparent),0 6px 16px -8px var(--ak-drop);
+      animation:ak-orbit 4.2s linear infinite;
+      transition:--ak-ring .45s cubic-bezier(.22,1,.36,1),box-shadow .45s cubic-bezier(.22,1,.36,1),transform .45s cubic-bezier(.22,1,.36,1),color .3s}
+    .resume-btn:nth-child(even){animation-delay:-2.1s}
+    [data-theme="light"] .resume-btn{--ak-drop:rgba(17,20,26,.18);--ak-gold:#B8862B}
+    @media (hover:hover){.resume-btn:not([disabled]):hover{--ak-ring:var(--ak-gold);color:var(--text);filter:none;transform:scale(1.04);box-shadow:inset 0 1px 0 color-mix(in oklab,var(--text) 9%,transparent),0 0 20px -3px color-mix(in oklab,var(--ak-gold) 60%,transparent),0 0 2px color-mix(in oklab,var(--ak-gold) 55%,transparent)}}
+    .resume-btn:not([disabled]):focus-visible{--ak-ring:var(--ak-gold);color:var(--text);filter:none;transform:scale(1.04);box-shadow:inset 0 1px 0 color-mix(in oklab,var(--text) 9%,transparent),0 0 20px -3px color-mix(in oklab,var(--ak-gold) 60%,transparent),0 0 2px color-mix(in oklab,var(--ak-gold) 55%,transparent)}
+    .resume-btn:not([disabled]):active{transform:scale(.98)}
+    .resume-btn[disabled]{animation:none}
+    @media (prefers-reduced-motion:reduce){.resume-btn{animation:none;transition:--ak-ring .2s,box-shadow .2s,color .2s}.resume-btn:not([disabled]):is(:hover,:focus-visible,:active){transform:none}}
+    
     .ak-btn svg{width:15px;height:15px;flex:none}
     /* header admin toggle: icon-only, state-aware */
     .ak-btn.ak-admin-toggle{position:relative;width:36px;height:36px;padding:0;border-radius:50%;justify-content:center;gap:0;
@@ -457,13 +475,6 @@
     body.ak-on .ak-btn.ak-admin-toggle:hover{filter:brightness(1.08)}
     body.ak-on .ak-admin-toggle .ak-dot{background:#36d399;opacity:1;transform:scale(1);box-shadow:0 0 8px #36d399}
     .ak-wrap{position:relative}
-    /* left-nav Layout Studio entry (admin-only) */
-    .ak-ls-nav{display:none;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;
-      color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 15px;cursor:pointer;transition:.25s}
-    .ak-ls-nav:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
-    .ak-ls-nav svg{width:15px;height:15px;flex:none}
-    body.ak-on .ak-ls-nav{display:inline-flex}
-    @media(max-width:560px){.ak-ls-nav span{display:none}.ak-ls-nav{padding:8px}}
     /* whole-project freeform canvas body (replaces the block stack when item.studio is set) */
     .ak-studio-body{max-width:1200px;margin:0 auto;padding:10px 20px 48px}
     @media(max-width:640px){.ak-studio-body{padding:6px 10px 28px}}
@@ -501,9 +512,9 @@
     .ak-menu.from-bar{top:auto;right:14px;bottom:calc(98px + env(safe-area-inset-bottom));max-height:calc(100vh - 170px - env(safe-area-inset-bottom));max-height:calc(100dvh - 170px - env(safe-area-inset-bottom))}
     .ak-mi{display:flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:500;font-size:.8rem;line-height:1.15;color:var(--text);
       background:none;border:none;text-align:left;padding:5px 9px;border-radius:7px;cursor:pointer;transition:.15s;width:100%}
-    .ak-mi:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+    .ak-mi:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent-ink,var(--accent))}
     .ak-mi .ico{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:none;
-      background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+      background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent-ink,var(--accent))}
     .ak-mi .ico svg{width:11px;height:11px}
     .ak-mi.warn:hover{background:color-mix(in srgb,#ef4444 14%,transparent);color:#ef4444}
     .ak-mi.warn .ico{background:color-mix(in srgb,#ef4444 14%,transparent);color:#ef4444}
@@ -528,6 +539,25 @@
       border:1px solid var(--line);border-radius:10px;padding:11px 13px;width:100%;transition:.2s}
     .ak-field textarea{min-height:84px;resize:vertical;line-height:1.5}
     .ak-field input:focus,.ak-field textarea:focus,.ak-field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+    .ak-studio-cta{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font-family:'Inter',sans-serif;color:var(--text);background:color-mix(in srgb,var(--bg) 60%,var(--surface));border:1px solid var(--line);border-radius:10px;padding:10px 13px;min-height:44px;cursor:pointer;transition:.2s}
+    .ak-studio-cta:hover:not([disabled]),.ak-studio-cta:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+    .ak-studio-cta[disabled]{opacity:.55;cursor:not-allowed}
+    .ak-bullets{display:flex;flex-wrap:wrap;gap:6px}
+    .ak-bullets button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;font-family:'Inter',sans-serif;font-weight:600;font-size:.8rem;color:var(--muted);background:color-mix(in srgb,var(--bg) 60%,var(--surface));border:1px solid var(--line);border-radius:999px;cursor:pointer;transition:.2s}
+    .ak-bullets svg{width:13px;height:13px;flex:none}
+    .ak-bullets button:hover,.ak-bullets button:focus-visible{outline:none;color:var(--text);border-color:var(--accent)}
+    .ak-bullets button[aria-pressed=true]{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+    @media (max-width:900px),(pointer:coarse){.ak-bullets button{min-height:44px}}
+    .ak-rt-note{font-family:'Inter',sans-serif;font-size:.76rem;color:var(--muted);margin-left:4px}
+    .ak-rt-pv{font-family:'Inter',sans-serif;font-size:.85rem;line-height:1.5;color:var(--muted);padding:9px 13px;border:1px dashed var(--line);border-radius:10px;display:grid;gap:4px}
+    .ak-rt-pv strong{color:var(--text);font-weight:600}
+    .ak-sc-ic{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:8px;color:var(--accent-2);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+    .ak-sc-ic svg{width:16px!important;height:16px!important}
+    .ak-sc-tx{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+    .ak-sc-tx b{font-size:.9rem;font-weight:600}
+    .ak-sc-tx small{font-size:.76rem;color:var(--muted)}
+    .ak-sc-go{color:var(--muted);transition:.2s}
+    .ak-studio-cta:hover:not([disabled]) .ak-sc-go{color:var(--accent-ink,var(--accent));transform:translateX(3px)}
     .ak-file{border:1.5px dashed var(--line);border-radius:11px;padding:18px;text-align:center;cursor:pointer;transition:.2s;color:var(--muted);font-size:.88rem}
     .ak-modal.compact .sub{margin-bottom:12px;font-size:.78rem}
     .ak-modal.compact .ak-field{margin-bottom:10px;gap:5px}
@@ -549,6 +579,123 @@
     .ak-modal::-webkit-scrollbar-thumb:hover,.ak-modal textarea::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 62%,transparent);border:2px solid transparent;background-clip:content-box}
     .ak-modal::-webkit-scrollbar-button,.ak-modal textarea::-webkit-scrollbar-button{display:none;width:0;height:0}
     .ak-modal textarea::-webkit-resizer{display:none}
+    /* case-study editor (modal opts.cls "ak-ed") — compact sheet: sticky head + foot, inset-label fields on a 2-col grid,
+       hints reveal on focus, staggered entrance, animated close, sliding bullet indicator, crop controls float on the image */
+    .ak-ov.ak-ov-ed.out{animation:akEdFade .18s ease forwards}
+    body:has(.ak-ov-ed) .aks-ui.aks-bar{opacity:0!important;pointer-events:none!important;transition:opacity .18s}
+    body.ak-ed-open .aks-ui.aks-bar{opacity:0!important;pointer-events:none!important}
+    @keyframes akEdFade{to{opacity:0}}
+    .ak-modal.ak-ed{width:min(600px,100%);max-height:min(88vh,880px);padding:0;overflow:hidden;display:flex;flex-direction:column;border-radius:16px;
+      box-shadow:0 30px 80px -24px rgba(0,0,0,.55);animation:akEdIn .34s cubic-bezier(.2,.9,.25,1) both}
+    @keyframes akEdIn{from{opacity:0;transform:translateY(12px) scale(.985)}}
+    .ak-ov-ed.out .ak-ed{animation:akEdOut .18s ease forwards}
+    @keyframes akEdOut{to{opacity:0;transform:translateY(8px) scale(.985)}}
+    .ak-ed.shake{animation:akEdShake .34s ease}
+    @keyframes akEdShake{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+    .ak-ed-hd{display:flex;align-items:flex-start;gap:12px;padding:16px 14px 12px 22px;border-bottom:1px solid transparent;transition:border-color .2s}
+    .ak-ed.sc-top .ak-ed-hd{border-bottom-color:var(--line)}
+    .ak-ed-ttl{flex:1;min-width:0}
+    .ak-modal.ak-ed h3{font-size:1.02rem;font-weight:600;letter-spacing:-.01em;margin:4px 0 0}
+    .ak-modal.ak-ed .sub{font-size:.8rem;line-height:1.45;margin:5px 0 0;text-wrap:pretty}
+    .ak-ed-x{position:relative;flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:8px;border:0;background:none;color:var(--muted);cursor:pointer;transition:background .18s,color .18s}
+    .ak-ed-x svg{width:16px;height:16px}
+    .ak-ed-x:hover,.ak-ed-x:focus-visible{outline:none;color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .ak-ed-x::after{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
+    .ak-ed-bd{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:2px 22px 18px;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 40%,transparent) transparent}
+    .ak-ed-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+    .ak-ed .ak-field,.ak-ed-sec{margin:0;min-width:0;animation:akEdRise .38s cubic-bezier(.2,.9,.25,1) both;animation-delay:calc(var(--i,0) * 22ms + 50ms)}
+    @keyframes akEdRise{from{opacity:0;transform:translateY(6px)}}
+    .ak-ed .ak-field.full,.ak-ed-sec{grid-column:1/-1}
+    .ak-ed-sec{display:flex;align-items:center;gap:10px;padding:12px 0 2px;font-family:'Inter',sans-serif;font-size:.64rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+    .ak-ed-sec::after{content:"";flex:1;height:1px;background:var(--line)}
+    .ak-ed .ak-field > label:empty,.ak-ed .ak-field.cover > label{display:none}
+    .ak-ed .ak-field:not(.raw){gap:1px;padding:8px 12px 7px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--bg) 40%,var(--surface));cursor:text;
+      transition:border-color .18s,box-shadow .18s,background .18s}
+    .ak-ed .ak-field:not(.raw):hover{border-color:color-mix(in srgb,var(--text) 20%,var(--line))}
+    .ak-ed .ak-field:not(.raw):focus-within{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+    .ak-ed .ak-field label{font-size:.68rem;font-weight:500;letter-spacing:.01em;text-transform:none;line-height:1.35;color:var(--muted);transition:color .18s;cursor:inherit}
+    .ak-ed .ak-field:focus-within > label{color:var(--accent-2)}
+    .ak-ed .ak-field input[type=text],.ak-ed .ak-field input[type=text]:focus,.ak-ed .ak-field textarea,.ak-ed .ak-field textarea:focus{
+      padding:1px 0 0;border:0;border-radius:0;background:none;box-shadow:none;font-size:.9rem;line-height:1.45}
+    .ak-ed .ak-field input::placeholder,.ak-ed .ak-field textarea::placeholder{color:color-mix(in srgb,var(--muted) 70%,transparent)}
+    .ak-ed .ak-field.ttl input[type=text]{font-size:1rem;font-weight:600;letter-spacing:-.01em}
+    .ak-ed .ak-field textarea{min-height:64px;max-height:240px;resize:none;field-sizing:content}
+    .ak-ed .ak-hint{margin:0;font-size:.72rem;line-height:1.4;max-height:0;opacity:0;overflow:hidden;transition:max-height .26s ease,opacity .2s ease,margin .26s ease}
+    .ak-ed .ak-field:focus-within > .ak-hint{max-height:4em;opacity:1;margin-top:5px}
+    .ak-ed .ak-field.desc{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:8px}
+    .ak-ed .ak-field.desc > div:not(.ak-hint){display:contents!important}
+    .ak-ed .ak-field.desc textarea,.ak-ed .ak-field.desc .ak-rt-pv,.ak-ed .ak-field.desc .ak-hint{grid-column:1/-1}
+    .ak-ed .ak-bullets button{position:relative;min-height:28px;border:0;border-radius:7px;background:none;font-size:.74rem;color:var(--muted);box-shadow:none;transition:color .18s,background .18s}
+    .ak-ed .ak-bullets button::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
+    .ak-ed .ak-bullets button:hover,.ak-ed .ak-bullets button:focus-visible{color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent)}
+    .ak-ed .ak-rt{gap:2px;flex-wrap:nowrap;align-items:center}
+    .ak-ed .ak-rt button{padding:0 9px}
+    .ak-ed .ak-rt-note{order:-1;margin:0 6px 0 0;font-size:.7rem;white-space:nowrap;transition:opacity .2s}
+    .ak-ed .ak-rt-pv{margin-top:6px;padding:7px 0 1px;border:0;border-top:1px dashed var(--line);border-radius:0;font-size:.8rem}
+    .ak-ed .ak-field.bul{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:5px 5px 5px 12px;cursor:default}
+    .ak-bseg-ind{display:none}
+    .ak-ed .ak-bseg{position:relative;gap:2px;flex-wrap:nowrap}
+    .ak-ed .ak-bseg button{z-index:1;width:30px;padding:0;justify-content:center}
+    .ak-ed .ak-bseg button[data-b=none]{width:auto;padding:0 9px}
+    .ak-ed .ak-bseg button:not([data-b=none]) span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    .ak-ed .ak-bseg button[aria-pressed=true]{color:var(--accent-2);background:none;box-shadow:none}
+    .ak-ed .ak-bseg-ind{display:block;position:absolute;left:0;top:0;border-radius:7px;pointer-events:none;opacity:0;
+      background:color-mix(in srgb,var(--accent) 15%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 38%,transparent);
+      transition:transform .34s cubic-bezier(.3,1.25,.5,1),width .3s ease,opacity .2s}
+    .ak-ed .ak-bseg-ind.on{opacity:1}
+    .ak-ed .ak-field.cover{gap:0}
+    .ak-ed .ak-file-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+    .ak-ed .ak-file{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:32px;padding:0 13px;border:1px solid var(--line);border-radius:99px;
+      font-family:'Inter',sans-serif;font-size:.78rem;font-weight:500;color:var(--text);background:none;transition:border-color .18s,background .18s,color .18s}
+    .ak-ed .ak-file:hover,.ak-ed .ak-file:focus-visible{outline:none;border-color:var(--accent);color:var(--accent-2)}
+    .ak-ed .ak-file:not(.has){flex:1 1 100%;min-height:96px;border-style:dashed;border-radius:10px;color:var(--muted)}
+    .ak-ed .ak-file-h.over .ak-file,.ak-ed .ak-file-h.over .ak-crop-stage{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+    .ak-ed .ak-file-remove{margin:0;min-height:32px;padding:0 11px;border-radius:99px;font-size:.78rem;font-weight:500;color:var(--muted);transition:color .18s,background .18s}
+    .ak-ed .ak-file-remove:hover,.ak-ed .ak-file-remove:focus-visible{outline:none;text-decoration:none;color:#ef4444;background:color-mix(in srgb,#ef4444 10%,transparent)}
+    .ak-ed .ak-file-h .ak-studio-cta{width:auto;margin-left:auto;min-height:32px;padding:0 12px 0 4px;gap:8px;border-radius:99px;background:none}
+    .ak-ed .ak-file-h .ak-sc-ic{width:24px;height:24px;border-radius:99px}
+    .ak-ed .ak-file-h .ak-sc-ic svg{width:13px!important;height:13px!important}
+    .ak-ed .ak-file-h .ak-sc-tx b{font-size:.78rem;font-weight:500}
+    .ak-ed .ak-crop{order:-1;flex:1 1 100%;position:relative;margin:0 0 4px}
+    .ak-ed .ak-crop-stage{border-radius:10px;animation:akEdRise .4s ease both;transition:border-color .18s}
+    .ak-ed .ak-crop-stage::before{content:"Drag to reposition";position:absolute;left:50%;top:10px;z-index:1;transform:translate(-50%,-4px);font:500 .7rem 'Inter',sans-serif;color:#fff;
+      background:rgba(10,10,10,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:5px 10px;border-radius:99px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+    .ak-ed .ak-crop:hover .ak-crop-stage::before{opacity:1;transform:translate(-50%,0)}
+    .ak-ed .ak-crop-stage.drag::before{opacity:0}
+    .ak-ed .ak-crop-row{position:absolute;left:10px;right:10px;bottom:10px;margin:0;gap:9px;padding:5px 8px 5px 12px;border-radius:99px;color:#fff;
+      background:rgba(10,10,10,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;transform:translateY(4px);transition:opacity .2s,transform .2s}
+    .ak-ed .ak-crop:hover .ak-crop-row,.ak-ed .ak-crop:focus-within .ak-crop-row{opacity:1;transform:none}
+    .ak-ed .ak-crop-row svg{color:rgba(255,255,255,.8);width:15px;height:15px}
+    .ak-ed .ak-crop-zoom{background:rgba(255,255,255,.3);height:4px}
+    .ak-ed .ak-crop-reset{color:rgba(255,255,255,.85);position:relative}
+    .ak-ed .ak-crop-reset:hover{color:#fff}
+    .ak-ed .ak-acts{align-items:center;gap:6px;margin:0;padding:12px 16px 14px 22px;border-top:1px solid transparent;transition:border-color .2s}
+    .ak-ed.sc-bot .ak-acts{border-top-color:var(--line)}
+    .ak-ed .ak-err{flex:1;min-width:0;margin:0;min-height:0;font-size:.78rem}
+    .ak-ed .ak-err:empty{display:none}
+    .ak-ed-kbd{flex:1;display:flex;align-items:center;gap:4px;font:500 .72rem 'Inter',sans-serif;color:var(--muted)}
+    .ak-ed .ak-err:not(:empty) ~ .ak-ed-kbd{display:none}
+    .ak-ed-kbd kbd{font:inherit;font-size:.68rem;min-width:20px;height:20px;display:inline-grid;place-items:center;padding:0 5px;margin-right:1px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;color:var(--text)}
+    .ak-ed .ak-acts .ak-btn{padding:8px 16px;font-size:.84rem}
+    .ak-ed .ak-acts .ak-btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+    .ak-ed .ak-acts .ak-btn.ghost:hover,.ak-ed .ak-acts .ak-btn.ghost:focus-visible{outline:none;color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent);transform:none}
+    @media (pointer:coarse){.ak-ed-kbd{visibility:hidden}.ak-ed .ak-crop-row,.ak-ed .ak-crop-stage::before{opacity:1;transform:none}.ak-ed .ak-crop-stage::before{content:"Drag to reposition";transform:translate(-50%,0)}}
+    @media (max-width:900px),(pointer:coarse){.ak-ed .ak-bullets button{min-height:30px}.ak-ed .ak-acts .ak-btn,.ak-ed .ak-file,.ak-ed .ak-file-remove,.ak-ed .ak-file-h .ak-studio-cta{min-height:44px}}
+    @media (max-width:620px){
+      .ak-ov.ak-ov-ed{align-items:flex-end;padding:0}
+      .ak-modal.ak-ed{width:100%;max-height:92vh;max-height:92dvh;border-radius:18px 18px 0 0;border-bottom:0;animation-name:akEdUp}
+      .ak-ov-ed.out .ak-ed{animation-name:akEdDown}
+      .ak-ed-grid{grid-template-columns:minmax(0,1fr)}
+      .ak-ed-hd{padding:14px 10px 10px 16px}
+      .ak-ed-bd{padding:2px 16px 16px}
+      .ak-ed .ak-acts{padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
+      .ak-ed .ak-field.desc{grid-template-columns:minmax(0,1fr)}
+      .ak-ed .ak-rt{justify-self:start}
+    }
+    @keyframes akEdUp{from{opacity:0;transform:translateY(48px)}}
+    @keyframes akEdDown{to{opacity:0;transform:translateY(48px)}}
+    @media (max-width:620px),(pointer:coarse){.ak-ed .ak-field input[type=text],.ak-ed .ak-field textarea,.ak-ed .ak-field.ttl input[type=text]{font-size:16px}}
+    @media (prefers-reduced-motion:reduce){.ak-ed,.ak-ov-ed.out .ak-ed,.ak-ed .ak-field,.ak-ed-sec,.ak-ed .ak-crop-stage{animation:none!important}.ak-ed *{transition-duration:.01s!important}}
     /* export summary modal */
     .ak-xsec{font-family:'Inter',sans-serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2);margin:16px 0 8px}
     .ak-xrows{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -558,7 +705,7 @@
     .ak-xrow .v{font-family:'Inter',sans-serif;font-weight:600;color:var(--text)}
     .ak-xwarn{margin-top:16px;border:1px solid color-mix(in srgb,#ef4444 45%,transparent);background:color-mix(in srgb,#ef4444 10%,transparent);border-radius:12px;padding:12px 14px;font-size:.84rem;color:#f87171;line-height:1.55}
     .ak-xsteps{margin:8px 0 0;padding-left:18px;font-size:.87rem;color:var(--text);line-height:1.7}
-    .ak-xsteps li::marker{color:var(--accent);font-weight:700}
+    .ak-xsteps li::marker{color:var(--accent-ink,var(--accent));font-weight:700}
     /* cover crop editor */
     .ak-crop{margin-top:12px}
     .ak-crop-stage{position:relative;width:100%;border-radius:11px;overflow:hidden;background:#000;border:1px solid var(--line);cursor:grab;touch-action:none;user-select:none}
@@ -575,7 +722,7 @@
     .ak-crop-zoom::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.3)}
     .ak-crop-zoom::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--surface)}
     .ak-crop-reset{font-family:'Inter',sans-serif;font-weight:600;font-size:.78rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:3px 4px;white-space:nowrap}
-    .ak-crop-reset:hover{color:var(--accent)}
+    .ak-crop-reset:hover{color:var(--accent-ink,var(--accent))}
 
     /* detail overlay */
     .ak-detail{position:relative;z-index:1;background:var(--bg);animation:akdetail .34s cubic-bezier(.2,.7,.3,1) both;will-change:opacity,transform}
@@ -597,6 +744,11 @@
       box-shadow:0 10px 28px -18px rgba(0,0,0,.5),inset 0 1px 0 color-mix(in srgb,#fff 9%,transparent);
       transition:transform .35s cubic-bezier(.2,.7,.3,1),opacity .35s}
     .ak-d-bar.ak-bar-hidden{transform:translateY(calc(-100% - 90px));opacity:0;pointer-events:none}
+    .ak-detail .ak-d-bar .view-bar.ak-bar-view{flex:0 0 auto;margin:0 0 0 auto;padding:0;max-width:none}
+    .ak-d-bar .ak-bar-view .seg{padding:3px;border-radius:10px}
+    .ak-d-bar .ak-bar-view .seg-btn{font-size:.74rem;padding:5px 10px;gap:6px;border-radius:8px}
+    .ak-d-bar .ak-bar-view .seg-btn svg{width:13px;height:13px}
+    @media(max-width:640px){.ak-d-bar .ak-bar-view .seg-btn span{display:none}.ak-d-bar .ak-bar-view .seg-btn{padding:6px 8px}}
     .ak-d-bar .inner{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;padding:8px 28px;max-width:1180px;margin:0 auto}
     .ak-d-bar .title{font-family:'Inter',sans-serif;font-weight:600;font-size:1rem;color:var(--text)}
     .ak-d-bar .tabwrap{position:relative;display:flex;flex:1 1 auto;min-width:0;max-width:100%}
@@ -614,7 +766,7 @@
     .ak-d-bar .tab:hover{color:var(--text)}
     .ak-d-bar .tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2))}
     .ak-d-bar .cs-back{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:.88rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:7px 15px;cursor:pointer;transition:.25s;white-space:nowrap}
-    .ak-d-bar .cs-back:hover{border-color:var(--accent);color:var(--accent)}
+    .ak-d-bar .cs-back:hover{border-color:var(--accent);color:var(--accent-ink,var(--accent))}
     .ak-d-bar .cs-back .arr{transition:transform .3s}
     .ak-d-bar .cs-back:hover .arr{transform:translateX(-4px)}
     /* ---- sticky-tab cover preview (hover to peek on desktop, press-and-hold on touch) ---- */
@@ -635,13 +787,13 @@
     .ak-d-foot h2{font-family:'Inter',sans-serif;font-size:clamp(1.8rem,3.2vw,2.6rem);letter-spacing:-.02em;color:var(--text);margin:0}
     .ak-d-foot .credit{color:var(--muted);font-size:.88rem;margin:0}
     .ak-totop{margin-top:18px;display:inline-flex;align-items:center;gap:9px;font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:11px 22px;cursor:pointer;transition:.25s}
-    .ak-totop:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
+    .ak-totop:hover{border-color:var(--accent);color:var(--accent-ink,var(--accent));transform:translateY(-2px)}
     /* floating back-to-top button (appears once the project detail is scrolled) */
     .ak-fab-top{position:fixed;right:22px;bottom:22px;z-index:60;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
       font-size:1.15rem;line-height:1;color:var(--text);background:var(--surface);border:1px solid var(--line);cursor:pointer;
       box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;transform:translateY(14px);pointer-events:none;transition:opacity .25s ease,transform .25s ease,border-color .2s ease,color .2s ease}
     .ak-fab-top.show{opacity:1;transform:translateY(0);pointer-events:auto}
-    .ak-fab-top:hover{border-color:var(--accent);color:var(--accent)}
+    .ak-fab-top:hover{border-color:var(--accent);color:var(--accent-ink,var(--accent))}
     @media(max-width:640px){.ak-fab-top{right:14px;bottom:14px;width:42px;height:42px}}
     body:has(.ak-fab) .ak-fab-top{bottom:82px}
     .ak-d-hero .cover{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.18;
@@ -670,10 +822,10 @@
     /* horizontal media-preview slider under the project home/hero */
     .ak-pstrip{max-width:1100px;margin:34px auto 0;padding:0 24px;position:relative}
     .ak-pstrip .ps-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
-    .ak-pstrip .ps-eyebrow{display:inline-flex;align-items:center;gap:10px;font-family:'Inter',sans-serif;font-weight:700;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+    .ak-pstrip .ps-eyebrow{display:inline-flex;align-items:center;gap:10px;font-family:'Inter',sans-serif;font-weight:700;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-ink,var(--accent))}
     .ak-pstrip .ps-eyebrow::before{content:"";width:22px;height:2px;border-radius:2px;background:var(--accent);flex:0 0 auto}
     .ak-pstrip .ps-cta{font-family:'Inter',sans-serif;font-weight:600;font-size:.78rem;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap;transition:border-color .18s ease,color .18s ease}
-    .ak-pstrip .ps-cta:hover{border-color:var(--accent);color:var(--accent)}
+    .ak-pstrip .ps-cta:hover{border-color:var(--accent);color:var(--accent-ink,var(--accent))}
     .ak-pstrip .ps-row{display:flex;gap:14px;overflow-x:auto;padding:2px 2px 14px;cursor:grab;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--accent) 60%,transparent) color-mix(in srgb,var(--line) 55%,transparent)}
     .ak-pstrip .ps-row.dragging{cursor:grabbing}
     .ak-pstrip .ps-row::-webkit-scrollbar{height:6px}
@@ -686,7 +838,7 @@
     .ak-pstrip .ps-fit{position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none}
     .ak-pstrip .ps-fit iframe{width:100%;height:100%;border:0;display:block;pointer-events:none;background:#fff}
     .ak-pstrip .ps-3d{position:absolute;inset:0;pointer-events:none}
-    .ak-pstrip .ps-glyph{display:flex;align-items:center;justify-content:center;height:100%;font-size:1.9rem;color:var(--accent)}
+    .ak-pstrip .ps-glyph{display:flex;align-items:center;justify-content:center;height:100%;font-size:1.9rem;color:var(--accent-ink,var(--accent))}
     .ak-pstrip .ps-badge{position:absolute;top:8px;left:8px;font-family:'Inter',sans-serif;font-weight:700;font-size:.54rem;letter-spacing:.14em;text-transform:uppercase;color:#fff;background:color-mix(in srgb,var(--accent-2) 88%,#000);padding:4px 8px;border-radius:99px;pointer-events:none}
     .ak-pstrip .ps-cap{display:flex;flex-direction:column;gap:2px;padding:9px 11px 11px;border-top:1px solid var(--line)}
     .ak-pstrip .ps-num{font-family:'Inter',sans-serif;font-weight:700;font-size:.54rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
@@ -719,7 +871,7 @@
     .ak-btoolbar .grab:active{cursor:grabbing}
     .ak-tb{width:24px;height:24px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer;
       display:flex;align-items:center;justify-content:center;transition:.15s}
-    .ak-tb:hover{border-color:var(--accent);color:var(--accent)}
+    .ak-tb:hover{border-color:var(--accent);color:var(--accent-ink,var(--accent))}
     .ak-tb.warn:hover{border-color:#ef4444;color:#ef4444}
     .ak-tb svg{width:13px;height:13px}
     .ak-tb[disabled]{opacity:.35;cursor:default}
@@ -754,7 +906,7 @@
     .ak-imghold.loaded{min-height:0;background:none}
     /* graceful placeholder shown when a block's media file can't be loaded (404 / moved) */
     .ak-missing{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;text-align:center;padding:44px 24px;min-height:220px;color:var(--muted);border:1px dashed color-mix(in srgb,var(--line) 92%,transparent);border-radius:12px;background:color-mix(in srgb,var(--text) 4%,var(--bg))}
-    .ak-missing .ak-missing-ic{width:34px;height:34px;color:var(--accent);opacity:.85}
+    .ak-missing .ak-missing-ic{width:34px;height:34px;color:var(--accent-ink,var(--accent));opacity:.85}
     .ak-missing .ak-missing-ic svg{width:100%;height:100%}
     .ak-missing p{margin:0;font-family:'Inter',sans-serif;font-size:.92rem;color:var(--text)}
     .ak-missing small{font-family:'Inter',sans-serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
@@ -800,14 +952,14 @@
       .ak-d-bar .tab{padding:11px 16px}
       .ak-d-bar .cs-back{padding:11px 14px}
       .ak-d-bar .tabnav{width:38px;height:38px}
-      .ak-d-hero .view-bar .seg-btn,.ak-detail .view-bar .seg-btn{padding:10px 12px}
+      .ak-d-hero .view-bar .seg-btn,.ak-detail .view-bar .seg-btn,.ak-detail .ak-d-bar .ak-bar-view .seg-btn{padding:10px 12px}
     }
     @media(max-width:640px){.ak-d-bar .cs-back{padding:11px 13px}}
     @media (pointer:coarse){
       .ak-d-bar .tab{padding:11px 16px}
       .ak-d-bar .cs-back{padding:11px 14px}
       .ak-d-bar .tabnav{width:38px;height:38px}
-      .ak-d-hero .view-bar .seg-btn,.ak-detail .view-bar .seg-btn{padding:10px 12px}
+      .ak-d-hero .view-bar .seg-btn,.ak-detail .view-bar .seg-btn,.ak-detail .ak-d-bar .ak-bar-view .seg-btn{padding:10px 12px}
     }
 
     /* full-bleed media (matches FinTrack gallery dimensions) */
@@ -822,7 +974,7 @@
     }
     /* prototype info header (admin-added prototypes) */
     .ak-proto-info{max-width:760px;margin:0 auto 26px;text-align:center}
-    .ak-proto-info .eyebrow{font-family:'Inter',sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:12px}
+    .ak-proto-info .eyebrow{font-family:'Inter',sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-ink,var(--accent));display:block;margin-bottom:12px}
     .ak-proto-info h2{font-family:'Inter',sans-serif;font-size:clamp(1.5rem,3vw,2.2rem);letter-spacing:-.02em;color:var(--text);margin:0 0 12px}
     .ak-proto-info p{color:var(--muted);font-size:1.05rem;line-height:1.6;margin:0 0 18px}
     .ak-proto-hint{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
@@ -830,7 +982,7 @@
     .ak-proto-hint .chip .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
     /* admin prototype info stays dark-themed even in light mode */
     [data-theme="light"] .ak-proto-info{--bg:#1C1A14;--surface:#1D1C1A;--line:#373634;
-      --text:#FFFFFF;--muted:#C9C8C6;--accent:#E5783A;--accent-2:#C2410C;
+      --text:#FFFFFF;--muted:#C9C8C6;--accent:#E5783A;--accent-2:#C2410C;--accent-ink:#E5783A;--accent-ink-2:#F0A070;
       background:#141209;border:1px solid #373634;border-radius:18px;padding:32px 30px}
     .ak-block.admin:has(.ak-wide){outline-color:transparent;background:none;padding:0}
     .ak-block.admin:has(.ak-sec){outline-color:transparent;background:none;padding:0}
@@ -864,7 +1016,7 @@
     .ak-toast.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
     .ak-toast .msg{font-family:'Inter',sans-serif;font-weight:500;font-size:.9rem;color:var(--text);margin-right:auto}
     .ak-toast .undo{display:inline-flex;align-items:center;gap:6px;font-family:'Inter',sans-serif;font-weight:600;font-size:.85rem;
-      color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+      color:var(--accent-ink,var(--accent));background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
       border-radius:99px;padding:7px 14px;cursor:pointer;transition:.18s;white-space:nowrap}
     .ak-toast .undo:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
     .ak-toast .undo svg{width:14px;height:14px}
@@ -879,25 +1031,27 @@
   /* ============================================================ MODAL */
   function modal(opts) {
     return new Promise(function (resolve) {
-      var fieldEls = {};
-      var errEl = h("div", { class: "ak-err" });
+      var fieldEls = {}, ed = !!opts.cls; // opts.cls: styled sheet variant ("ak-ed" = case-study editor)
+      var errEl = h("div", { class: "ak-err", role: ed ? "alert" : null });
       var body = (opts.fields || []).map(function (f) {
         var input, holder;
+        if (f.type === "heading") return h("div", { class: "ak-ed-sec" }, [f.label]);
         if (f.type === "textarea") input = h("textarea", { placeholder: f.placeholder || "", spellcheck: f.mono ? "false" : null, style: f.mono ? "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;line-height:1.5;min-height:200px;tab-size:2;white-space:pre;overflow:auto" : null });
         else if (f.type === "select") input = h("select", {}, (f.options || []).map(function (o) { return h("option", { value: o.value }, [o.label]); }));
         else if (f.type === "file") {
-          var label = h("div", { class: "ak-file" + (f.value ? " has" : "") }, [f.value ? "✓ file ready — click to replace" : (f.placeholder || "Click to choose a file")]);
+          var ready = function (name) { return f.readyLabel || (name ? "\u2713 " + name : "\u2713 file ready \u2014 click to replace"); };
+          var label = h("div", { class: "ak-file" + (f.value ? " has" : ""), tabindex: ed ? "0" : null, role: ed ? "button" : null }, [f.value ? ready("") : (f.placeholder || "Click to choose a file")]);
           var fi = h("input", { type: "file", accept: f.accept || "", multiple: f.multiple ? "multiple" : null, style: "display:none" });
-          var removeBtn = f.removable ? h("button", { type: "button", class: "ak-file-remove", style: f.value ? "" : "display:none" }, ["\u2715 Remove"]) : null;
+          var removeBtn = f.removable ? h("button", { type: "button", class: "ak-file-remove", style: f.value ? "" : "display:none" }, [ed ? "Remove" : "\u2715 Remove"]) : null;
           var cropper = f.crop ? makeCropper(f.cropAspect, function (d) { fieldEls[f.key]._data = d; }) : null;
-          fi.addEventListener("change", function () {
-            var files = Array.prototype.slice.call(fi.files); if (!files.length) return;
+          var take = function (files) {
+            if (!files.length) return;
             if (f.multiple && files.length > 1) {
               label.textContent = "Loading " + files.length + " files…";
               Promise.all(files.map(function (file) { return readFileAsDataURL(file).then(function (d) { return { data: d, name: file.name }; }); })).then(function (arr) {
                 var el = fieldEls[f.key];
                 el._files = arr; el._data = arr[0].data; el._name = arr[0].name;
-                label.classList.add("has"); label.textContent = "✓ " + arr.length + " files ready"; if (removeBtn) removeBtn.style.display = "";
+                label.classList.add("has"); label.textContent = f.readyLabel || ("\u2713 " + arr.length + " files ready"); if (removeBtn) removeBtn.style.display = "";
                 if (cropper) cropper.load(arr[0].data);
               });
               return;
@@ -907,19 +1061,31 @@
             readFileAsDataURL(file).then(function (d) {
               var el = fieldEls[f.key];
               el._data = d; el._name = file.name; el._files = [{ data: d, name: file.name }];
-              label.classList.add("has"); label.textContent = "✓ " + file.name; if (removeBtn) removeBtn.style.display = "";
+              label.classList.add("has"); label.textContent = ready(file.name); if (removeBtn) removeBtn.style.display = "";
               if (cropper) cropper.load(d); // cropper overwrites _data with the cropped result
               if (f.onChange) f.onChange(d);
             });
-          });
+          };
+          fi.addEventListener("change", function () { take(Array.prototype.slice.call(fi.files)); });
           if (removeBtn) removeBtn.addEventListener("click", function () {
             fieldEls[f.key]._data = ""; fieldEls[f.key]._name = ""; fieldEls[f.key]._files = []; try { fi.value = ""; } catch (e) {}
             label.classList.remove("has"); label.textContent = f.placeholder || "Click to choose a file";
             removeBtn.style.display = "none"; if (cropper) cropper.hide();
             if (f.onChange) f.onChange("");
           });
-          holder = h("div", {}, [label, fi, removeBtn, cropper ? cropper.el : null]);
+          holder = h("div", { class: "ak-file-h" }, [label, fi, removeBtn, f.extra || null, cropper ? cropper.el : null]);
           label.addEventListener("click", function () { fi.click(); });
+          if (ed) {
+            label.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); fi.click(); } });
+            holder.addEventListener("dragover", function (e) { e.preventDefault(); holder.classList.add("over"); });
+            holder.addEventListener("dragleave", function (e) { if (!holder.contains(e.relatedTarget)) holder.classList.remove("over"); });
+            holder.addEventListener("drop", function (e) {
+              e.preventDefault(); holder.classList.remove("over");
+              var files = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+              if (/image\/\*/.test(f.accept || "")) files = files.filter(function (x) { return /^image\//.test(x.type); });
+              take(files);
+            });
+          }
           input = { _holder: holder, _data: f.value || "", _name: f.name || "", _files: [] };
           fieldEls[f.key] = input;
           if (cropper && f.value) setTimeout(function () { cropper.load(f.value); }, 30);
@@ -960,13 +1126,24 @@
         return h("div", { class: "ak-field" }, [h("label", {}, [f.label]), input, f.hint ? h("div", { class: "ak-hint" }, [f.hint]) : null]);
       });
 
-      var ov = h("div", { class: "ak-ov" });
-      function close(val) { ov.remove(); document.removeEventListener("keydown", onKey); resolve(val); }
-      function onKey(e) { if (e.key === "Escape") close(null); }
+      if (ed) body.forEach(function (el, i) { var f = opts.fields[i]; el.style.setProperty("--i", i); if (f.full) el.classList.add("full"); if (f.cls) el.className += " " + f.cls; });
+      var ov = h("div", { class: "ak-ov" + (ed ? " ak-ov-ed" : "") }), shut = false, downOnOv = false, m;
+      function close(val) {
+        if (shut) return; shut = true;
+        document.removeEventListener("keydown", onKey); resolve(val);
+        if (!ed) { ov.remove(); return; }
+        document.body.classList.remove("ak-ed-open");
+        ov.classList.add("out"); ov.style.pointerEvents = "none"; setTimeout(function () { ov.remove(); }, 190);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") close(null);
+        else if (ed && e.key === "Enter" && !e.isComposing && m.contains(e.target) && (e.metaKey || e.ctrlKey || (e.target.tagName === "INPUT" && e.target.type === "text"))) { e.preventDefault(); submit.click(); }
+      }
       function collect() {
         var out = {};
         (opts.fields || []).forEach(function (f) {
           var el = fieldEls[f.key];
+          if (f.type === "heading" || !el) return;
           if (f.type === "file") { out[f.key] = el._data; out[f.key + "_name"] = el._name; out[f.key + "_files"] = (el._files && el._files.length) ? el._files : (el._data ? [{ data: el._data, name: el._name }] : []); }
           else if (el._get) out[f.key] = el._get();
           else out[f.key] = el.value.trim();
@@ -975,22 +1152,46 @@
       }
       var submit = h("button", { class: "ak-btn", onclick: function () {
         var v = collect();
-        if (opts.validate) { var err = opts.validate(v); if (err) { errEl.textContent = err; return; } }
+        if (opts.validate) { var err = opts.validate(v); if (err) { errEl.textContent = err; if (ed) { m.classList.remove("shake"); void m.offsetWidth; m.classList.add("shake"); } return; } }
         close(v);
       } }, [opts.submitLabel || "Save"]);
+      var cancel = h("button", { class: "ak-btn ghost", onclick: function () { close(null); } }, ["Cancel"]);
 
-      var m = h("div", { class: "ak-modal" + (opts.compact ? " compact" : "") }, [
+      if (ed) {
+        var mac = /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent || "");
+        var grid = h("div", { class: "ak-ed-grid" }, body), bd = h("div", { class: "ak-ed-bd" }, [grid]);
+        m = h("div", { class: "ak-modal " + opts.cls, role: "dialog", "aria-modal": "true", "aria-label": opts.title }, [
+          h("div", { class: "ak-ed-hd" }, [
+            h("div", { class: "ak-ed-ttl" }, [h("h3", {}, [opts.title]), opts.sub ? h("div", { class: "sub" }, [opts.sub]) : null]),
+            h("button", { type: "button", class: "ak-ed-x", "aria-label": "Close", title: "Close (Esc)", html: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>', onclick: function () { close(null); } })
+          ]),
+          bd,
+          h("div", { class: "ak-acts" }, [errEl, h("span", { class: "ak-ed-kbd", html: "<kbd>" + (mac ? "\u2318" : "Ctrl") + "</kbd><kbd>\u21b5</kbd>&nbsp;to save" }), cancel, submit])
+        ]);
+        var edge = function () { m.classList.toggle("sc-top", bd.scrollTop > 1); m.classList.toggle("sc-bot", bd.scrollTop + bd.clientHeight < bd.scrollHeight - 1); };
+        bd.addEventListener("scroll", edge, { passive: true });
+        if (window.ResizeObserver) new ResizeObserver(edge).observe(grid);
+        m.addEventListener("input", function () { errEl.textContent = ""; });
+        m.addEventListener("mousedown", function (e) { // click anywhere on a field box focuses its input
+          var fld = e.target.closest && e.target.closest(".ak-field:not(.raw)");
+          if (!fld || (e.target !== fld && e.target.tagName !== "LABEL")) return;
+          var inp = fld.querySelector("input[type=text],textarea"); if (inp) { e.preventDefault(); inp.focus(); }
+        });
+      } else m = h("div", { class: "ak-modal" + (opts.compact ? " compact" : "") }, [
         h("h3", {}, [opts.title]),
         opts.sub ? h("div", { class: "sub" }, [opts.sub]) : null
-      ].concat(body).concat([errEl, h("div", { class: "ak-acts" }, [
-        h("button", { class: "ak-btn ghost", onclick: function () { close(null); } }, ["Cancel"]),
-        submit
-      ])]));
+      ].concat(body).concat([errEl, h("div", { class: "ak-acts" }, [cancel, submit])]));
       ov.appendChild(m);
-      ov.addEventListener("click", function (e) { if (e.target === ov) close(null); });
+      ov.addEventListener("mousedown", function (e) { downOnOv = e.target === ov; });
+      ov.addEventListener("click", function (e) { if (e.target === ov && (!ed || downOnOv)) close(null); });
       document.addEventListener("keydown", onKey);
       document.body.appendChild(ov);
-      var first = m.querySelector("input,textarea,select"); if (first && first.type !== "file") first.focus();
+      if (ed) document.body.classList.add("ak-ed-open");
+      var first = m.querySelector("input,textarea,select");
+      if (first && first.type !== "file") {
+        first.focus({ preventScroll: true });
+        if (ed && first.type === "text" && first.value) try { first.setSelectionRange(first.value.length, first.value.length); } catch (e) {}
+      }
     });
   }
   function confirmModal(title, sub, danger) {
@@ -1236,22 +1437,6 @@
       navRight.insertBefore(wrap, toggle || null);
     } else document.body.appendChild(h("div", { class: "ak-fab" }, [wrap]));
 
-    // Left-nav "Layout Studio" entry (admin-only; project pages in STUDIO_PAGES).
-    // Opens the currently-open project in the whole-project Studio; on the grid it
-    // starts a new project from the category template.
-    if (studioEnabled()) {
-      var navBar = navRight || $(".nav");
-      if (navBar) {
-        var lsBtn = h("button", { class: "ak-ls-nav", title: "Open in Layout Studio", html: I.shapes + "<span>Layout Studio</span>",
-          onclick: function (e) {
-            e.preventDefault(); e.stopPropagation();
-            if (openItemId) { var it = DATA.items.find(function (x) { return x.id === openItemId; }); if (it) return openProjectStudio(it); }
-            editItem(null, "project");
-          } });
-        navBar.insertBefore(lsBtn, navBar.firstChild);
-      }
-    }
-
     btnEl.addEventListener("click", function (e) {
       e.stopPropagation();
       if (!window.AK_SITE || !window.AK_SITE.admin) return;
@@ -1427,6 +1612,117 @@
     var left = Math.min(r.right - pw, innerWidth - pw - 8); if (left < 8) left = 8;
     pop.style.top = top + "px"; pop.style.left = left + "px";
   }
+  /* ---- showcase list tile (CFG.showcase — UI/UX page; ref: owner's REC 27.10.2026 23.38) ----
+     text left (tag · timeline, title, check-list), cover right; hover: card surface fades in, title retypes, tool chips appear */
+  /* bullet style for the showcase check-list (it.bullet; absent = tick) */
+  var BULLETS = [["tick", "Tick", "<path d=\"M4.5 12.5l5 5 10-11\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"], ["dot", "Dot", "<circle fill=\"currentColor\" cx=\"12\" cy=\"12\" r=\"4.5\"/>"], ["arrow", "Arrow", "<path d=\"M5 12h13M13 6.5l5.5 5.5-5.5 5.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"], ["star", "Star", "<path fill=\"currentColor\" d=\"M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z\"/>"], ["dash", "Dash", "<path fill=\"currentColor\" d=\"M6 12h12\" stroke=\"currentColor\" stroke-width=\"2.8\" stroke-linecap=\"round\"/>"], ["diamond", "Diamond", "<path fill=\"currentColor\" d=\"M12 5.5l6.5 6.5-6.5 6.5L5.5 12z\"/>"], ["none", "None", ""]];
+  /* desc rich text: **text** = bold; descRich() renders one line, descEditor() is the Edit field */
+  function descRich(l) { return String(l).split(/\*\*([^*]+?)\*\*/).map(function (s, i) { return i % 2 ? h("strong", {}, [s]) : s.replace(/\*\*/g, ""); }).filter(function (s) { return s !== ""; }); }
+  function descEditor(val, ph) {
+    var ta = h("textarea", { placeholder: ph || "" }); ta.value = val || "";
+    var pv = h("div", { class: "ak-rt-pv", "aria-live": "polite" });
+    function parse(raw) { var plain = "", mask = [], map = [], b = false, i = 0; while (i < raw.length) { map[i] = plain.length; if (raw.substr(i, 2) === "**") { map[i + 1] = plain.length; b = !b; i += 2; continue; } plain += raw[i]; mask.push(b); i++; } map[raw.length] = plain.length; return { plain: plain, mask: mask, map: map }; }
+    function paint() {
+      var lines = ta.value.split(/\n+/).filter(function (l) { return l.trim(); });
+      pv.style.display = /\*\*/.test(ta.value) ? "" : "none";
+      pv.innerHTML = ""; lines.forEach(function (l) { pv.appendChild(h("div", {}, descRich(l.trim()))); });
+    }
+    function apply(on) {
+      var p = parse(ta.value), s = p.map[ta.selectionStart], e = p.map[ta.selectionEnd];
+      if (s === e) { ta.focus(); say("Select some words first."); return; }
+      if (on == null) { on = false; for (var k = s; k < e; k++) if (!p.mask[k] && p.plain[k].trim()) { on = true; break; } }
+      for (var j = s; j < e; j++) p.mask[j] = on;
+      var out = "", b = false, ps = [], pe = [];
+      for (var i = 0; i < p.plain.length; i++) { var c = p.plain[i], m = !!p.mask[i] && c !== "\n"; if (m !== b) { out += "**"; b = m; } ps[i] = out.length; out += c; pe[i] = out.length; }
+      if (b) out += "**";
+      ta.value = out.replace(/\*\*(\s+)\*\*/g, "$1"); ta.focus();
+      if (ta.value === out) ta.setSelectionRange(ps[s], pe[e - 1]);
+      say(on ? "Bold applied." : "Set back to normal."); paint();
+    }
+    function say(t) { note.textContent = t; note.style.opacity = "1"; clearTimeout(say.t); say.t = setTimeout(function () { note.style.opacity = "0"; }, 1800); }
+    var keep = function (e) { e.preventDefault(); };
+    var note = h("span", { class: "ak-rt-note", "aria-live": "polite" }, [""]);
+    var bar = h("div", { class: "ak-bullets ak-rt", role: "toolbar", "aria-label": "Description text" }, [
+      h("button", { type: "button", style: "font-weight:700", title: "Bold (Ctrl/\u2318 B)", onmousedown: keep, onclick: function () { apply(true); } }, ["Bold"]),
+      h("button", { type: "button", style: "font-weight:400", title: "Normal", onmousedown: keep, onclick: function () { apply(false); } }, ["Normal"]),
+      note
+    ]);
+    ta.addEventListener("keydown", function (e) { if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "b" || e.key === "B")) { e.preventDefault(); apply(null); } });
+    ta.addEventListener("input", paint); paint();
+    return { el: h("div", { style: "display:grid;gap:8px" }, [bar, ta, pv]), get: function () { return ta.value.replace(/\r/g, "").trim(); } };
+  }
+  function bulletPicker(cur) {
+    if (!BULLETS.some(function (b) { return b[0] === cur; })) cur = "tick";
+    var ind = h("i", { class: "ak-bseg-ind", "aria-hidden": "true" }), wrap;
+    function place() { // sliding indicator under the picked bullet (no transition on the first placement)
+      var a = wrap.querySelector('[aria-pressed="true"]'); if (!a || !a.offsetWidth) return;
+      var first = !ind.classList.contains("on"); if (first) ind.style.transition = "none";
+      ind.style.width = a.offsetWidth + "px"; ind.style.height = a.offsetHeight + "px";
+      ind.style.transform = "translate(" + a.offsetLeft + "px," + a.offsetTop + "px)";
+      if (first) { void ind.offsetWidth; ind.style.transition = ""; ind.classList.add("on"); }
+    }
+    var btns = BULLETS.map(function (b) {
+      return h("button", { type: "button", "data-b": b[0], title: b[1], "aria-pressed": b[0] === cur ? "true" : "false", html: (b[2] ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + b[2] + '</svg>' : '') + '<span>' + b[1] + '</span>', onclick: function () {
+        cur = b[0]; btns.forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-b") === cur ? "true" : "false"); }); place();
+      } });
+    });
+    wrap = h("div", { class: "ak-bullets ak-bseg", role: "group", "aria-label": "Bullet style" }, [ind].concat(btns));
+    if (window.ResizeObserver) new ResizeObserver(place).observe(wrap); else setTimeout(place, 80);
+    return { el: wrap, get: function () { return cur; } };
+  }
+  function showClean(s) { return String(s || "").replace(/\s*\.\s+/g, " · ").replace(/\s{2,}/g, " · ").replace(/^[\s·]+|[\s·.]+$/g, ""); }
+  function psRetype(el){
+    if(!el) return;
+    var full=el.getAttribute('data-full'); if(full==null){ full=el.textContent; el.setAttribute('data-full',full); }
+    if(el._fly){ el._fly.forEach(function(a){ a.cancel(); }); el._fly=null; } clearTimeout(el._flyT);
+    if(document.hidden||!el.animate||!matchMedia('(hover:hover)').matches||matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+    if(!el._chars){
+      var chars=[]; el.textContent=''; el.setAttribute('aria-label',full);
+      full.split(/(\s+)/).forEach(function(w){
+        if(!w) return;
+        if(/^\s+$/.test(w)){ el.appendChild(document.createTextNode(w)); return; }
+        var ws=document.createElement('span'); ws.setAttribute('aria-hidden','true'); ws.style.cssText='display:inline-block;white-space:nowrap';
+        Array.from(w).forEach(function(ch){ var c=document.createElement('span'); c.textContent=ch; c.style.cssText='display:inline-block;transform-origin:50% 85%;will-change:transform,opacity'; ws.appendChild(c); chars.push(c); });
+        el.appendChild(ws);
+      });
+      el._chars=chars;
+    }
+    var n=el._chars.length, step=Math.min(40,760/Math.max(1,n)), dur=380, TILT=[28,-16,34,12,-24,22,-30,18];
+    el._fly=el._chars.map(function(c,i){
+      var r=TILT[i%TILT.length];
+      return c.animate([
+        {opacity:0,transform:'translate(-.3em,-.16em) rotate('+r+'deg)',filter:'blur(1px)'},
+        {opacity:.38,transform:'translate(-.2em,-.1em) rotate('+(r*.7)+'deg)',filter:'blur(.4px)',offset:.3},
+        {opacity:.62,transform:'translate(-.06em,-.03em) rotate('+(r*.22)+'deg)',filter:'blur(0)',offset:.72},
+        {opacity:1,transform:'none',filter:'blur(0)'}
+      ],{duration:dur,delay:i*step,easing:'cubic-bezier(.3,.6,.35,1)',fill:'backwards'});
+    });
+    el._flyT=setTimeout(function(){ if(el._fly){ el._fly.forEach(function(a){ a.cancel(); }); el._fly=null; } },(n-1)*step+dur+120);
+  }
+  function showTile(it, ctl, coverStyle) {
+    var m = it.meta || {}, pts = [];
+    String(it.desc || "").split(/\n+/).forEach(function (l) { l = l.replace(/^\s*(?:[-\u2022\u2013\u2014\u2192\u2713\u2714\u2605\u25c6]|\*(?=\s))\s*/, "").trim(); if (l) pts.push(h("li", { "data-d": "" }, descRich(l))); });
+    [["Role", m.role], ["Platform", m.platform], ["Focus", m.focus]].forEach(function (r) {
+      var v = showClean(r[1]); if (v) pts.push(h("li", {}, [r[0] + " \u2014 ", h("strong", {}, [v])]));
+    });
+    var tools = String(m.software || "").split(/\s*[,|\/·]\s*|\s*\.\s+|\s{2,}/).map(function (s) { return s.replace(/\.$/, "").trim(); }).filter(Boolean), when = showClean(m.timeline);
+    var title = h("h3", {}, [it.title || "Untitled"]);
+    var tile = h(CFG.tileTag, { class: "ptile ptile-show" + (it.cover ? "" : " ptile-empty"), "data-ak-item": it.id, tabindex: "0", role: "button", "aria-label": "Open " + (it.title || CFG.noun || "project") }, [
+      ctl,
+      h("div", { class: "ps-text" }, [
+        h("div", { class: "ps-meta" }, [h("strong", {}, [it.tag || "Project"]), when ? " \u00b7 " + when : null]),
+        title,
+        pts.length ? h("ul", { class: "ps-pts", "data-b": it.bullet || null }, pts) : null
+      ]),
+      h("div", { class: "ps-media" }, [
+        h("div", { class: "ptile-img", role: "img", "aria-label": it.title || "", style: coverStyle }, it.label ? [h("span", { class: "ph-label" }, [it.label])] : []),
+        tools.length ? h("div", { class: "ps-tools", "aria-hidden": "true" }, tools.map(function (t) { return h("span", {}, [t]); })) : null
+      ])
+    ]);
+    tile.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") psRetype(title); });
+    tile.addEventListener("focus", function () { psRetype(title); });
+    return tile;
+  }
   function renderTiles() {
     var grid = tileGrid(); if (!grid) return;
     grid.querySelectorAll("[data-ak-item]").forEach(function (n) { n.remove(); });
@@ -1442,14 +1738,16 @@
       var curSz = tileSize(it);
       var sizeBtn = h("button", { class: "ak-tb", "data-ak-size-btn": "1", title: "Card size (" + curSz + ")", "aria-label": "Card size", html: I_SIZE, onclick: function (e) { e.stopPropagation(); e.preventDefault(); openSizePop(it, e.currentTarget); } });
       var adjustBtn = it.cover ? h("button", { class: "ak-tb", title: "Move / scale cover \u2014 drag to reposition, slider to zoom", html: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>', onclick: function (e) { e.stopPropagation(); e.preventDefault(); enterCoverAdjust(tile, it, function () { renderTiles(); }); } }) : null;
+      var studioBtn = COVER_STUDIO ? h("button", { class: "ak-tb", title: "Cover Studio \u2014 the standard UI/UX cover", "aria-label": "Cover Studio", html: I_STUDIO, onclick: function (e) { e.stopPropagation(); e.preventDefault(); openCoverStudio(it); } }) : null;
       var ctl = h("div", { class: "ak-tile-ctl" }, [
         grip,
-        sizeBtn,
+        CFG.showcase ? null : sizeBtn,
+        studioBtn,
         adjustBtn,
         h("button", { class: "ak-tb", title: "Edit", html: I.edit, onclick: function (e) { e.stopPropagation(); editItem(it); } }),
         h("button", { class: "ak-tb warn", title: "Delete", html: I.trash, onclick: function (e) { e.stopPropagation(); deleteItem(it); } })
       ]);
-      var tile = h(CFG.tileTag, { class: "ptile ptile-" + curSz + (it.cover ? "" : " ptile-empty"), "data-ak-item": it.id, tabindex: "0", role: "button", "aria-label": "Open " + (it.title || CFG.noun || "project"), style: "opacity:1;transform:none" }, [
+      var tile = CFG.showcase ? showTile(it, ctl, coverStyle) : h(CFG.tileTag, { class: "ptile ptile-" + curSz + (it.cover ? "" : " ptile-empty"), "data-ak-item": it.id, tabindex: "0", role: "button", "aria-label": "Open " + (it.title || CFG.noun || "project"), style: "opacity:1;transform:none" }, [
         ctl,
         h("div", { class: "ptile-img", role: "img", style: coverStyle }, it.label ? [h("span", { class: "ph-label" }, [it.label])] : []),
         h("div", { class: "ptile-body" }, [
@@ -1483,7 +1781,7 @@
     });
     // Bento fallback: if no card has an explicit size/feature, promote the first real
     // tile to hero size so the layout always reads intentionally (no empty grid cells).
-    if (!DATA.items.some(function (x) { return x.size || x.featured; })) {
+    if (!CFG.showcase && !DATA.items.some(function (x) { return x.size || x.featured; })) {
       var firstReal = grid.querySelector(".ptile[data-ak-item]:not(.ptile-empty)") || grid.querySelector(".ptile[data-ak-item]");
       if (firstReal) { firstReal.classList.remove("ptile-s", "ptile-m", "ptile-l", "ptile-t", "ptile-w"); firstReal.classList.add("ptile-hero"); }
     }
@@ -1688,24 +1986,39 @@
       sub: creating ? (studio
         ? "Create the entry, then design its themed layout — shapes, text and media on a freeform canvas. Save it as your theme to reuse the same look on every " + CFG.noun + "."
         : "Create a new entry. You can add images, PDFs, prototypes and more once it's open.") : "",
+      cls: "ak-ed", // compact sheet layout — see the .ak-ed CSS block
       fields: [
-        { key: "title", label: "Title", value: it ? it.title : "", placeholder: "e.g. FinTrack — Personal Finance App" },
-        { key: "tag", label: "Tag / category", value: it ? it.tag : "", placeholder: "e.g. Fintech" },
-        { key: "desc", label: "Short description", type: "textarea", value: it ? it.desc : "", placeholder: "One or two sentences about the project." },
-        { key: "cover", label: "Cover image", type: "file", accept: "image/*", removable: true, crop: true, cropAspect: 16 / 9, value: it ? it.cover : "", hint: "Optional. After choosing an image, drag to reposition and use the slider to zoom — the framed area becomes the cover. Shown on the tile and detail hero." },
-        { key: "role", label: "Role", value: it ? (it.meta || {}).role : "", placeholder: "e.g. Product Designer" },
+        { key: "title", label: "Title", full: true, cls: "ttl", value: it ? it.title : "", placeholder: "e.g. FinTrack — Personal Finance App" },
+        { key: "tag", label: "Tag", value: it ? it.tag : "", placeholder: "e.g. Fintech" },
         { key: "timeline", label: "Timeline", value: it ? (it.meta || {}).timeline : "", placeholder: "e.g. May 2026" },
+        CFG.showcase ? (function () {
+          var d = it ? it.desc || "" : "";
+          if (it && it.descWeight === "bold") d = d.split("\n").map(function (l) { return l.trim() ? "**" + l.trim().replace(/\*\*/g, "") + "**" : l; }).join("\n");
+          var de = descEditor(d, "One or two sentences about the project.");
+          return { key: "desc", type: "custom", label: "Short description", full: true, cls: "desc", el: de.el, get: de.get, hint: "Each line becomes its own bullet. Select words, then Bold (Ctrl/\u2318 B) or Normal." };
+        })() : { key: "desc", label: "Short description", type: "textarea", full: true, value: it ? it.desc : "", placeholder: "One or two sentences about the project." },
+        CFG.showcase ? (function () { var bp = bulletPicker(it && it.bullet); return { key: "bullet", type: "custom", label: "Bullet style", full: true, cls: "bul", el: bp.el, get: bp.get }; })() : null,
+        { key: "_hCover", type: "heading", label: "Cover" },
+        { key: "cover", label: "", type: "file", accept: "image/*", removable: true, crop: true, cropAspect: 16 / 9, full: true, cls: "raw cover", value: it ? it.cover : "",
+          placeholder: "Drop an image here, or click to upload", readyLabel: "Replace image",
+          extra: COVER_STUDIO ? h("button", { type: "button", class: "ak-studio-cta", title: it ? "UI/UX standard cover: gradient in the project's colours, logo + name, phones or a laptop showing its screens, glass labels" : "Opens once the case study exists", html: '<span class="ak-sc-ic">' + I_STUDIO + '</span><span class="ak-sc-tx"><b>Cover Studio</b></span><span class="ak-sc-go" aria-hidden="true">\u2192</span>', disabled: it ? null : "disabled", onclick: function (e) {
+            var m = e.currentTarget.closest(".ak-modal"), c = m && m.querySelector(".ak-acts .ak-btn.ghost"); if (c) c.click(); openCoverStudio(it);
+          } }) : null },
+        { key: "_hDetails", type: "heading", label: "Details" },
+        { key: "role", label: "Role", value: it ? (it.meta || {}).role : "", placeholder: "e.g. Product Designer" },
         { key: "platform", label: "Platform", value: it ? (it.meta || {}).platform : "", placeholder: "e.g. iOS · Web" },
         { key: "focus", label: "Focus", value: it ? (it.meta || {}).focus : "", placeholder: "e.g. Research → UI" },
         { key: "software", label: "Software", value: it ? (it.meta || {}).software : "", placeholder: "e.g. Figma · Blender · After Effects" }
-      ],
+      ].filter(Boolean),
       submitLabel: creating ? "Create" : "Save changes",
       validate: function (v) { if (!v.title) return "Please enter a title."; }
     }).then(function (v) {
       if (!v) return;
       var meta = { role: v.role, timeline: v.timeline, platform: v.platform, focus: v.focus, software: v.software };
+      var bullet = v.bullet && v.bullet !== "tick" ? v.bullet : "";
       if (creating) {
         var item = { id: uid(), title: v.title, tag: v.tag, desc: v.desc, cover: v.cover || "", meta: meta, blocks: [] };
+        if (bullet) item.bullet = bullet;
         DATA.items.unshift(item); // newest project/case study first
         save().then(function () {
           renderTiles(); openDetail(item.id);
@@ -1714,10 +2027,54 @@
         });
       } else {
         it.title = v.title; it.tag = v.tag; it.desc = v.desc; it.meta = meta;
+        if (CFG.showcase) { if (bullet) it.bullet = bullet; else delete it.bullet; delete it.descWeight; }
         it.cover = v.cover || "";
         save().then(function () { renderTiles(); if (openItemId) renderDetail(); });
       }
     });
+  }
+  /* ============================================================ COVER STUDIO — UI/UX standard cover
+     ref: owner's dp.JPG (28.10.2026). cover-studio.js draws it; its settings stay on the item as
+     coverKit and the baked 1920×1200 WebP becomes it.cover (the fixed <slug>-cover file on Publish).
+     The cover a project had before its first studio save is kept on this device only, under IndexedDB
+     cover:prev:<id> (not a data:* key, so it is never published), for "Restore previous". */
+  var COVER_STUDIO = CFG.page === "ui-ux";
+  var I_STUDIO = '<svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px;flex:none" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="3" stroke="currentColor" stroke-width="2"/><rect x="9.5" y="8.5" width="5" height="11.5" rx="1.4" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 8h2M16.5 8h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  function ensureCoverStudio() { return loadScript("cover-studio.js?v=" + STUDIO_V); }
+  function studioEnv(it) {
+    return { item: it, toWebp: function (cv) { return canvasToWebp(cv, 0.9); }, fromFile: readFileAsDataURL, thumb: dataURLtoBlobURL };
+  }
+  function repaintCover() { renderTiles(); if (openItemId) renderDetail(); }
+  function applyStudioCover(it, url, kit) {
+    var before = { cover: it.cover || "", coverKit: it.coverKit, coverPos: it.coverPos };
+    return idbGet("cover:prev:" + it.id).then(function (p) {
+      if (!p && before.cover && !before.coverKit) return idbSet("cover:prev:" + it.id, before.cover);
+    })["catch"](function () {}).then(function () {
+      it.cover = url; it.coverKit = kit; delete it.coverPos;
+      return save();
+    }).then(function () {
+      repaintCover();
+      showUndoToast("New cover for \u201c" + (it.title || CFG.noun) + "\u201d \u00b7 " + dataKB(url), function () {
+        it.cover = before.cover;
+        if (before.coverKit) it.coverKit = before.coverKit; else delete it.coverKit;
+        if (before.coverPos) it.coverPos = before.coverPos;
+        save().then(repaintCover);
+      });
+    });
+  }
+  function openCoverStudio(it) {
+    if (!it) return;
+    Promise.all([ensureCoverStudio(), idbGet("cover:prev:" + it.id)["catch"](function () { return null; })]).then(function (r) {
+      var env = studioEnv(it), prev = r[1] || "";
+      env.prevCover = prev && prev !== it.cover ? prev : "";
+      env.onSave = function (url, kit) { return applyStudioCover(it, url, kit); };
+      env.onRestore = function () { it.cover = prev; delete it.coverPos; return save().then(repaintCover); };
+      window.AKCoverStudio.open(env);
+    }, function () { showNoteToast("Cover Studio could not load \u2014 check the connection and try again.", true); });
+  }
+  function bakeStandardCover(it) {
+    return ensureCoverStudio().then(function () { return window.AKCoverStudio.bake(studioEnv(it)); })
+      .then(function (r) { return applyStudioCover(it, r.url, r.kit); });
   }
   /* ============================================================ UNDO TOAST */
   var _toastEl, _toastTimer;
@@ -1866,9 +2223,17 @@
     window.AK_THEME_NO_PERSIST = false;
     var k = document.getElementById("knob"); if (k) k.textContent = r.dataset.theme === "light" ? "\u2600\uFE0F" : "\uD83C\uDF19";
   }
+  /* the address bar always shows the open project's own link (project-x.html#p=<id>) — copy/share/reload lands on it */
+  var baseTitle = document.title;
+  function setDetailUrl(it) {
+    var url = location.pathname + location.search + (it ? "#p=" + encodeURIComponent(it.id) : "");
+    try { history.replaceState(history.state, "", url); } catch (e) {}
+    document.title = it && it.title ? it.title + " — Ajay Katta" : baseTitle;
+  }
   function openDetail(id) {
-    sessionView = { id: null, v: "canvas" }; /* every fresh open starts in Canvas */
+    sessionView = { id: null, v: "grid" }; /* every fresh open starts in Grid */
     openItemId = id;
+    setDetailUrl(DATA.items.filter(function (x) { return x.id === id; })[0]);
     document.body.classList.add("ak-item-detail");
     enterDetailTheme();
     renderDetail();
@@ -1905,8 +2270,9 @@
     }, { passive: true });
   }
   function closeDetail() {
-    sessionView = { id: null, v: "canvas" };
+    sessionView = { id: null, v: "grid" };
     openItemId = null;
+    setDetailUrl(null);
     tpHide();
     document.body.classList.remove("ak-item-detail");
     var _h = document.querySelector("header"); if (_h) _h.classList.remove("nav-hidden");
@@ -2215,7 +2581,7 @@
       h("div", { class: "inner" }, [
         it.tag ? h("div", { class: "tag" }, [it.tag]) : null,
         h("h1", {}, [it.title || "Untitled"]),
-        it.desc ? h("p", {}, [it.desc]) : null,
+        it.desc ? h("p", {}, [String(it.desc).replace(/\*\*/g, "")]) : null,
         metaChips.length ? h("div", { class: "ak-meta" }, metaChips) : null
       ])
     ]);
@@ -2241,19 +2607,21 @@
       });
     }
     function applyView(mode) {
-      viewMode = mode === "grid" ? "grid" : "canvas";
+      viewMode = mode === "canvas" ? "canvas" : "grid";
       setBentoView(viewMode, it.id);
-      if (viewBar) viewBar.querySelectorAll("button").forEach(function (b) {
+      [viewBar, barView].forEach(function (vb) { if (vb) vb.querySelectorAll("button").forEach(function (b) {
         var on = b.getAttribute("data-view") === viewMode;
         b.classList.toggle("active", on); b.setAttribute("aria-selected", on ? "true" : "false");
-      });
+      }); });
       if (studioMode) paintStudioBody();
       else blocksWrap.classList.toggle("ak-gridmode", viewMode === "grid");
     }
-    var showSwitch = studioMode || (it.blocks && it.blocks.length > 1);
+    var showSwitch = true; /* every opened project / case study gets Canvas · Grid (owner 29.10.2026) */
     var viewBar = showSwitch ? buildViewSwitch(viewMode, applyView, studioMode) : null;
     /* the layout switch lives in the project's home/hero block — highest visibility, seen before scrolling */
-    if (viewBar) { viewBar.classList.add("in-hero"); hero.appendChild(viewBar); }
+    /* ONE layout switch, at the right end of the sticky bar — always visible, and back with the bar on every scroll-up */
+    var barView = null;
+    if (viewBar) { viewBar.classList.add("ak-bar-view"); bar.querySelector(".inner").appendChild(viewBar); }
     if (studioMode) { studioBody = h("div", { class: "ak-studio-body" }); paintStudioBody(); }
     else if (viewMode === "grid" && showSwitch) blocksWrap.classList.add("ak-gridmode");
     detailEl = h("div", { class: "ak-detail" }, [bar, hero,
@@ -2477,7 +2845,7 @@
     function card(tag, lbl, inputEl, ctlRow, focusEl, extras) {
       var c = h("div", { style: "border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--bg) 55%,var(--surface));transition:border-color .15s" }, [
         h("div", { style: "display:flex;align-items:center;gap:7px;padding:9px 11px 0" }, [
-          h("span", { style: "font-family:'Inter',sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.08em;padding:2px 6px;border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)" }, [tag]),
+          h("span", { style: "font-family:'Inter',sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.08em;padding:2px 6px;border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-ink,var(--accent))" }, [tag]),
           h("span", { style: "font-family:'Inter',sans-serif;font-size:.55rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)" }, [lbl]),
           extras || null
         ]),
@@ -2829,7 +3197,7 @@
         var _num = ("0" + _sn).slice(-2);
         inner = h("div", { class: "ak-sec" }, [
           h("div", { class: "ak-sec-top", style: "display:flex;align-items:center;gap:14px;margin-bottom:14px" }, [
-            h("span", { class: "ak-sec-num", style: "font-family:'Inter',sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.18em;color:var(--accent);flex:none" }, [_num]),
+            h("span", { class: "ak-sec-num", style: "font-family:'Inter',sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.18em;color:var(--accent-ink,var(--accent));flex:none" }, [_num]),
             h("span", { style: "flex:1;height:1px;background:var(--line)" })
           ]),
           textInner
@@ -3501,7 +3869,7 @@
   function fallback3D(holder, msg, dataURL, name) {
     holder.innerHTML = "";
     holder.appendChild(h("div", { class: "fallback" }, [
-      h("div", { html: I.cube, style: "width:34px;height:34px;color:var(--accent)" }),
+      h("div", { html: I.cube, style: "width:34px;height:34px;color:var(--accent-ink,var(--accent))" }),
       h("p", { style: "margin:0;max-width:340px" }, [msg]),
       h("a", { class: "ak-btn ghost", href: dataURLtoBlobURL(dataURL), download: name || "model", html: I.dl + "<span>Download model</span>" })
     ]));
@@ -3572,6 +3940,11 @@
   window.AK_CASES = {
     page: CFG.page,
     current: function () { return { page: CFG.page, data: DATA }; },
+    /* UI/UX Cover Studio: open(id) shows the editor, bake(id) applies the standard cover without UI */
+    coverStudio: COVER_STUDIO ? {
+      open: function (id) { openCoverStudio(DATA.items.filter(function (x) { return x.id === id; })[0]); },
+      bake: function (id) { var it = DATA.items.filter(function (x) { return x.id === id; })[0]; return it ? bakeStandardCover(it) : Promise.reject(new Error("no item " + id)); }
+    } : null,
     openMenu: function () {
       if (menuEl && menuEl.classList.contains("on")) return closeMenu();
       openItemId = null; openCaseKey = null;     // the bar's Add is the grid entry: new project
@@ -3617,9 +3990,15 @@
       var dl = /^#p=(.+)$/.exec(location.hash || "");
       if (dl) {
         var did = ""; try { did = decodeURIComponent(dl[1]); } catch (e) {}
-        try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
         if (DATA && DATA.items && DATA.items.some(function (x) { return x.id === did; })) openDetail(did);
+        else setDetailUrl(null);
       }
+      /* a #p= link pasted into an already-open category page */
+      addEventListener("hashchange", function () {
+        var m = /^#p=(.+)$/.exec(location.hash || ""), id = ""; if (m) { try { id = decodeURIComponent(m[1]); } catch (e) {} }
+        if (id && id !== openItemId && DATA.items.some(function (x) { return x.id === id; })) openDetail(id);
+        else if (!m && openItemId) closeDetail();
+      });
       requestAnimationFrame(revealTiles);
     }).catch(revealTiles);
   }

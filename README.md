@@ -44,17 +44,17 @@ The **admin bar** (bottom-right) is the only admin control:
 | Button | What it does |
 |---|---|
 | **Edit** | Tap any text to retype it, tap any photo to swap it. Tap again to preview. |
-| **Add** | On a category page's project grid: add a new project. Inside a project use **Add content** (header) and **Layout Studio** (header, left). |
+| **Add** | On a category page's project grid: add a new project. Inside a project use **Add content** (header) — Layout Studio is in that menu. |
 | **Undo** | Steps back through page edits (⌘Z / Ctrl-Z). |
-| **Publish** | Opens the panel: Publish · Projects · Sections · Theme · SEO · Links · Files · Versions · Tools. The badge counts everything not yet published. |
+| **Admin** | Opens the panel on its Publish tab: Publish · Sections · Theme · SEO · Links & files · Code & data · Versions · Tools. The badge counts everything not yet published. |
 
-**Tools** holds Optimise images, Restore case studies from a file, and Change password.
+**Publish** links to Optimise images; **Tools** holds Restore case studies from a file and Change password.
 
 Everything you change is saved **in this browser** as a draft. Nobody sees it until you publish.
 
 ### Publishing
 
-1. Admin bar → **Publish** → **Publish N changes** → re-enter your password.
+1. Admin bar → **Admin** → **Publish N changes** → re-enter your password.
 2. You get **one ZIP with only the files that differ from the live site**. Unzip it and copy
    everything inside `Ajaykatta_Website/GitRepo` into this repo (same folders, replacing files).
 3. Push to GitHub. Vercel redeploys in about a minute. ✅
@@ -68,10 +68,10 @@ How it works:
   sections, colours, title/description/social tags). Visitors get plain static pages — no
   content file to fetch, nothing patched in after load, and crawlers see your real SEO tags.
 - **Case studies and home-page data** go into `portfolio-data.json` (minified).
-- **Uploads become files named by their content** (`fintrack-cover-1a2b3c4d5e.webp`). The same
-  picture always gets the same name, so it is shipped once — never re-shipped by a later
-  publish, never duplicated under two names. An upload identical to a file already live
-  reuses that file.
+- **Uploads get readable names** — `media/<folder>/<project>-cover.webp`, `-image-<n>`, `-media-<n>`,
+  `-model-<n>` (no hashes). Numbered names are never overwritten; a replaced cover / profile
+  photo / certificate keeps its name and every reference gets `?v=<n>` so caches refresh.
+  An upload identical to a file already live reuses that file.
 - Once a publish is live, the editor notices (the page matches what it wrote) and retires
   those drafts, so the next ZIP only carries what's new.
 
@@ -82,10 +82,10 @@ How it works:
 - **WebP only, and it asks first.** Drop a PNG/JPEG/HEIC and a dialog offers **Convert to
   WebP** or **Keep original**, with both sizes. GIF and SVG are left alone — an SVG's fonts
   are embedded inside the file on upload (`svg-embed.js`) so its text never falls back.
-- **2560px cap** on the long edge for everything you upload. Canvas photos are shipped at the
-  size they're drawn.
-- **Tools → Optimise images** finds anything already published that's over the cap (by
-  category or single project), shrinks it in the browser, and the fixed files **ship with your
+- **Uploads are never resized automatically** — no size cap; Convert to WebP keeps full
+  resolution. Canvas output (crops, Cover Studio) is WebP at the size it's drawn.
+- **Optimise images** (from Publish) re-checks published and not-yet-published files (by
+  category or single project), downscales on request, and the fixed files **ship with your
   next Publish** — no separate download.
 - Visitors never download any admin code: `admin.js` carries only what renders the case
   studies plus their editor, and the whole admin mode (`site-edit.js`, `site-package.js`,
@@ -97,14 +97,11 @@ How it works:
 
 ## Missing media (as of this snapshot)
 
-`portfolio-data.json` references these files that are **not** in `media/`. Each renders as a
+`portfolio-data.json` references these files that are **not** in this folder. Each renders as a
 graceful placeholder. Drop the real files in at these exact paths to restore them:
 
 ```
-media/gen-ai/nike-vaporfly-4-cover.jpg
-media/gen-ai/nike-vaporfly-4-media-1.mp4
-media/gen-ai/nike-vaporfly-4-image-2.webp
-media/3d/hashtag-cycle-media-1.bin      ← rename to .mp4 in the editor; .bin won't play
+media/3d/hashtag-cycle-media-1.bin      ← an MKV video saved as .bin; re-upload it as MP4 (Safari can't play MKV)
 media/3d/hashtag-cycle-model-9.glb
 media/3d/clx-cabinet-model-9.glb
 media/3d/baggalini-bag-model-8.glb

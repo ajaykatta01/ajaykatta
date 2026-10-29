@@ -16,7 +16,7 @@
 (function () {
   "use strict";
   var SESSION = "ak-admin-unlocked";
-  var EDITOR = "site-edit.js?v=31";
+  var EDITOR = "site-edit.js?v=34";
   var PAGE = (location.pathname.split("/").pop() || "index").replace(/\.html?$/i, "") || "index";
 
   /* the old runtime kept a copy of site-content.json here — no longer used */

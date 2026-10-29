@@ -26,7 +26,7 @@
   var BAKED = "fc3bc90afab65978286ab14b40b51bbe5b8ab2d3208e6a440c7844babcf89892";
   var FLAG = "ak-site-edits";
   var MAXV = 10;
-  var PKG_SRC = "site-package.js?v=10";
+  var PKG_SRC = "site-package.js?v=13";
   var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume"];
   var PAGELABEL = { "index": "Home", "project-ui-ux": "UI / UX", "project-gen-ai": "Gen AI", "project-3d": "3D", "resume": "Résumé" };
   var CATLABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
@@ -832,13 +832,15 @@
       "image/svg+xml": "SVG", "image/avif": "AVIF", "image/heic": "HEIC", "image/heif": "HEIC" })[m]
       || String(m || "").replace("image/", "").toUpperCase() || "this file";
   }
-  function pickImage(el, key) {
-    pickFile("image/*").then(function (f) {
-      if (!f) return;
-      readDataURL(f).then(function (orig) {
+  /* the one Convert-to-WebP / Keep-original sheet — resolves {url, fmt} or null (cancelled) */
+  function askImage(f) {
+    return readDataURL(f).then(function (orig) {
         var srcFmt = f.type || String(orig).slice(5).split(";")[0];
         var wasWebp = srcFmt === "image/webp";
-        (wasWebp ? Promise.resolve(null) : compress(orig, 0, 0.95)).then(function (small) {
+        return (wasWebp ? Promise.resolve(null) : compress(orig, 0, 0.95)).then(function (small) {
+          return new Promise(function (done) {
+          var picked = null;
+          function apply(url, fmt) { picked = { url: url, fmt: fmt }; }
           sheet(function (box, close) {
             box.appendChild(h("h3", {}, ["Use this photo?"]));
             box.appendChild(h("img", { class: "aks-prev", src: (small && small.url) || orig, alt: "" }));
@@ -857,7 +859,16 @@
               h("span", { class: "tag" }, [kb(f.size)])
             ]));
             box.appendChild(acts([h("button", { class: "aks-b", onclick: close }, ["Cancel"])]));
+          }, false, function () { done(picked); });
           });
+        });
+    });
+  }
+  function pickImage(el, key) {
+    pickFile("image/*").then(function (f) {
+      if (!f) return;
+      askImage(f).then(function (p) {
+          if (p) apply(p.url, p.fmt);
           function apply(url, fmt) {
             setOv("img", key, url);
             if (el.tagName === "IMG") { el.removeAttribute("srcset"); el.src = url; } else el.style.backgroundImage = 'url("' + url + '")';
@@ -865,7 +876,6 @@
             deselect();
             toast(fmt === "image/webp" ? "Photo replaced · WebP" : "⚠ Photo replaced — still " + fmtName(fmt) + ", not WebP");
           }
-        });
       });
     });
   }
@@ -1526,7 +1536,7 @@
   }
   function lsJSON(k) { try { var r = lsGet(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
   function homeLocal(keys) {
-    var o = { certs: lsJSON("ak-certs"), profile: lsGet("ak-profile-photo"), covers: {} };
+    var o = { certs: lsJSON("ak-certs"), exp: lsJSON("ak-exp"), expMap: lsJSON("ak-exp-map"), profile: lsGet("ak-profile-photo"), covers: {} };
     keys.forEach(function (k) { var v = lsGet("ak-cover-" + k); if (v) o.covers[k] = v; });
     return o;
   }
@@ -1539,6 +1549,8 @@
     }
     live = live || {};
     changed("Certificates", local.certs, live.certs, base && base.certs);
+    changed("Experience", local.exp, live.exp, base && base.exp);
+    changed("Flight map", local.expMap, live.expMap, base && base.expMap);
     changed("Profile photo", local.profile, live.profile, base && base.profile);
     Object.keys(local.covers).forEach(function (k) { changed((CATLABEL[k] || k) + " cover", local.covers[k], (live.covers || {})[k], base && (base.covers || {})[k]); });
     return out;
@@ -2043,6 +2055,9 @@
     applyDraft: applyDraft,
     keys: { skip: skip, keyOf: keyOf, resolve: resolve },
     strHash: strHash,
-    publish: doPublish
+    publish: doPublish,
+    askImage: askImage,
+    toast: toast,
+    fmtName: fmtName
   };
 })();

@@ -11,6 +11,24 @@
    underneath as a safe fallback for engines without @property.
    ============================================================ */
 (function () {
+  /* Browser bar colour (Android Chrome, iOS Safari tint) follows the SITE theme — toggle,
+     stored ak-theme, forced-light project detail — not the phone's OS light/dark setting. */
+  (function syncBar() {
+    var root = document.documentElement, head = document.head;
+    if (!head || !window.MutationObserver) return;
+    var metas = head.querySelectorAll('meta[name="theme-color"]'), m = metas[0];
+    for (var i = 1; i < metas.length; i++) metas[i].parentNode.removeChild(metas[i]);
+    if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; head.appendChild(m); }
+    m.removeAttribute('media');
+    function set() {
+      var bg = '';
+      try { bg = getComputedStyle(root).getPropertyValue('--bg').trim(); } catch (e) {}
+      m.setAttribute('content', bg || (root.dataset.theme === 'light' ? '#FFFFFF' : '#0A0A0A'));
+    }
+    set();
+    new MutationObserver(set).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  })();
+
   function init() {
     var root = document.documentElement;
     var toggle = document.getElementById('themeToggle');

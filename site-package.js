@@ -41,7 +41,7 @@
   function isData(v) { return typeof v === "string" && v.slice(0, 5) === "data:"; }
   function mimeOf(d) { return (String(d).slice(5).split(";")[0] || "").split(",")[0].toLowerCase(); }
   var EXT = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg",
-    "image/avif": "avif", "application/pdf": "pdf", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/ogg": "ogv",
+    "image/avif": "avif", "application/pdf": "pdf", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/ogg": "ogv", "video/x-matroska": "mkv", "video/matroska": "mkv", "video/x-m4v": "m4v",
     "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "oga", "audio/mp4": "m4a",
     "model/gltf-binary": "glb", "model/gltf+json": "gltf" };
   function extFor(mime, fb) { return EXT[mime] || (fb ? String(fb).toLowerCase().replace(/[^a-z0-9]/g, "") : "") || "bin"; }
@@ -190,6 +190,10 @@
         var ph = pub.home || {}, home = {};
         try { var raw = lsGet("ak-certs"), a = raw ? JSON.parse(raw) : null; if (Array.isArray(a)) home.certs = a; } catch (e) {}
         if (!home.certs && Array.isArray(ph.certs)) home.certs = ph.certs;
+        try { var rx = lsGet("ak-exp"), ax = rx ? JSON.parse(rx) : null; if (Array.isArray(ax)) home.exp = ax; } catch (e) {}
+        if (!home.exp && Array.isArray(ph.exp)) home.exp = ph.exp;
+        try { var rm = lsGet("ak-exp-map"), am = rm ? JSON.parse(rm) : null; if (am && typeof am === "object") home.expMap = am; } catch (e) {}
+        if (!home.expMap && ph.expMap && typeof ph.expMap === "object") home.expMap = ph.expMap;
         var covers = {};
         keys.forEach(function (k) { var v = lsGet("ak-cover-" + k) || (ph.covers && ph.covers[k]); if (v) covers[k] = v; });
         if (Object.keys(covers).length) home.covers = covers;

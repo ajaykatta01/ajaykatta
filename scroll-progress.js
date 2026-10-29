@@ -42,7 +42,7 @@
     + '.ak-progress-ring .trk{fill:none;stroke:var(--line);stroke-width:3}'
     + '.ak-progress-ring .val{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset .12s linear}'
     + '.ak-progress-ring .pct{font-family:\'Inter\',sans-serif;font-weight:700;font-size:.72rem;color:var(--text);position:relative;z-index:1;transition:opacity .22s}'
-    + '.ak-progress-ring .up{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .22s;color:var(--accent);font-size:1.05rem;line-height:1}'
+    + '.ak-progress-ring .up{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .22s;color:var(--accent-ink,var(--accent));font-size:1.05rem;line-height:1}'
     + '.ak-progress-ring:hover .pct{opacity:0}'
     + '.ak-progress-ring:hover .up{opacity:1}'
     + '@media (max-width:760px){.ak-progress-ring{width:48px;height:48px;bottom:16px;left:16px}.ak-progress-ring .pct{font-size:.66rem}}'
