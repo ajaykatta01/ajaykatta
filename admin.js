@@ -1671,31 +1671,33 @@
     return { el: wrap, get: function () { return cur; } };
   }
   function showClean(s) { return String(s || "").replace(/\s*\.\s+/g, " · ").replace(/\s{2,}/g, " · ").replace(/^[\s·]+|[\s·.]+$/g, ""); }
-  function psRetype(el){
+  function psRetype(el, force){
     if(!el) return;
     var full=el.getAttribute('data-full'); if(full==null){ full=el.textContent; el.setAttribute('data-full',full); }
     if(el._fly){ el._fly.forEach(function(a){ a.cancel(); }); el._fly=null; } clearTimeout(el._flyT);
-    if(document.hidden||!el.animate||!matchMedia('(hover:hover)').matches||matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+    if(document.hidden||!el.animate||(!force&&!matchMedia('(hover:hover)').matches)||matchMedia('(prefers-reduced-motion:reduce)').matches) return;
     if(!el._chars){
       var chars=[]; el.textContent=''; el.setAttribute('aria-label',full);
       full.split(/(\s+)/).forEach(function(w){
         if(!w) return;
         if(/^\s+$/.test(w)){ el.appendChild(document.createTextNode(w)); return; }
         var ws=document.createElement('span'); ws.setAttribute('aria-hidden','true'); ws.style.cssText='display:inline-block;white-space:nowrap';
-        Array.from(w).forEach(function(ch){ var c=document.createElement('span'); c.textContent=ch; c.style.cssText='display:inline-block;transform-origin:50% 85%;will-change:transform,opacity'; ws.appendChild(c); chars.push(c); });
+        Array.from(w).forEach(function(ch){ var c=document.createElement('span'); c.textContent=ch; c.style.cssText='display:inline-block;transform-origin:50% 85%'; ws.appendChild(c); chars.push(c); });
         el.appendChild(ws);
       });
       el._chars=chars;
     }
-    var n=el._chars.length, step=Math.min(40,760/Math.max(1,n)), dur=380, TILT=[28,-16,34,12,-24,22,-30,18];
+    var n=el._chars.length, step=Math.min(40,760/Math.max(1,n)), dur=380, TILT=[28,-16,34,12,-24,22,-30,18], lite=!matchMedia('(hover:hover) and (pointer:fine)').matches;
     el._fly=el._chars.map(function(c,i){
       var r=TILT[i%TILT.length];
-      return c.animate([
+      var K=[
         {opacity:0,transform:'translate(-.3em,-.16em) rotate('+r+'deg)',filter:'blur(1px)'},
         {opacity:.38,transform:'translate(-.2em,-.1em) rotate('+(r*.7)+'deg)',filter:'blur(.4px)',offset:.3},
         {opacity:.62,transform:'translate(-.06em,-.03em) rotate('+(r*.22)+'deg)',filter:'blur(0)',offset:.72},
         {opacity:1,transform:'none',filter:'blur(0)'}
-      ],{duration:dur,delay:i*step,easing:'cubic-bezier(.3,.6,.35,1)',fill:'backwards'});
+      ];
+      if(lite) K.forEach(function(k){ delete k.filter; }); // touch: no per-letter blur — transform + opacity only, stays on the compositor
+      return c.animate(K,{duration:dur,delay:i*step,easing:'cubic-bezier(.3,.6,.35,1)',fill:'backwards'});
     });
     el._flyT=setTimeout(function(){ if(el._fly){ el._fly.forEach(function(a){ a.cancel(); }); el._fly=null; } },(n-1)*step+dur+120);
   }
@@ -1725,6 +1727,8 @@
   }
   function renderTiles() {
     var grid = tileGrid(); if (!grid) return;
+    // phones/tablets: the showcase row crossing mid-screen takes the hover look (scroll-open.js)
+    if (CFG.showcase && window.AK_SCROLL_OPEN) AK_SCROLL_OPEN.watch(grid, ".ptile-show", function (t) { psRetype(t.querySelector("h3"), true); });
     grid.querySelectorAll("[data-ak-item]").forEach(function (n) { n.remove(); });
     var tileAnchor = grid.querySelector(".ptile[data-case]"); // newest items render before any built-in case tiles
     DATA.items.forEach(function (it) {
@@ -3058,11 +3062,17 @@
   }
   /* tasteful stand-in when a media file 404s, so a missing asset never shows a broken element */
   function mediaMissing(icon, label, rad) {
-    return h("div", { class: "ak-missing", style: rad || "" }, [
+    var el = h("div", { class: "ak-missing", style: rad || "" }, [
       h("div", { class: "ak-missing-ic", html: icon || I.img }),
       h("p", {}, [label || "Media unavailable"]),
       h("small", {}, ["File not found"])
     ]);
+    /* visitors never see a "file not found" box: the whole block folds away (admins keep the placeholder so they can replace the file) */
+    if (!isUnlocked()) {
+      el.style.display = "none";
+      setTimeout(function () { var b = el.closest(".ak-block"); if (b) b.style.display = "none"; }, 0);
+    }
+    return el;
   }
   var I_REPLACE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14l-3.5-3.5M21 16H7l3.5 3.5"/></svg>';
   var I_BRESIZE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 21H3v-7M21 10V3h-7M3 21l7-7M21 3l-7 7"/></svg>';
@@ -3877,6 +3887,15 @@
   function mount3D(holder, b) {
     var fmt = b.format || modelFormat(b.src);
     var url = dataURLtoBlobURL(b.src);
+    /* a model file that isn't on the server: skip the 1 MB viewer download and fold the block */
+    if (!/^(data|blob):/.test(url) && window.fetch) {
+      fetch(url, { method: "HEAD" }).then(function (r) {
+        if (r.ok) go(); else { holder.innerHTML = ""; holder.appendChild(mediaMissing(I.cube, "3D model unavailable", "")); }
+      }, go);
+      return;
+    }
+    go();
+    function go() {
     if (fmt === "glb" || fmt === "gltf") {
       loadScript("https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js", "module").then(function () {
         holder.innerHTML = "";
@@ -3891,6 +3910,7 @@
       }).catch(function () { fallback3D(holder, "Couldn't load the 3D viewer.", b.src, "model." + fmt); });
     } else {
       mountThree(holder, url, fmt, b);
+    }
     }
   }
   function mountThree(holder, url, fmt, b) {

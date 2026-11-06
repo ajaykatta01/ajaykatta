@@ -26,13 +26,13 @@
   var BAKED = "fc3bc90afab65978286ab14b40b51bbe5b8ab2d3208e6a440c7844babcf89892";
   var FLAG = "ak-site-edits";
   var MAXV = 10;
-  var PKG_SRC = "site-package.js?v=13";
-  var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume"];
-  var PAGELABEL = { "index": "Home", "project-ui-ux": "UI / UX", "project-gen-ai": "Gen AI", "project-3d": "3D", "resume": "Résumé" };
+  var PKG_SRC = "site-package.js?v=22";
+  var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume", "about", "404"];
+  var PAGELABEL = { "index": "Home", "project-ui-ux": "UI / UX", "project-gen-ai": "Gen AI", "project-3d": "3D", "resume": "Résumé", "about": "About", "404": "404" };
   var CATLABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
   var BUILTIN = ["ui-ux", "gen-ai", "3d"];
   var BKS = ["text", "html", "img", "href", "attr", "hide"];
-  var BUCKETS = [["text", "Text"], ["html", "Text"], ["img", "Photo"], ["href", "Link"], ["attr", "Setting"], ["hide", "Section"], ["order", "Reordered"]];
+  var BUCKETS = [["text", "Text"], ["html", "Text"], ["img", "Photo"], ["href", "Link"], ["attr", "Setting"], ["hide", "Section"], ["order", "Reordered"], ["list", "Items"]];
 
   /* ---------------------------------------------------------------- helpers */
   function h(tag, attrs, kids) {
@@ -138,6 +138,79 @@
     return kids;
   }
 
+  /* ------------------------------------------------------------------ lists
+     A container marked data-ak-list="<item name>" (data-ak-items = item selector,
+     data-ak-axis="y" = vertical) lets the owner add, remove and move its items.
+     d.list[container key] = item ids in order: "n" = the file's nth item, "n.c" =
+     a copy of it. Applied after section order and before text/photo keys (which
+     are recorded against the arranged list). Items are always rebuilt from the
+     file's own markup, so a baked page never carries editor or runtime state. */
+  function listItems(box) {
+    var s = box.getAttribute("data-ak-items");
+    return Array.prototype.filter.call(box.children, function (c) { return !skip(c) && (!s || c.matches(s)); });
+  }
+  function itemOf(el) {
+    var box = el && el.closest ? el.closest("[data-ak-list]") : null; if (!box) return null;
+    var it = el; while (it && it.parentElement !== box) it = it.parentElement;
+    return it && listItems(box).indexOf(it) >= 0 ? { box: box, it: it } : null;
+  }
+  function itemIn(el, box) {
+    var it = el; while (it && it.parentElement !== box) it = it.parentElement;
+    return it && listItems(box).indexOf(it) >= 0 ? it : null;
+  }
+  function tagList(box, doc) {
+    if (box.__akP) return;
+    var kids = listItems(box), from = kids, live = doc === document, base = null;
+    /* a list inside another list's item (e.g. About interests: categories > GIFs) takes its
+       pristine items from that item's own source copy, so added / moved parents stay right */
+    var up = box.parentElement && box.parentElement.closest ? box.parentElement.closest("[data-ak-list]") : null;
+    if (up) {
+      tagList(up, doc);
+      var uit = itemIn(box, up), uli = uit && uit.getAttribute("data-ak-li"), up0 = uli != null && up.__akP ? up.__akP[+String(uli).split(".")[0]] : null;
+      base = up0 ? relFind(up0, relPath(box, uit)) : null;
+    }
+    if (base) from = listItems(base);
+    else if (live && SRC) { var sb = resolve(keyOf(box), SRC), sk = sb ? listItems(sb) : []; if (sk.length === kids.length) from = sk; }
+    box.__akP = from.map(function (c, i) {
+      var n = c.ownerDocument === box.ownerDocument ? c.cloneNode(true) : box.ownerDocument.importNode(c, true);
+      n.setAttribute("data-ak-li", String(i)); return n;
+    });
+    kids.forEach(function (c, i) { c.setAttribute("data-ak-li", String(i)); });
+    if (live && LISTBOXES.indexOf(box) < 0) LISTBOXES.push(box);
+  }
+  function arrangeList(box, list, doc, force) {
+    tagList(box, doc);
+    var P = box.__akP, want = (list || P.map(function (_, i) { return i; })).map(String), kids = listItems(box);
+    if (!force && kids.map(function (c) { return c.getAttribute("data-ak-li"); }).join("|") === want.join("|")) return false;
+    var anchor = kids.length ? kids[kids.length - 1].nextSibling : null;
+    kids.forEach(function (c) { c.remove(); });
+    want.forEach(function (id) {
+      var p = P[+id.split(".")[0]]; if (!p) return;
+      var n = p.cloneNode(true); n.setAttribute("data-ak-li", id); box.insertBefore(n, anchor);
+    });
+    return true;
+  }
+  function relPath(el, root) {
+    var parts = [];
+    while (el && el !== root) {
+      var i = 1, s = el.previousElementSibling;
+      while (s) { if (s.tagName === el.tagName && !skip(s)) i++; s = s.previousElementSibling; }
+      parts.unshift(el.tagName.toLowerCase() + ":" + i); el = el.parentElement;
+    }
+    return parts.join(">");
+  }
+  function relFind(root, rel) {
+    var node = root;
+    (rel ? rel.split(">") : []).forEach(function (sg) {
+      if (!node) return;
+      var m = /^([a-z0-9-]+):(\d+)$/i.exec(sg), c = 0, f = null, ch = node.firstElementChild;
+      while (m && ch) { if (ch.tagName === m[1].toUpperCase() && !skip(ch)) { if (++c === +m[2]) { f = ch; break; } } ch = ch.nextElementSibling; }
+      node = f;
+    });
+    return node;
+  }
+  function fireList(box) { try { box.dispatchEvent(new CustomEvent("ak-list-changed", { bubbles: true })); } catch (e) {} }
+
   /* ---------------------------------------------------------- apply a draft
      ONE routine for both the live page (live=true, admin preview) and a parsed
      copy of the HTML file (publish). Order first: keys are recorded against the
@@ -160,8 +233,8 @@
     function block(sel, set) { var o = ""; for (var k in (set || {})) if (set[k]) o += k + ":" + set[k] + ";"; return o ? sel + "{" + o + "}" : ""; }
     return v ? block(":root", v.dark) + block('[data-theme="light"]', v.light) : "";
   }
-  function applyDraft(doc, d, live) {
-    var missed = [];
+  function applyDraft(doc, d, live, force) {
+    var missed = [], changed = [];
     if (!d) return missed;
     if (d.order) Object.keys(d.order).forEach(function (ck) {
       var box = ck === "" ? doc.body : resolve(ck, doc), list = d.order[ck];
@@ -170,6 +243,17 @@
       var by = {};
       tagOI(box).forEach(function (c) { by[c.getAttribute("data-ak-oi")] = c; });
       list.forEach(function (oi) { if (by[oi]) box.appendChild(by[oi]); });
+    });
+    var lists = d.list || {};
+    if (live) LISTBOXES.forEach(function (box) { if (!lists[keyOf(box)] && arrangeList(box, null, doc, force)) changed.push(box); });
+    function depthOf(k) {
+      if (k.charAt(0) !== "#") return k.split(">").length;
+      var e = resolve(k, doc), n = 0; while (e && e !== doc.body) { n++; e = e.parentElement; } return n;
+    }
+    Object.keys(lists).sort(function (a, b) { return depthOf(a) - depthOf(b); }).forEach(function (ck) {
+      var box = resolve(ck, doc), list = lists[ck];
+      if (!box || !Array.isArray(list)) { missed.push("items of " + ck); return; }
+      if (arrangeList(box, list, doc, force) && live) changed.push(box);
     });
     BKS.forEach(function (b) {
       var set = d[b]; if (!set) return;
@@ -203,13 +287,15 @@
       baked.textContent = css;
     } else if (baked && d.vars && d.vars.cleared) baked.remove();
     if (d.meta && !live) putMeta(doc, d.meta);
+    if (!live) Array.prototype.forEach.call(doc.querySelectorAll("[data-ak-li]"), function (n) { n.removeAttribute("data-ak-li"); });
+    else changed.forEach(fireList);
     return missed;
   }
 
   /* ----------------------------------------------------------------- state */
   var DATA = {};             // page edits, all pages (working copy)
   var SRC = null, SRCTEXT = null;   // this page's HTML file, as published
-  var UNDO = [];
+  var UNDO = [], LISTBOXES = [];
   var ON = false, sel = null, vTimer = null, META0 = null;
   var PUBBASE = null, PUBAT = 0, PUBPAGES = {};   // snapshot of DATA at the last publish
   var CASES = null, CASEBASE = null, HOMEPEND = [], FIXN = 0;
@@ -255,10 +341,10 @@
       }
     });
   }
-  function applyAll() {
+  function applyAll(force) {
     document.querySelectorAll("[data-aks-hidden]").forEach(function (e) { e.removeAttribute("data-aks-hidden"); });
     document.querySelectorAll("[data-aks-baked]").forEach(function (e) { e.setAttribute("data-aks-hidden", ""); });
-    applyDraft(document, DATA[PAGE] || {}, true);
+    applyDraft(document, DATA[PAGE] || {}, true, force);
     applyMetaLive();
     flagChanged();
   }
@@ -286,6 +372,17 @@
     .aks-count{min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:#fff;color:var(--accent-2,#C2410C);
       font-size:.68rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
     .aks-count:empty{display:none}
+    .aks-st{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 10px;margin-right:2px;border-radius:99px;
+      font-size:.72rem;font-weight:700;letter-spacing:.02em;white-space:nowrap;color:#36d399;background:color-mix(in srgb,#36d399 12%,transparent);transition:.2s}
+    .aks-st i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+    .aks-st[data-st="edit"]{color:var(--accent,#E5783A);background:color-mix(in srgb,var(--accent,#E5783A) 14%,transparent)}
+    .aks-st[data-st="edit"] i{animation:aksPulse 1.6s ease-in-out infinite}
+    @keyframes aksPulse{50%{opacity:.35}}
+    @media(max-width:560px){.aks-st{padding:0 10px}.aks-st .lb{display:none}}
+    .aks-frame{position:fixed;inset:0;z-index:2147482990;pointer-events:none;border:2px solid var(--accent,#E5783A);opacity:0;transition:opacity .2s}
+    .aks-frame span{position:absolute;top:0;left:50%;transform:translateX(-50%);padding:3px 12px 4px;border-radius:0 0 8px 8px;background:var(--accent,#E5783A);color:#fff;font-size:.66rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    body.aks-editing .aks-frame{opacity:1}
+    @media (prefers-reduced-motion:reduce){.aks-st[data-st="edit"] i{animation:none}}
 
     body.aks-on [data-aks="t"]{cursor:text;border-radius:4px;transition:box-shadow .15s,background .15s}
     body.aks-on [data-aks="t"]:hover{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#E5783A) 45%,transparent)}
@@ -300,45 +397,60 @@
       background:var(--surface,#1D1C1A);border:1px solid var(--line,#373634);box-shadow:0 10px 34px rgba(0,0,0,.4)}
     @media(max-width:860px){.aks-tb{left:8px!important;right:8px;top:calc(8px + env(safe-area-inset-top))!important;justify-content:center}}
     .aks-tb .aks-b{height:40px;font-size:.8rem}
+    .aks-sep{width:1px;align-self:stretch;margin:6px 2px;background:var(--line,#373634)}
+    @media(max-width:860px){.aks-tb{flex-wrap:wrap}}
 
+    /* admin popup — v2: no backdrop blur, short opacity/transform-only motion */
     @keyframes aksf{from{opacity:0}to{opacity:1}}
-    .aks-pov{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:24px;
-      background:rgba(5,6,10,.46);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:aksf .22s}
-    .aks-pov.out{animation:aksfo .18s forwards;pointer-events:none}
-    .aks-pov.out .aks-pop{animation:akspopo .18s forwards}
     @keyframes aksfo{to{opacity:0}}
-    @keyframes akspop{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
-    @keyframes akspopo{to{opacity:0;transform:translateY(8px) scale(.985)}}
-    .aks-pop{position:relative;width:min(800px,100%);height:min(620px,calc(100dvh - 48px));display:grid;
-      grid-template-columns:204px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;interpolate-size:allow-keywords;
-      background:var(--surface,#1D1C1A);color:var(--text,#fff);border:1px solid var(--line,#373634);border-radius:22px;overflow:hidden;
-      box-shadow:0 40px 120px -24px rgba(0,0,0,.55);transform-origin:80% 100%;animation:akspop .34s cubic-bezier(.2,.9,.3,1)}
-    .aks-rail{grid-column:1;grid-row:1/-1;background:color-mix(in srgb,var(--text,#fff) 3%,transparent);border-right:1px solid var(--line,#373634)}
-    .aks-nav{grid-column:1;grid-row:1/-1;position:relative;display:flex;flex-direction:column;gap:2px;padding:20px 12px;overflow:auto;scrollbar-width:none}
+    @keyframes akspop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+    @keyframes akspopo{to{opacity:0;transform:translateY(6px) scale(.99)}}
+    @keyframes akspane{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+    .aks-pov{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:24px;
+      background:rgba(6,7,10,.56);animation:aksf .16s ease-out}
+    .aks-pov.out{animation:aksfo .14s ease-in forwards;pointer-events:none}
+    .aks-pov.out .aks-pop{animation:akspopo .14s ease-in forwards}
+    .aks-pop{position:relative;width:min(860px,100%);height:min(640px,calc(100dvh - 48px));display:grid;contain:layout paint;
+      grid-template-columns:200px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
+      background:var(--surface,#1D1C1A);color:var(--text,#fff);border:1px solid var(--line,#373634);border-radius:18px;overflow:hidden;
+      box-shadow:0 1px 0 color-mix(in srgb,var(--text,#fff) 6%,transparent) inset,0 24px 64px -16px rgba(0,0,0,.5);
+      animation:akspop .22s cubic-bezier(.2,.8,.2,1)}
+    .aks-nav{grid-column:1;grid-row:1/-1;position:relative;display:flex;flex-direction:column;gap:1px;padding:16px 10px 14px;overflow:auto;scrollbar-width:none;
+      background:color-mix(in srgb,var(--text,#fff) 2.5%,transparent);border-right:1px solid var(--line,#373634)}
     .aks-nav::-webkit-scrollbar{display:none}
-    .aks-ey{font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#C9C8C6);font-weight:600;padding:6px 12px 14px}
-    .aks-dv{flex:none;height:1px;margin:8px 12px;background:var(--line,#373634)}
-    .aks-ind{position:absolute;left:0;top:0;border-radius:10px;pointer-events:none;background:color-mix(in srgb,var(--text,#fff) 8%,transparent);
-      transition:transform .34s cubic-bezier(.3,.9,.3,1),width .34s cubic-bezier(.3,.9,.3,1),height .34s}
+    .aks-ey{display:flex;align-items:center;gap:8px;padding:4px 10px 14px;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#C9C8C6);font-weight:600}
+    .aks-ey::before{content:'';width:7px;height:7px;border-radius:50%;background:#3FB950;box-shadow:0 0 0 3px color-mix(in srgb,#3FB950 22%,transparent)}
+    .aks-dv{flex:none;height:1px;margin:7px 10px;background:var(--line,#373634)}
+    .aks-ind{position:absolute;left:0;top:0;border-radius:9px;pointer-events:none;will-change:transform;
+      background:color-mix(in srgb,var(--text,#fff) 8%,transparent);box-shadow:inset 2px 0 0 var(--accent,#E5783A);
+      transition:transform .24s cubic-bezier(.3,.9,.3,1),width .24s cubic-bezier(.3,.9,.3,1),height .24s}
     .aks-nav.still .aks-ind{transition:none}
-    .aks-tab{position:relative;z-index:1;flex:none;display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;border:0;border-radius:10px;
-      background:transparent;color:var(--muted,#C9C8C6);font-size:.95rem;font-weight:500;text-align:left;white-space:nowrap;cursor:pointer;
-      transition:color .18s;-webkit-tap-highlight-color:transparent}
-    .aks-tab:hover,.aks-tab.on{color:var(--text,#fff)}
-    .aks-tab.on{font-weight:600}
+    .aks-tab{position:relative;z-index:1;flex:none;display:flex;align-items:center;gap:10px;height:38px;padding:0 10px;border:0;border-radius:9px;
+      background:transparent;color:var(--muted,#C9C8C6);font:inherit;font-size:.9rem;font-weight:500;text-align:left;white-space:nowrap;cursor:pointer;
+      transition:color .14s,background-color .14s;-webkit-tap-highlight-color:transparent}
+    .aks-tab .ic{flex:none;display:inline-flex;width:16px;height:16px;opacity:.8}
+    .aks-tab .ic svg{width:16px;height:16px}
+    .aks-tab:hover{color:var(--text,#fff);background:color-mix(in srgb,var(--text,#fff) 4%,transparent)}
+    .aks-tab.on{color:var(--text,#fff);font-weight:600;background:transparent}
+    .aks-tab.on .ic{opacity:1;color:var(--accent-ink,var(--accent,#E5783A))}
     .aks-tab:focus-visible{outline:2px solid var(--accent,#E5783A);outline-offset:-2px}
     .aks-tab .n{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:var(--accent,#E5783A);color:#fff;
       font-size:.66rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
     .aks-tab .n:empty{display:none}
-    .aks-hd{grid-column:2;grid-row:1;display:flex;align-items:center;gap:12px;padding:20px 18px 6px 28px}
-    .aks-hd .gr{flex:1;min-width:0}
-    .aks-hd .pg{font-size:.72rem;color:var(--muted,#C9C8C6)}
-    .aks-hd h3{margin:3px 0 0;font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:600;letter-spacing:-.01em;color:var(--text,#fff)}
-    .aks-x{position:relative;flex:none;width:40px;height:40px;border:0;border-radius:99px;background:transparent;color:var(--muted,#C9C8C6);
-      display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:.18s}
-    .aks-x:hover{background:color-mix(in srgb,var(--text,#fff) 8%,transparent);color:var(--text,#fff);transform:rotate(90deg)}
-    .aks-x svg{width:18px;height:18px}
-    .aks-body{grid-column:2;grid-row:2/4;overflow:auto;padding:12px 28px 28px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+    .aks-kh{margin-top:auto;padding:14px 10px 2px;font-size:.68rem;line-height:1.5;color:var(--muted,#C9C8C6);opacity:.75}
+    .aks-kh kbd{font:inherit;font-size:.64rem;padding:1px 5px;border:1px solid var(--line,#373634);border-radius:5px}
+    .aks-hd{grid-column:2;grid-row:1;position:relative;z-index:3;display:flex;align-items:center;gap:12px;padding:16px 14px 12px 28px;
+      background:var(--surface,#1D1C1A);transition:box-shadow .16s}
+    .aks-hd.sc{box-shadow:0 1px 0 var(--line,#373634)}
+    .aks-hd .gr{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+    .aks-hd .pg{order:2;font-size:.72rem;color:var(--muted,#C9C8C6)}
+    .aks-hd h3{margin:0;font-family:'Space Grotesk',sans-serif;font-size:1.25rem;font-weight:600;letter-spacing:-.01em;color:var(--text,#fff)}
+    .aks-x{position:relative;flex:none;width:36px;height:36px;border:0;border-radius:10px;background:transparent;color:var(--muted,#C9C8C6);
+      display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .14s,color .14s}
+    .aks-x:hover{background:color-mix(in srgb,var(--text,#fff) 8%,transparent);color:var(--text,#fff)}
+    .aks-x:focus-visible{outline:2px solid var(--accent,#E5783A);outline-offset:-2px}
+    .aks-x svg{width:17px;height:17px}
+    .aks-body{grid-column:2;grid-row:2;overflow:auto;padding:8px 28px 28px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
     .aks-body{scrollbar-width:thin;scrollbar-color:transparent transparent;transition:scrollbar-color .3s}
     .aks-body:hover,.aks-body:focus-within{scrollbar-color:color-mix(in srgb,var(--text,#fff) 22%,transparent) transparent}
     .aks-body::-webkit-scrollbar{width:12px}
@@ -348,21 +460,22 @@
     .aks-body:hover::-webkit-scrollbar-thumb,.aks-body:focus-within::-webkit-scrollbar-thumb{background-color:color-mix(in srgb,var(--text,#fff) 22%,transparent)}
     .aks-body::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--text,#fff) 40%,transparent)!important;border-width:3px}
     .aks-body::-webkit-scrollbar-thumb:active{background-color:var(--accent,#E5783A)!important}
-    .aks-pane{animation:akspane .28s cubic-bezier(.2,.8,.2,1)}
+    .aks-pane{animation:akspane .18s cubic-bezier(.2,.8,.2,1)}
     .aks-pane.still{animation:none}
-    @keyframes akspane{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     @media(max-width:620px){
       .aks-pov{padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom))}
-      .aks-pop{height:min(100%,780px);border-radius:20px;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr);transform-origin:50% 100%}
-      .aks-rail,.aks-ey{display:none}
-      .aks-hd{grid-column:1;grid-row:1;padding:16px 10px 4px 20px}
-      .aks-hd h3{font-size:1.2rem}
-      .aks-nav{grid-column:1;grid-row:2;flex-direction:row;padding:8px 12px 10px;overflow-x:auto;border-bottom:1px solid var(--line,#373634)}
-      .aks-dv{width:1px;height:20px;margin:auto 6px}
+      .aks-pop{height:min(100%,780px);border-radius:18px;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+      .aks-ey,.aks-kh{display:none}
+      .aks-hd{grid-column:1;grid-row:1;padding:14px 8px 8px 18px}
+      .aks-hd h3{font-size:1.15rem}
+      .aks-nav{grid-column:1;grid-row:2;flex-direction:row;gap:2px;padding:6px 10px;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line,#373634)}
+      .aks-ind{box-shadow:inset 0 -2px 0 var(--accent,#E5783A)}
+      .aks-tab{gap:7px;padding:0 11px;font-size:.86rem}
+      .aks-dv{width:1px;height:18px;margin:auto 4px}
       .aks-body{grid-column:1;grid-row:3;padding:16px 18px 18px}
       .aks-go{bottom:-18px;margin:22px -18px -18px!important;padding:14px 18px 18px!important}
     }
-    @media(max-width:900px),(pointer:coarse){.aks-tab{height:44px}.aks-x{width:44px;height:44px}}
+    @media(max-width:900px),(pointer:coarse){.aks-tab{height:44px}.aks-x{width:44px;height:44px}.aks-kh{display:none}}
     @media(prefers-reduced-motion:reduce){.aks-pov,.aks-pop,.aks-pane{animation:none!important}.aks-ind{transition:none!important}}
     .aks-sum{display:grid;gap:18px;padding:18px 20px 20px;border:1px solid var(--line,#373634);border-radius:16px;background:color-mix(in srgb,var(--text,#fff) 3%,transparent)}
     .aks-sum .top{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
@@ -566,6 +679,8 @@
     eyeoff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17.94 17.94A10.1 10.1 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
+    left: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
+    right: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.1-6.4L3 9"/></svg>',
     up2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v13"/></svg>',
     dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>',
@@ -652,8 +767,8 @@
   /* ------------------------------------------- the page as published (SRC) */
   function loadSource() {
     if (SRC) return Promise.resolve(SRC);
-    return fetch(location.pathname, { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : null; })
-      .then(function (t) { if (t) { SRCTEXT = t; SRC = new DOMParser().parseFromString(t, "text/html"); } return SRC; })
+    return fetch(PAGE === "404" ? "404.html" : location.pathname, { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (t) { if (t) t = t.replace(/<(style|script)\b[^>]*\bdata-(?:omelette|om-host)[^>]*>[\s\S]*?<\/\1>\s*/gi, ""); if (t) { SRCTEXT = t; SRC = new DOMParser().parseFromString(t, "text/html"); } return SRC; })
       ["catch"](function () { return null; });
   }
   function originalOf(key, what) {
@@ -676,8 +791,12 @@
     }
     return false;
   }
+  /* plain text, or text with bare <strong>/<b> runs (Bold / Normal in the toolbar) */
   function isTextEl(el) {
-    if (el.firstElementChild) return false;
+    for (var c = el.firstElementChild; c; c = c.nextElementSibling) {
+      if (!/^(STRONG|B)$/.test(c.tagName) || c.firstElementChild) return false;
+      for (var ai = 0; ai < c.attributes.length; ai++) if (!/^data-aks/.test(c.attributes[ai].name)) return false;
+    }
     var t = (el.textContent || "").trim();
     return t.length > 0 && t.length < 4000;
   }
@@ -686,11 +805,13 @@
      would have nothing to land on when the page is published. */
   function inFile(el, kind) {
     if (!SRC) return true;
+    var li = itemOf(el);
+    if (li && li.box.__akP) return true;          // list items are rebuilt from the file's own markup
     var k = keyOf(el); if (!k) return false;
     var o = resolve(k, SRC);
     if (!o || o.tagName !== el.tagName) return false;
     var b = kind === "i" ? "img" : "text";
-    if (getOv(b, k) !== undefined) return true;
+    if (getOv(b, k) !== undefined || (b === "text" && getOv("html", k) !== undefined)) return true;
     return kind === "i" ? (o.getAttribute("src") || "") === (el.getAttribute("src") || "") : norm(o.textContent) === norm(el.textContent);
   }
   function mark() {
@@ -705,6 +826,7 @@
       if (inChrome(imgs[j]) || imgs[j].matches("[data-ak-noedit]") || !inFile(imgs[j], "i")) continue;
       imgs[j].setAttribute("data-aks", "i");
     }
+    document.querySelectorAll('[data-aks="t"] [data-aks]').forEach(function (e) { e.removeAttribute("data-aks"); });
     flagChanged();
   }
   function unmark() { document.querySelectorAll("[data-aks]").forEach(function (e) { e.removeAttribute("data-aks"); }); }
@@ -721,7 +843,7 @@
 
   /* ----------------------------------------------------------- inline edit */
   var tb = null;
-  function killToolbar() { if (tb) { tb.remove(); tb = null; } }
+  function killToolbar() { if (tb) { tb.remove(); tb = null; } FB = FN = null; }
   function place(el) {
     if (!tb || window.innerWidth <= 860) return;          // CSS pins it top on mobile
     var r = el.getBoundingClientRect(), tw = tb.offsetWidth || 220;
@@ -743,33 +865,230 @@
       el.focus();
       try { document.execCommand("selectAll", false, null); document.getSelection().collapseToEnd(); } catch (e) {}
       tb.appendChild(btn(I.ok, "Done", commitText, "pri"));
-      if (el.tagName === "A") tb.appendChild(btn(I.link, "Link", function () { editLink(el, key); }));
-      el.__aksBefore = el.textContent;
+      var la = el.closest ? el.closest("a") : null;
+      if (la && (la === el || !inChrome(la))) tb.appendChild(btn(I.link, "Link", function () { editLink(la, keyOf(la)); }));
+      FB = btn('<b style="font-weight:800;font-size:15px;line-height:1">B</b>', "Bold", function () { fmt("bold"); });
+      FN = btn('<span style="font-weight:400;font-size:15px;line-height:1">N</span>', "Normal", function () { fmt("normal"); });
+      [FB, FN].forEach(function (b) {
+        b.addEventListener("mousedown", function (e) { e.preventDefault(); });      // keep the selection
+        b.title += " \u00b7 select words first, or the whole line \u00b7 Ctrl/\u2318 B";
+        tb.appendChild(b);
+      });
+      el.__aksBefore = richOf(el); lastOff = null; syncFmt();
     } else {
       tb.appendChild(btn(I.img, "Replace photo", function () { pickImage(el, key); }, "pri"));
     }
     tb.appendChild(btn(I.reset, "Reset", function () { resetEl(el, key, kind); }));
+    var li = itemOf(el);
+    if (li) listButtons(li, kind);
     tb.appendChild(btn(I.x, "", deselect));
     document.body.appendChild(tb);
     place(el);
   }
   function commitText() {
     if (!sel || sel.getAttribute("contenteditable") !== "true") { deselect(); return; }
-    var el = sel, key = keyOf(el), v = el.textContent;
+    var el = sel, key = keyOf(el), hv = richOf(el);
     el.removeAttribute("contenteditable");
-    if (v !== el.__aksBefore) { setOv("text", key, v); el.setAttribute("data-aks-changed", ""); toast("Saved"); }
+    if (hv !== el.__aksBefore) {
+      UNDO.push({ page: PAGE, snap: clone(DATA[PAGE] || {}) });
+      var tB = bucket("text"), hB = bucket("html");
+      if (hv.indexOf("<strong>") >= 0) { delete tB[key]; hB[key] = hv; } else { delete hB[key]; tB[key] = el.textContent; }
+      el.innerHTML = hv;
+      save(); syncBar();
+      el.setAttribute("data-aks-changed", ""); toast("Saved");
+    }
     killToolbar(); sel = null;
   }
   function deselect() {
     if (sel && sel.getAttribute("contenteditable") === "true") { commitText(); return; }
     killToolbar(); sel = null;
   }
+  /* the file's own value for an element — list items read their source item */
+  function origNode(el, key) {
+    var li = el && itemOf(el);
+    if (li && li.box.__akP) { var p = li.box.__akP[+String(li.it.getAttribute("data-ak-li")).split(".")[0]]; return p ? relFind(p, relPath(el, li.it)) : null; }
+    return SRC ? resolve(key, SRC) : null;
+  }
+  function restoreKey(b, k) {
+    var el = resolve(k), o = el && origNode(el, k); if (!o) return;
+    if (b === "text" || b === "html") el.innerHTML = o.innerHTML;
+    else if (b === "img") el.setAttribute("src", o.getAttribute("src") || "");
+    else if (b === "href") el.setAttribute("href", o.getAttribute("href") || "");
+  }
+  /* ---- Bold / Normal: a per-character weight mask, rendered back as <strong> runs */
+  var FB = null, FN = null, lastOff = null;
+  function escT(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function boldMask(el) {
+    var m = [], w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n;
+    while ((n = w.nextNode())) {
+      var b = false, p = n.parentNode;
+      while (p && p !== el) { if (p.tagName === "STRONG" || p.tagName === "B") b = true; p = p.parentNode; }
+      for (var i = 0; i < n.data.length; i++) m.push(b);
+    }
+    return m;
+  }
+  function runsHTML(t, m) {
+    var out = "", i = 0;
+    while (i < t.length) { var j = i; while (j < t.length && !!m[j] === !!m[i]) j++; var s = escT(t.slice(i, j)); out += m[i] ? "<strong>" + s + "</strong>" : s; i = j; }
+    return out;
+  }
+  function richOf(el) { return runsHTML(el.textContent, boldMask(el)); }
+  function selOffsets(el) {
+    var s = window.getSelection(); if (!s || !s.rangeCount) return null;
+    var r = s.getRangeAt(0); if (!el.contains(r.startContainer) || !el.contains(r.endContainer)) return null;
+    function off(node, o) { var x = document.createRange(); x.selectNodeContents(el); x.setEnd(node, o); return x.toString().length; }
+    return [off(r.startContainer, r.startOffset), off(r.endContainer, r.endOffset)];
+  }
+  function setSel(el, a, b) {
+    var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n, at = 0, r = document.createRange(), sa = false;
+    while ((n = w.nextNode())) {
+      var L = n.data.length;
+      if (!sa && a <= at + L) { r.setStart(n, a - at); sa = true; }
+      if (sa && b <= at + L) { r.setEnd(n, b - at); break; }
+      at += L;
+    }
+    try { var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {}
+  }
+  function fmt(mode) {
+    if (!sel || sel.getAttribute("contenteditable") !== "true") return;
+    var el = sel, t = el.textContent, m = boldMask(el), o = selOffsets(el) || lastOff;
+    var a = o ? Math.min(o[0], o[1]) : 0, b = o ? Math.max(o[0], o[1]) : 0;
+    if (a === b) { a = 0; b = t.length; }
+    if (mode === "toggle") { var all = true; for (var i = a; i < b; i++) if (!m[i]) { all = false; break; } mode = all ? "normal" : "bold"; }
+    for (var k = a; k < b; k++) m[k] = mode === "bold";
+    el.innerHTML = runsHTML(t, m);
+    el.focus(); setSel(el, a, b); lastOff = [a, b]; syncFmt();
+  }
+  function syncFmt() {
+    if (!FB || !sel || sel.getAttribute("contenteditable") !== "true") return;
+    var m = boldMask(sel), o = selOffsets(sel) || lastOff, a = o ? Math.min(o[0], o[1]) : 0, b = o ? Math.max(o[0], o[1]) : 0;
+    if (a === b) { a = 0; b = m.length; }
+    var all = b > a; for (var i = a; i < b; i++) if (!m[i]) { all = false; break; }
+    FB.classList.toggle("on", all); FN.classList.toggle("on", !all);
+  }
+  document.addEventListener("selectionchange", function () {
+    if (!ON || !sel || sel.getAttribute("contenteditable") !== "true") return;
+    var o = selOffsets(sel); if (o) lastOff = o; syncFmt();
+  });
+  /* ---- API for page tools (tl-admin.js): same buckets, same publish, one undo step per batch */
+  var BATCH = 0;
+  function snapUndo() { if (!BATCH) UNDO.push({ page: PAGE, snap: clone(DATA[PAGE] || {}) }); }
+  function apiDone(el) { if (el) el.setAttribute("data-aks-changed", ""); if (!BATCH) { save(); syncBar(); } }
+  function apiText(el, v) {
+    var key = keyOf(el); if (!key) return;
+    v = String(v == null ? "" : v);
+    if (v === el.textContent && !el.firstElementChild) return;
+    snapUndo();
+    if (DATA[PAGE] && DATA[PAGE].html) delete DATA[PAGE].html[key];
+    bucket("text")[key] = v; el.textContent = v; apiDone(el);
+  }
+  function apiImg(el, url) {
+    var key = keyOf(el); if (!key || !url) return;
+    snapUndo(); bucket("img")[key] = url;
+    el.removeAttribute("srcset"); el.setAttribute("src", url); apiDone(el);
+  }
+  function apiAttr(el, o) {
+    var key = keyOf(el); if (!key || !o) return;
+    snapUndo();
+    var b = bucket("attr"), cur = b[key] || {};
+    for (var a in o) { cur[a] = String(o[a]); el.setAttribute(a, String(o[a])); }
+    b[key] = cur; apiDone(null);
+  }
+  function apiBatch(fn) {
+    UNDO.push({ page: PAGE, snap: clone(DATA[PAGE] || {}) });
+    BATCH++;
+    var r; try { r = fn(); } finally { BATCH--; }
+    save(); syncBar(); return r;
+  }
+  function origFor(el, key, what) {
+    var li = el && itemOf(el);
+    if (li && li.box.__akP) {
+      var n = origNode(el, key);
+      if (!n) return null;
+      return what === "img" ? n.getAttribute("src") || "" : what === "href" ? n.getAttribute("href") || "" : n.textContent;
+    }
+    return originalOf(key, what);
+  }
+  function listButtons(o, kind) {
+    var box = o.box, it = o.it, nm = box.getAttribute("data-ak-list") || "item", y = box.getAttribute("data-ak-axis") === "y";
+    var all = listItems(box), at = all.indexOf(it);
+    function ib(icon, title, fn, off) { var b = btn(icon, "", fn); b.title = title; b.setAttribute("aria-label", title); if (off) b.disabled = true; return b; }
+    tb.appendChild(h("span", { class: "aks-sep", "aria-hidden": "true" }, []));
+    tb.appendChild(btn(I.plus, "Add " + nm, function () {
+      var n = listOp(box, it, "add"); if (!n) return;
+      var im = kind === "i" ? n.querySelector("img") : null;
+      if (im) { pickImage(im, keyOf(im)); return; }
+      var t = n.querySelector('[data-aks="t"]'); if (t) selectEl(t);
+    }));
+    tb.appendChild(ib(y ? I.up : I.left, "Move " + nm + " earlier", function () { listOp(box, it, "prev"); }, at <= 0));
+    tb.appendChild(ib(y ? I.down : I.right, "Move " + nm + " later", function () { listOp(box, it, "next"); }, at >= all.length - 1));
+    tb.appendChild(ib(I.trash, "Remove " + nm, function () { listOp(box, it, "remove"); }, all.length < 2));
+  }
+  /* add (copy after) · remove · move one item; every edit inside the list follows its item */
+  function listOp(box, it, kind) {
+    deselect();
+    tagList(box, document);
+    var d = pd(), ck = keyOf(box), name = box.getAttribute("data-ak-list") || "item";
+    var ids = listItems(box).map(function (c) { return c.getAttribute("data-ak-li"); });
+    var id = it.getAttribute("data-ak-li"), at = ids.indexOf(id), next = ids.slice(), nid = null, recs = [];
+    if (at < 0) return null;
+    BKS.forEach(function (b) {
+      var set = d[b]; if (!set) return;
+      Object.keys(set).forEach(function (k) {
+        var el = resolve(k), it2 = el && itemIn(el, box);
+        if (!it2) return;
+        recs.push({ b: b, k: k, id: it2.getAttribute("data-ak-li"), rel: relPath(el, it2), v: set[k] });
+      });
+    });
+    Object.keys(d.list || {}).forEach(function (k) {
+      if (k === ck) return;
+      var el = resolve(k), it2 = el && itemIn(el, box);
+      if (!it2) return;
+      recs.push({ b: "list", k: k, id: it2.getAttribute("data-ak-li"), rel: relPath(el, it2), v: d.list[k] });
+    });
+    if (kind === "add") {
+      var base = id.split(".")[0], c = 1;
+      while (ids.indexOf(base + "." + c) >= 0) c++;
+      nid = base + "." + c; next.splice(at + 1, 0, nid);
+      recs.filter(function (r) { return r.id === id; }).forEach(function (r) { recs.push({ b: r.b, id: nid, rel: r.rel, v: r.v }); });
+    } else if (kind === "remove") {
+      if (ids.length < 2) { toast("Keep at least one " + name); return null; }
+      next.splice(at, 1);
+    } else {
+      var j = at + (kind === "prev" ? -1 : 1);
+      if (j < 0 || j >= ids.length) return null;
+      next.splice(at, 1); next.splice(j, 0, id);
+    }
+    if (!BATCH) UNDO.push({ page: PAGE, snap: clone(DATA[PAGE] || {}) });
+    recs.forEach(function (r) { if (r.k) delete d[r.b][r.k]; });
+    var plain = next.length === box.__akP.length && next.every(function (x, i) { return x === String(i); });
+    if (!d.list) d.list = {};
+    if (plain) delete d.list[ck]; else d.list[ck] = next;
+    arrangeList(box, next, document, true);
+    recs.forEach(function (r) {
+      var n = next.indexOf(r.id) < 0 ? null : box.querySelector(':scope > [data-ak-li="' + r.id + '"]'), el = n && relFind(n, r.rel);
+      if (el) bucket(r.b)[keyOf(el)] = r.v;
+    });
+    save(); applyAll(); fireList(box);
+    if (ON) { unmark(); mark(); }
+    syncBar();
+    toast(kind === "add" ? "Added a " + name + " \u2014 edit it, then publish" : kind === "remove" ? "Removed the " + name + " \u00b7 Undo brings it back" : "Moved");
+    return nid ? box.querySelector(':scope > [data-ak-li="' + nid + '"]') : null;
+  }
   function resetEl(el, key, kind) {
     loadSource().then(function () {
-      var b = kind === "i" ? "img" : "text", o = originalOf(key, b);
-      setOv(b, key, null);
-      if (o != null) { if (kind === "i") el.setAttribute("src", o); else el.textContent = o; }
-      if (kind === "t" && getOv("href", key) !== undefined) { var oh = originalOf(key, "href"); setOv("href", key, null); if (oh != null) el.setAttribute("href", oh); }
+      if (kind === "i") {
+        var o = origFor(el, key, "img"); setOv("img", key, null); if (o != null) el.setAttribute("src", o);
+      } else {
+        UNDO.push({ page: PAGE, snap: clone(DATA[PAGE] || {}) });
+        var d = DATA[PAGE] || {}, on = origNode(el, key);
+        ["text", "html"].forEach(function (b) { if (d[b]) delete d[b][key]; });
+        el.removeAttribute("contenteditable");
+        if (on) el.innerHTML = on.innerHTML;
+        var la = el.closest ? el.closest("a") : null, lk = la && keyOf(la);
+        if (lk && d.href && d.href[lk] !== undefined) { var oh = origFor(la, lk, "href"); delete d.href[lk]; if (oh != null) la.setAttribute("href", oh); }
+        save(); syncBar();
+      }
       el.removeAttribute("data-aks-changed");
       deselect(); toast("Reset to the published version");
     });
@@ -832,8 +1151,108 @@
       "image/svg+xml": "SVG", "image/avif": "AVIF", "image/heic": "HEIC", "image/heif": "HEIC" })[m]
       || String(m || "").replace("image/", "").toUpperCase() || "this file";
   }
+  /* animated GIF / WebP: sniffed first, so the still-photo path never flattens an animation */
+  var ANIM_SRC = "anim-webp.js?v=1", _anim = null;
+  function loadAnim() {
+    if (window.AK_ANIM) return Promise.resolve(window.AK_ANIM);
+    if (_anim) return _anim;
+    return (_anim = new Promise(function (res, rej) {
+      var s = h("script", { src: ANIM_SRC });
+      s.onload = function () { window.AK_ANIM ? res(window.AK_ANIM) : rej(new Error("no AK_ANIM")); };
+      s.onerror = function () { _anim = null; s.remove(); rej(new Error("anim-webp.js didn't load")); };
+      document.head.appendChild(s);
+    }));
+  }
+  /* GIF → MP4 for the About · Interests clips (gif-mp4.js + vendored mp4-muxer.js, both on demand) */
+  var MP4_SRC = "gif-mp4.js?v=1", _mp4 = null;
+  function loadMp4() {
+    if (window.AK_MP4) return Promise.resolve(window.AK_MP4);
+    if (_mp4) return _mp4;
+    return (_mp4 = new Promise(function (res, rej) {
+      var s = h("script", { src: MP4_SRC });
+      s.onload = function () { window.AK_MP4 ? res(window.AK_MP4) : rej(new Error("no AK_MP4")); };
+      s.onerror = function () { _mp4 = null; s.remove(); rej(new Error("gif-mp4.js didn't load")); };
+      document.head.appendChild(s);
+    }));
+  }
+  /* an img that floats a clip: About · Interests word images (they carry data-mp4) */
+  var CLIP_PH = "media/home/about-mp4-loading.svg?v=3";   // shared black "Loading" thumb + poster for every MP4 clip (no per-clip still)
+  function isClipImg(el) { return !!(el && el.tagName === "IMG" && (el.hasAttribute("data-mp4") || (el.closest && el.closest(".int-cats .gif")))); }
+  function blobURL(b) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(b); }); }
+  function imgSize(url) { return new Promise(function (res) { var im = new Image(); im.onload = function () { res({ w: im.naturalWidth, h: im.naturalHeight }); }; im.onerror = function () { res({ w: 0, h: 0 }); }; im.src = url; }); }
   /* the one Convert-to-WebP / Keep-original sheet — resolves {url, fmt} or null (cancelled) */
-  function askImage(f) {
+  function askImage(f, ctx) {
+    ctx = ctx || {};
+    if (!/^image\/(gif|webp)$/i.test(f.type || "")) return askStill(f);
+    return Promise.all([loadAnim(), f.arrayBuffer(), ctx.clip ? loadMp4().then(function (M) { return M.canConvert().then(function (ok) { return ok ? M : null; }); }, function () { return null; }) : null]).then(function (r) {
+      var A = r[0], ab = r[1];
+      if (!A.isAnimated(ab)) return askStill(f);
+      if (/webp/i.test(f.type)) return readDataURL(f).then(function (u) { return { url: u, fmt: "image/webp", anim: true }; });
+      return askAnimated(f, A, ab, ctx.clip ? { M: r[2] } : null);
+    }, function () { return askStill(f); });
+  }
+  function askAnimated(f, A, ab, clip) {
+    var gif = new Blob([A.loopGif(ab)], { type: "image/gif" });
+    return blobURL(gif).then(function (orig) {
+      return imgSize(orig).then(function (sz) {
+        return new Promise(function (done) {
+          var picked = null, busy = false, long = Math.max(sz.w, sz.h) || 1, frames = A.frameCount(ab), can = A.canConvert();
+          var hd = Math.min(2, 2000 / long), M = clip && clip.M;
+          sheet(function (box, close) {
+            box.appendChild(h("h3", {}, ["Animated GIF"]));
+            box.appendChild(h("img", { class: "aks-prev", src: orig, alt: "" }));
+            box.appendChild(h("div", { class: "sub" }, [f.name + " · " + kb(f.size) + " · " + sz.w + "×" + sz.h + " · " + frames + " frames"]));
+            box.appendChild(h("div", { class: "sub" }, [clip
+              ? (M ? "Plays on a loop. An MP4 clip looks the same at this size and is usually ~90% lighter than the GIF — or keep the original."
+                   : "⚠ Converting to MP4 needs desktop Chrome or Edge. Keeping the GIF works everywhere and loops.")
+              : can
+              ? "Plays on a loop. Animated WebP is sharper and usually much lighter than GIF."
+              : "⚠ Converting needs desktop Chrome or Edge. Keeping the GIF works everywhere and loops."]));
+            var msg = h("div", { class: "sub", style: "color:var(--accent-ink,var(--accent))" }, [""]), opts = [];
+            function convert(scale, label) {
+              if (busy) return; busy = true;
+              opts.forEach(function (b) { b.disabled = true; b.style.opacity = ".5"; });
+              msg.textContent = "Converting · frame 0 / " + frames;
+              A.toWebp(gif, { scale: scale, q: 0.92, onProgress: function (i, n) { msg.textContent = "Converting · frame " + i + " / " + n; } })
+                .then(function (out) {
+                  return blobURL(out.blob).then(function (u) {
+                    picked = { url: u, fmt: "image/webp", anim: true, note: label + " · " + out.w + "×" + out.h + " · " + kb(out.blob.size) + " (GIF " + kb(f.size) + ")" };
+                    busy = false; close();
+                  });
+                }, function (e) {
+                  busy = false; msg.textContent = "⚠ Couldn't convert (" + ((e && e.message) || "error") + "). Keep the GIF instead.";
+                  opts.forEach(function (b) { b.disabled = false; b.style.opacity = ""; });
+                });
+            }
+            function toMp4() {
+              if (busy) return; busy = true;
+              opts.forEach(function (b) { b.disabled = true; b.style.opacity = ".5"; });
+              msg.textContent = "Making the MP4 · frame 0 / " + frames;
+              M.fromGif(gif, { onProgress: function (i, n, pass) { msg.textContent = (pass ? "Squeezing a little more · " : "Making the MP4 · frame ") + (pass ? "" : i + " / " + n); } })
+                .then(function (out) {
+                  return blobURL(out.mp4).then(function (m) {
+                    picked = { url: CLIP_PH, fmt: "video/mp4", anim: true, mp4: m,
+                      note: "MP4 clip · " + out.w + "×" + out.h + " · " + kb(out.mp4.size) + " (GIF " + kb(f.size) + ", " + Math.max(0, Math.round((1 - out.mp4.size / f.size) * 100)) + "% lighter)" };
+                    busy = false; close();
+                  });
+                }, function (e) {
+                  busy = false; msg.textContent = "⚠ Couldn't make the MP4 (" + ((e && e.message) || "error") + "). Keep the GIF instead.";
+                  opts.forEach(function (b) { b.disabled = false; b.style.opacity = ""; });
+                });
+            }
+            function opt(big, sm, tag, fn) { var b = h("button", { class: "aks-opt", onclick: fn }, [h("div", {}, [h("div", { class: "big" }, [big]), h("div", { class: "sm" }, [sm])]), h("span", { class: "tag" }, [tag])]); opts.push(b); box.appendChild(b); }
+            if (M) opt("MP4 clip · recommended", sz.w + "×" + sz.h + " · every frame and its timing · loops · ~90% lighter", "MP4", toMp4);
+            if (!clip && can && hd > 1.2) opt("Animated WebP · High-res", Math.round(sz.w * hd) + "×" + Math.round(sz.h * hd) + " · upscaled " + hd.toFixed(1).replace(/\.0$/, "") + "× · loops", "HD", function () { convert(hd, "High-res WebP"); });
+            if (!clip && can) opt("Animated WebP", sz.w + "×" + sz.h + " · full resolution · loops", "WebP", function () { convert(1, "Animated WebP"); });
+            opt(clip ? "Keep original GIF" : "Keep GIF", "Exactly as uploaded · set to loop forever", kb(gif.size), function () { if (busy) return; picked = { url: orig, fmt: "image/gif", anim: true }; close(); });
+            box.appendChild(msg);
+            box.appendChild(acts([h("button", { class: "aks-b", onclick: function () { if (!busy) close(); } }, ["Cancel"])]));
+          }, false, function () { done(picked); });
+        });
+      });
+    });
+  }
+  function askStill(f) {
     return readDataURL(f).then(function (orig) {
         var srcFmt = f.type || String(orig).slice(5).split(";")[0];
         var wasWebp = srcFmt === "image/webp";
@@ -867,13 +1286,22 @@
   function pickImage(el, key) {
     pickFile("image/*").then(function (f) {
       if (!f) return;
-      askImage(f).then(function (p) {
-          if (p) apply(p.url, p.fmt);
-          function apply(url, fmt) {
+      var clip = isClipImg(el);
+      askImage(f, { clip: clip }).then(function (p) {
+          if (p) apply(p.url, p.fmt, p);
+          function apply(url, fmt, p) {
+            if (clip) {
+              /* one undo step: clip + the shared Loading thumb (the clip plays only while src is that thumb, so a later photo swap never plays a stale clip) */
+              apiBatch(function () { apiAttr(el, { "data-mp4": p.mp4 || "", "data-still": "" }); apiImg(el, p.mp4 ? CLIP_PH : url); });
+              deselect();
+              toast(p.mp4 ? p.note : p.anim ? "Animation added · GIF · loops" : (fmt === "image/webp" ? "Photo replaced · WebP" : "⚠ Photo replaced — still " + fmtName(fmt) + ", not WebP"));
+              return;
+            }
             setOv("img", key, url);
             if (el.tagName === "IMG") { el.removeAttribute("srcset"); el.src = url; } else el.style.backgroundImage = 'url("' + url + '")';
             el.setAttribute("data-aks-changed", "");
             deselect();
+            if (p && p.anim) { toast(p.note || (fmt === "image/webp" ? "Animation added · WebP · loops" : "Animation added · GIF · loops")); return; }
             toast(fmt === "image/webp" ? "Photo replaced · WebP" : "⚠ Photo replaced — still " + fmtName(fmt) + ", not WebP");
           }
       });
@@ -893,7 +1321,8 @@
   }, true);
   document.addEventListener("keydown", function (e) {
     if (!ON) return;
-    if (e.key === "Escape") { if (sel && sel.getAttribute("contenteditable") === "true") { sel.textContent = sel.__aksBefore; sel.removeAttribute("contenteditable"); } killToolbar(); sel = null; }
+    if (e.key === "Escape") { if (sel && sel.getAttribute("contenteditable") === "true") { sel.innerHTML = sel.__aksBefore; sel.removeAttribute("contenteditable"); } killToolbar(); sel = null; }
+    if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B") && sel && sel.getAttribute("contenteditable") === "true") { e.preventDefault(); fmt("toggle"); }
     if (e.key === "Enter" && sel && sel.getAttribute("contenteditable") === "true" && !e.shiftKey) { e.preventDefault(); commitText(); }
     if ((e.metaKey || e.ctrlKey) && e.key === "z" && !sel) { e.preventDefault(); undo(); }
   });
@@ -903,14 +1332,31 @@
   function undo() {
     var u = UNDO.pop();
     if (!u) { toast("Nothing to undo"); return; }
+    if (u.snap) {                                   // list change: back to the whole page as it was
+      if (sel) { sel.removeAttribute("contenteditable"); killToolbar(); sel = null; }
+      if (u.page === PAGE) {
+        var cur = DATA[PAGE] || {};
+        ["text", "html", "img", "href"].forEach(function (b) {
+          Object.keys(cur[b] || {}).forEach(function (k) { if (!u.snap[b] || !eq(u.snap[b][k], cur[b][k])) restoreKey(b, k); });
+        });
+        Object.keys(cur.attr || {}).forEach(function (k) {
+          if (u.snap.attr && eq(u.snap.attr[k], cur.attr[k])) return;
+          var el = resolve(k), o = el && origNode(el, k); if (!el) return;
+          Object.keys(cur.attr[k]).forEach(function (a) { var ov = o ? o.getAttribute(a) : null; if (ov == null) el.removeAttribute(a); else el.setAttribute(a, ov); });
+        });
+      }
+      DATA[u.page] = u.snap; save();
+      if (u.page === PAGE) { applyAll(true); if (ON) { unmark(); mark(); } }
+      syncBar(); toast("Undone"); return;
+    }
     var b = (u.bucket === "meta") ? (pd(u.page).meta = pd(u.page).meta || {}) : bucket(u.bucket, u.page);
     if (u.prev === undefined) delete b[u.key]; else b[u.key] = u.prev;
     save();
     if (u.page === PAGE) {
       var el = resolve(u.key);
       if (el) {
-        if (u.bucket === "text") el.textContent = u.prev !== undefined ? u.prev : (originalOf(u.key, "text") || el.textContent);
-        if (u.bucket === "img") { var v = u.prev !== undefined ? u.prev : originalOf(u.key, "img"); if (v) el.setAttribute("src", v); }
+        if (u.bucket === "text") el.textContent = u.prev !== undefined ? u.prev : (origFor(el, u.key, "text") || el.textContent);
+        if (u.bucket === "img") { var v = u.prev !== undefined ? u.prev : origFor(el, u.key, "img"); if (v) el.setAttribute("src", v); }
         if (u.bucket === "href") { var vh = u.prev !== undefined ? u.prev : originalOf(u.key, "href"); if (vh != null) el.setAttribute("href", vh); }
       }
       if (u.bucket === "order" && u.prev === undefined) {          // back to the published order
@@ -923,10 +1369,23 @@
   }
 
   /* ------------------------------------------------------------------- bar */
-  var bar, editBtn, undoBtn, cntEl;
+  var bar, editBtn, undoBtn, cntEl, stEl;
   function syncBar() {
     if (undoBtn) undoBtn.disabled = !UNDO.length;
-    if (editBtn) editBtn.classList.toggle("on", ON);
+    if (editBtn) {
+      editBtn.classList.toggle("on", ON);
+      var el = editBtn.querySelector(".lb"), ic = editBtn.firstChild;
+      if (el) el.textContent = ON ? "Done" : "Edit";
+      if (ic) ic.innerHTML = ON ? I.ok : I.pen;
+      editBtn.title = ON ? "Finish editing \u2014 back to preview" : "Edit this page";
+      editBtn.setAttribute("aria-pressed", ON ? "true" : "false");
+    }
+    if (stEl) {
+      stEl.setAttribute("data-st", ON ? "edit" : "on");
+      stEl.lastChild.textContent = ON ? "Editing" : "Admin on";
+      stEl.title = ON ? "Edit mode is on \u2014 tap any text or photo to change it" : "Admin is on \u2014 visitors don\u2019t see this bar. Tap Edit to change the page.";
+    }
+    document.body.classList.toggle("aks-editing", ON);
     var n = pendingCount();
     if (cntEl) cntEl.textContent = n ? String(n) : "";
     if (PN && PN.cnt) PN.cnt.textContent = n ? String(n) : "";
@@ -934,7 +1393,10 @@
   function buildBar() {
     editBtn = btn(I.pen, "Edit", toggleEdit);
     undoBtn = btn(I.undo, "Undo", undo);
-    var kids = [editBtn];
+    stEl = h("span", { class: "aks-st", "data-st": "on", role: "status" }, [h("i", { "aria-hidden": "true" }), h("span", { class: "lb" }, ["Admin on"])]);
+    document.body.classList.add("ak-on");               // header cog shows the unlocked state on every page
+    document.body.appendChild(h("div", { class: "aks-ui aks-frame", "aria-hidden": "true" }, [h("span", {}, ["Edit mode"])]));
+    var kids = [stEl, editBtn];
     if (window.AK_CASES && window.AK_CASES.openMenu) {
       var add = btn(I.plus, "Add", function () { window.AK_CASES.openMenu(); });
       add.setAttribute("data-ak-trigger", "1");                 // admin.js keeps its menu open for this
@@ -960,6 +1422,20 @@
   /* ----------------------------------------------------------------- panel */
   var TABS = [["publish", "Publish"], ["sections", "Sections"], ["theme", "Theme"], ["seo", "SEO"],
               ["links", "Links & files"], ["code", "Code & data"], ["versions", "Versions"], ["tools", "Tools"]];
+  var TAB_DV = { publish: 1, seo: 1, code: 1 };                   // divider after these
+  var TI = (function () {
+    var o = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+    return {
+      publish: o + '<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M20 15v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4"/></svg>',
+      sections: o + '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>',
+      theme: o + '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>',
+      seo: o + '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+      links: I.link,
+      code: o + '<path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/></svg>',
+      versions: o + '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+      tools: o + '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-4-4 1.3-1.3a4 4 0 0 0-5-5L3 8.4 8.4 3l1.3 1.3a4 4 0 0 0 5 2z"/></svg>'
+    };
+  })();
   var panelEl = null, curTab = "publish", PN = null;
   function tabFn(t) {
     return ({ publish: tabPublish, sections: tabSections, theme: tabTheme, seo: tabSEO, links: tabLinks,
@@ -976,24 +1452,33 @@
     var ov = h("div", { class: "aks-ui aks-pov", onclick: function (e) { if (e.target === ov) closePanel(); } });
     var ind = h("span", { class: "aks-ind" });
     var nav = h("div", { class: "aks-nav still", role: "tablist", "aria-label": "Admin sections", onkeydown: navKey }, [h("div", { class: "aks-ey" }, ["Admin"]), ind]);
+    var hd = h("div", { class: "aks-hd" });
     PN = { tabs: {}, nav: nav, ind: ind, title: h("h3", { id: "aks-ttl" }), body: h("div", { class: "aks-body" }), shown: null };
     TABS.forEach(function (t) {
-      var b = h("button", { class: "aks-tab", type: "button", role: "tab", onclick: function () { openPanel(t[0]); } }, [h("span", {}, [t[1]])]);
+      var b = h("button", { class: "aks-tab", type: "button", role: "tab", onclick: function () { openPanel(t[0]); } }, [h("span", { class: "ic", "aria-hidden": "true", html: TI[t[0]] || "" }), h("span", {}, [t[1]])]);
       if (t[0] === "publish") { PN.cnt = h("span", { class: "n" }); b.appendChild(PN.cnt); }
       PN.tabs[t[0]] = b; nav.appendChild(b);
-      if (t[0] === "publish") nav.appendChild(h("div", { class: "aks-dv", "aria-hidden": "true" }));
+      if (TAB_DV[t[0]]) nav.appendChild(h("div", { class: "aks-dv", "aria-hidden": "true" }));
     });
+    nav.appendChild(h("div", { class: "aks-kh", "aria-hidden": "true", html: "<kbd>1</kbd>–<kbd>8</kbd> switch · <kbd>Esc</kbd> close" }));
+    PN.hd = hd;
+    PN.body.addEventListener("scroll", function () { hd.classList.toggle("sc", PN && PN.body.scrollTop > 2); }, { passive: true });
     ov.appendChild(h("div", { class: "aks-pop", role: "dialog", "aria-modal": "true", "aria-labelledby": "aks-ttl" }, [
-      h("div", { class: "aks-rail" }), nav,
-      h("div", { class: "aks-hd" }, [
-        h("div", { class: "gr" }, [h("div", { class: "pg" }, [(PAGELABEL[PAGE] || PAGE) + " page"]), PN.title]),
-        h("button", { class: "aks-x", type: "button", "aria-label": "Close", onclick: closePanel, html: I.x })
-      ]),
-      PN.body
+      nav, hd, PN.body
     ]));
+    hd.appendChild(h("div", { class: "gr" }, [PN.title, h("div", { class: "pg" }, [(PAGELABEL[PAGE] || PAGE) + " page"])]));
+    hd.appendChild(h("button", { class: "aks-x", type: "button", "aria-label": "Close (Esc)", title: "Close (Esc)", onclick: closePanel, html: I.x }));
     document.body.appendChild(ov);
     panelEl = ov;
-    PN.key = function (e) { if (e.key === "Escape" && !document.querySelector(".aks-mov")) closePanel(); };
+    PN.key = function (e) {
+      if (document.querySelector(".aks-mov")) return;
+      if (e.key === "Escape") { closePanel(); return; }
+      var n = +e.key, a = document.activeElement;
+      if (n >= 1 && n <= TABS.length && !e.metaKey && !e.ctrlKey && !e.altKey &&
+          !(a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable))) {
+        e.preventDefault(); openPanel(TABS[n - 1][0]); if (PN) PN.tabs[curTab].focus({ preventScroll: true });
+      }
+    };
     PN.rs = function () { moveInd(false); };
     document.addEventListener("keydown", PN.key);
     window.addEventListener("resize", PN.rs);
@@ -1011,6 +1496,7 @@
     PN.body.innerHTML = ""; PN.body.appendChild(pane);
     tabFn(curTab)(pane);
     PN.body.scrollTop = same ? st : 0;
+    PN.hd.classList.toggle("sc", PN.body.scrollTop > 2);
     PN.shown = curTab;
     moveInd(!same);
     if (PN.nav.classList.contains("still")) requestAnimationFrame(function () { requestAnimationFrame(function () { if (PN) PN.nav.classList.remove("still"); }); });
@@ -1038,7 +1524,7 @@
     var ov = panelEl; panelEl = null;
     if (PN) { document.removeEventListener("keydown", PN.key); window.removeEventListener("resize", PN.rs); PN = null; }
     ov.classList.add("out");
-    setTimeout(function () { ov.remove(); }, 190);
+    setTimeout(function () { ov.remove(); }, 150);
   }
   function note(html) { return h("div", { class: "aks-note", html: html }); }
 
@@ -1258,9 +1744,9 @@
   }
   function checkCode() {
     if (location.protocol === "file:") return Promise.reject(new Error("file"));
-    var base = location.pathname.replace(/[^\/]*$/, ""), files = {}, order = [], libs = {}, loaded = {};
+    var base = new URL(document.baseURI).pathname.replace(/[^\/]*$/, ""), files = {}, order = [], libs = {}, loaded = {};
     function rel(u) {
-      try { var x = new URL(u, location.href); if (x.origin !== location.origin || x.pathname.indexOf(base) !== 0) return null;
+      try { var x = new URL(u, document.baseURI); if (x.origin !== location.origin || x.pathname.indexOf(base) !== 0) return null;
             return { p: decodeURIComponent(x.pathname.slice(base.length)) || "index.html", v: x.searchParams.get("v") }; } catch (e) { return null; }
     }
     function get(p) {
@@ -1634,9 +2120,9 @@
         for (var k in set) {
           if (inBase(p, b[0], k, set[k])) continue;
           var v = set[k];
-          items.push(b[1] + " · " + (b[0] === "text" || b[0] === "html" ? '"' + short(v, 40) + '"' :
+          items.push(b[1] + " · " + (b[0] === "text" || b[0] === "html" ? '"' + short(String(v).replace(/<[^>]+>/g, ""), 40) + '"' :
             b[0] === "img" ? "new photo" : b[0] === "href" ? (String(v).slice(0, 5) === "data:" ? "new file" : short(String(v), 34)) :
-            b[0] === "hide" ? (v ? "hidden" : "shown again") : b[0] === "order" ? "section order" : "changed"));
+            b[0] === "hide" ? (v ? "hidden" : "shown again") : b[0] === "order" ? "section order" : b[0] === "list" ? "added, removed or moved" : "changed"));
         }
       });
       var bm = ((PUBBASE || {})[p] || {}).meta || {};
@@ -1859,7 +2345,7 @@
     if (!want || !SRCTEXT || strHash(SRCTEXT) !== want) return;
     var d = DATA[PAGE], b = (PUBBASE || {})[PAGE];
     if (d && b) {
-      BKS.concat(["order"]).forEach(function (bk) {
+      BKS.concat(["order", "list"]).forEach(function (bk) {
         var s = d[bk], o = b[bk]; if (!s || !o) return;
         Object.keys(s).forEach(function (k) { if ((k in o) && eq(s[k], o[k])) delete s[k]; });
         if (!Object.keys(s).length) delete d[bk];
@@ -2058,6 +2544,10 @@
     publish: doPublish,
     askImage: askImage,
     toast: toast,
-    fmtName: fmtName
+    fmtName: fmtName,
+    on: function () { return ON; },
+    setText: apiText, setImg: apiImg, setAttr: apiAttr, batch: apiBatch,
+    listOp: function (box, it, kind) { return listOp(box, it, kind); },
+    pickFile: pickFile, readDataURL: readDataURL, icons: I
   };
 })();

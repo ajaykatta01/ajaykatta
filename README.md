@@ -13,6 +13,8 @@ GitHub and Vercel serves it as-is.
 | `index.html` | Home / landing page |
 | `project-ui-ux.html` · `project-gen-ai.html` · `project-3d.html` | Category pages (case studies) |
 | `resume.html` | Résumé page (+ downloadable PDF) |
+| `about.html` | About page (story, timeline, photo ring, interests) — every About image lives in `media/home/` (one WebP per photo, no duplicates); the Interests clips are MP4 (`about-mp4-<n>.mp4`, shown over one shared black "Loading" placeholder `about-mp4-loading.svg`) |
+| `404.html` | Not-found page (Vercel serves it for any missing path) |
 | `portfolio-data.json` | All case-study + home-page data — visitors load this |
 | `media/` | Every image / PDF / video / 3D model the site uses |
 | `admin.js` | Renders the case studies; also their editor (admin only) |
@@ -20,9 +22,14 @@ GitHub and Vercel serves it as-is.
 | `site-edit.js` | **The admin mode** — login, admin bar, publish panel. Admin only |
 | `site-package.js` | The publish pipeline + image optimiser. Admin only, loaded on demand |
 | `layout-studio.js`, `studio-templates.js` | Layout Studio, loaded on demand by the editor |
+| `cover-studio.js` | UI/UX Cover Studio, admin only, loaded on demand |
+| `tl-admin.js` | About timeline editor, admin only |
+| `svg-embed.js`, `anim-webp.js` | Upload helpers (SVG fonts, animated GIF → WebP), admin only |
+| `gif-mp4.js`, `mp4-muxer.js` | About · Interests: GIF upload → MP4 clip (asks first; Keep original GIF is offered), admin only. `mp4-muxer.js` = mp4-muxer 5.1.3, MIT |
 | `theme-ripple.js` | Shared light/dark toggle transition |
+| `scroll-open.js` | Phones/tablets: the case-study row at mid-screen takes the hover look while scrolling |
 | `scroll-progress.js` | Reading-progress bar inside an opened project |
-| `vercel.json` | Clean URLs (`/resume`), cache headers |
+| `vercel.json` | `/resume`-style URLs, cache headers (scripts cached for a year — every page loads them with `?v=`, so bump it on any change) |
 | `robots.txt` | Allows all crawlers |
 
 > **After you point a domain at this site**, make the social-preview URLs absolute so
@@ -91,17 +98,19 @@ How it works:
   studies plus their editor, and the whole admin mode (`site-edit.js`, `site-package.js`,
   Layout Studio) loads only after login.
 - Category covers are `<link rel="preload">`ed; three.js and GSAP load after the home page
-  paints; `media/` is cached for 30 days; everything else revalidates (a 304) each visit.
+  paints; `media/` is cached for 30 days; scripts are cached for a year (versioned with `?v=`);
+  pages and `portfolio-data.json` revalidate (a 304) each visit.
 
 ---
 
 ## Missing media (as of this snapshot)
 
-`portfolio-data.json` references these files that are **not** in this folder. Each renders as a
-graceful placeholder. Drop the real files in at these exact paths to restore them:
+`portfolio-data.json` references these files that are **not** in this folder. Visitors never see
+a gap: the block folds away. In admin mode it shows a "File not found" placeholder with Replace.
+Drop the real files in at these exact paths to restore them:
 
 ```
-media/3d/hashtag-cycle-media-1.bin      ← an MKV video saved as .bin; re-upload it as MP4 (Safari can't play MKV)
+media/3d/hashtag-cycle-media-10.mp4
 media/3d/hashtag-cycle-model-9.glb
 media/3d/clx-cabinet-model-9.glb
 media/3d/baggalini-bag-model-8.glb

@@ -20,9 +20,9 @@
   "use strict";
   if (window.AK_PACKAGE) return;
 
-  var BASE = location.href.split("#")[0].split("?")[0].replace(/[^\/]*$/, "");
+  var BASE = (document.baseURI || location.href).split("#")[0].split("?")[0].replace(/[^\/]*$/, "");
   var ROOT = "Ajaykatta_Website", REPO = ROOT + "/GitRepo";
-  var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume"];
+  var PAGES = ["index", "project-ui-ux", "project-gen-ai", "project-3d", "resume", "about", "404"];
   var BUILTIN = ["ui-ux", "gen-ai", "3d"];
   var LABEL = { "ui-ux": "UI / UX", "gen-ai": "Gen AI", "3d": "3D" };
   var RESUME_PATH = "media/home/Ajay-Katta-uiux-product-designer-2026.pdf";
@@ -30,7 +30,7 @@
   var INLINE_MIN = 2048;                         // a data: URL under this stays inside the JSON
   var IMG_MAX_EDGE = 2560, IMG_OVER_EDGE = 2592; // rebuilt files land on 2560±1
   var CANVAS_PX_PER_UNIT = 2.5, CANVAS_MIN_EDGE = 1280;
-  var BUCKETS = ["text", "html", "img", "href", "attr", "hide"];
+  var BUCKETS = ["text", "html", "img", "href", "attr", "hide", "list"];
 
   /* ------------------------------------------------------------------ utils */
   function kb(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
@@ -101,8 +101,15 @@
   }
 
   /* ---------------------------------------------------------------- network */
+  /* Preview / editor hosts inject their own <style>/<script data-omelette-…> into served pages.
+     They must never be baked into a published page (≈20 KB of dead code per page). */
+  function cleanHTML(t) {
+    return String(t).replace(/<(style|script)\b[^>]*\bdata-(?:omelette|om-host)[^>]*>[\s\S]*?<\/\1>\s*/gi, "")
+      .replace(/\s(?:data-cc-id|data-dm-ref)="[^"]*"/g, "");
+  }
   function getText(path) {
-    return fetch(BASE + path, { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : null; })["catch"](function () { return null; });
+    return fetch(BASE + path, { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (t) { return t && /\.html?$/i.test(path) ? cleanHTML(t) : t; })["catch"](function () { return null; });
   }
   function getJSON(path) { return getText(path).then(function (t) { try { return t ? JSON.parse(t) : null; } catch (e) { return null; } }); }
   /* 0 = not on the live site · -1 = live, size unknown · n = live, n bytes */
@@ -265,6 +272,15 @@
     return step();
   }
   function resizable(t) { return /^image\/(webp|jpe?g|png)$/i.test(t || ""); }
+  /* animated WebP (VP8X + ANIM flag) must never go through a canvas — it would keep only frame 1 */
+  function stillOK(b) {
+    if (!b || !resizable(b.type)) return Promise.resolve(false);
+    if (!/webp/i.test(b.type)) return Promise.resolve(true);
+    return b.slice(0, 32).arrayBuffer().then(function (ab) {
+      var u = new Uint8Array(ab);
+      return !(u[12] === 86 && u[13] === 80 && u[14] === 56 && u[15] === 88 && (u[20] & 2));
+    }, function () { return false; });
+  }
 
   /* canvas photos ship at the size they are drawn: 1200 canvas units fitted to the
      column, so 2.5× the element covers a retina screen. Uploads only — published
@@ -275,7 +291,7 @@
   }
   function refit(src, target) {
     return fetch(src).then(function (r) { return r.blob(); }).then(function (blob) {
-      if (!resizable(blob.type)) return null;
+      return stillOK(blob).then(function (ok) { if (!ok) return null;
       return decode(blob).then(function (dec) {
         var long = Math.max(dec.w, dec.h);
         if (!long || (long <= target * 1.15 && blob.type === "image/webp")) { dec.release(); return null; }
@@ -288,6 +304,7 @@
           if (!b || b.type !== "image/webp" || b.size > blob.size * 0.9) return null;
           return blobToDataURL(b);
         });
+      });
       });
     })["catch"](function () { return null; });
   }
@@ -312,15 +329,18 @@
      Every upload is named like the files already on the site:
        <project>-cover.<ext> · <project>-image-<n> · <project>-media-<n> (video, other)
        <project>-model-<n> (3D) · home: profile-photo, cert-<name>, <category>-cover
-       pages (media/site/): <page>-image-<n> · og-<page>   (index → home)
+       pages (media/site/): <page>-image-<n> · og-<page>   (index → home) · About page → media/home/about-image-<n> · about-mp4-<n> · about-gif-<n> (own counter each)
      Numbered files: one counter per project, carrying on after the highest number it
      already uses; a name taken by live data, this publish, or a server file with
      different bytes is skipped.
      Fixed names (cover, profile-photo, cert-*, <category>-cover, og-*, the résumé PDF)
      never change: a replacement overwrites the file and every reference gets ?v=<n+1>,
-     because media/ is cached for 30 days and the old bytes would keep showing. */
+     because media/ is cached for 30 days and the old bytes would keep showing.
+     If the old bytes are still shown elsewhere (the previous cover kept as a case-study
+     image), the new upload still takes the fixed name and the old bytes move to the next
+     numbered file (<project>-image-<n>) — never <project>-cover-2. */
   var MODEL_RX = /^(glb|gltf|usdz|obj|fbx|stl)$/i;
-  var PSLUG = { "index": "home", "project-ui-ux": "ui-ux", "project-gen-ai": "gen-ai", "project-3d": "3d", "resume": "resume" };
+  var PSLUG = { "index": "home", "project-ui-ux": "ui-ux", "project-gen-ai": "gen-ai", "project-3d": "3d", "resume": "resume", "about": "about", "404": "404" };
   function verMap(objs, texts) {
     var v = {};
     function note(p, n) { n = +n; if (!(v[p] >= n)) v[p] = n; }
@@ -330,17 +350,17 @@
   }
   function reEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
   function kindOf(mime, ext) { return /^image\//i.test(mime) ? "image" : MODEL_RX.test(ext) ? "model" : "media"; }
-  function topNum(taken, dir, base) {
-    var pre = dir + base + "-", max = 0;
+  function topNum(taken, dir, base, kind) {          // kind = own counter per kind (About: about-image-n · about-mp4-n · about-gif-n)
+    var pre = dir + base + "-" + (kind ? kind + "-" : ""), max = 0;
     Object.keys(taken).forEach(function (n) {
       if (n.indexOf(pre) !== 0) return;
-      var m = /^[a-z]+-(\d+)\.[a-z0-9]+$/i.exec(n.slice(pre.length));
+      var m = (kind ? /^(\d+)\.[a-z0-9]+$/i : /^[a-z]+-(\d+)\.[a-z0-9]+$/i).exec(n.slice(pre.length));
       if (m) max = Math.max(max, +m[1]);
     });
     return max;
   }
   /* taken: paths in live data + this publish · ver: highest ?v per path · inUse: paths the new data still references */
-  function namer(taken, ver, inUse) {
+  function namer(taken, ver, inUse, rehome) {
     var ctr = {}, mine = {};
     ver = ver || {}; inUse = inUse || {};
     function sameAs(path, f) {             // 0 not on the server · 1 same bytes · -1 different
@@ -355,8 +375,17 @@
       var i = 0;
       function next() {
         var p = f.dir + f.fixed + (i ? "-" + (i + 1) : "") + "." + f.ext;
-        if (mine[p] || inUse[p]) { i++; return next(); }   // two uploads in one slot, or still used elsewhere
+        if (mine[p] || (inUse[p] && !rehome)) { i++; return next(); }   // two uploads in one slot, or still used elsewhere
         return sameAs(p, f).then(function (r) {
+          if (r < 0 && inUse[p]) {          // live bytes still used elsewhere: hand them back to move
+            return fetch(BASE + p, { cache: "no-store" }).then(function (x) { return x.ok ? x.arrayBuffer() : null; })["catch"](function () { return null; })
+              .then(function (ab) {
+                if (!ab) { i++; return next(); }
+                mine[p] = taken[p] = 1;
+                var b = new Uint8Array(ab);
+                return digest(b).then(function (hx) { return { path: p, ref: p + "?v=" + ((ver[p] || 1) + 1), over: true, keep: { bytes: b, hx: hx } }; });
+              });
+          }
           mine[p] = taken[p] = 1;
           if (r === 0) return { path: p, ref: p };
           if (r === 1) return { path: p, ref: ver[p] ? p + "?v=" + ver[p] : p };
@@ -368,8 +397,8 @@
     /* f: {dir, base, fixed, kind, ext, bytes, hx} — resolves to {path, ref, over}, in call order */
     return function (f) {
       if (f.fixed) return fixedName(f);
-      var k = f.dir + f.base, tries = 0;
-      if (!ctr[k]) ctr[k] = topNum(taken, f.dir, f.base) + 1;
+      var k = f.dir + f.base + (f.own ? "-" + f.kind : ""), tries = 0;
+      if (!ctr[k]) ctr[k] = topNum(taken, f.dir, f.base, f.own ? f.kind : null) + 1;
       function next() {
         var p = f.dir + f.base + "-" + f.kind + "-" + ctr[k] + "." + f.ext;
         if (++tries > 400) { p = f.dir + f.base + "-" + f.kind + "-" + f.hx + "." + f.ext; taken[p] = 1; return Promise.resolve({ path: p, ref: p }); }
@@ -426,14 +455,24 @@
       walk(d, page, page, 0);
     });
 
-    var files = [], missing = [], byHash = {}, map = {}, taken = {}, bumps = {};
+    var files = [], missing = [], byHash = {}, map = {}, taken = {}, bumps = {}, moved = {}, name;
+    /* a fixed slot was taken over: its old live bytes become the next numbered file */
+    function rehomeOld(r, a) {
+      var k = r.keep, key = k.bytes.length + ":" + k.hx, ext = r.path.split(".").pop().toLowerCase();
+      if (byHash[key]) { moved[r.path] = byHash[key]; return; }
+      return name({ dir: "media/" + a.folder + "/", base: slug(a.base).slice(0, 48) || "file", fixed: null,
+                    kind: kindOf(/^(webp|png|jpe?g|gif|avif|svg)$/.test(ext) ? "image/" + ext : "", ext), ext: ext, bytes: k.bytes, hx: k.hx }).then(function (r2) {
+        byHash[key] = r2.ref; moved[r.path] = r2.ref;
+        files.push({ name: r2.path, bytes: k.bytes, hx: k.hx, fixed: false, over: false });
+      });
+    }
     return pool(refs, 4, function (ref) {
       return bytesOf(ref).then(function (bytes) {
         return digest(bytes).then(function (hx) { at[ref].bytes = bytes; at[ref].hx = hx; });
       }, function () { missing.push(at[ref].fixed || at[ref].base); });
     }, tick).then(function () {
       [mediaRefs(pub || {}), mediaRefs(bundle)].forEach(function (o) { Object.keys(o).forEach(function (r) { taken[r] = 1; }); });
-      var name = namer(taken, verMap([pub || {}, bundle], texts), mediaRefs(bundle));
+      name = namer(taken, verMap([pub || {}, bundle], texts), mediaRefs(bundle), true);
       return serial(refs, function (ref) {           // document order, so numbers follow the page
         var a = at[ref]; if (!a.bytes) return;
         var key = a.bytes.length + ":" + a.hx;
@@ -444,10 +483,12 @@
           byHash[key] = r.ref; map[ref] = r.ref;
           files.push({ name: r.path, bytes: a.bytes, hx: a.hx, fixed: !!a.fixed, over: !!r.over });
           if (r.over) bumps[r.path] = r.ref;
+          if (r.keep) return rehomeOld(r, a);
         });
       });
     }).then(function () {
-      walkStrings(bundle, function (v) { return map[v]; });
+      var own = Object.prototype.hasOwnProperty;
+      walkStrings(bundle, function (v) { if (own.call(map, v)) return map[v]; var b = v.split(/[?#]/)[0]; if (own.call(moved, b)) return moved[b]; });
       return { files: files, missing: missing, bumps: bumps };
     });
   }
@@ -460,16 +501,20 @@
     if (d.meta && Object.keys(d.meta).some(function (k) { return d.meta[k]; })) return true;
     return !!(d.vars && ["dark", "light"].some(function (m) { return d.vars[m] && Object.keys(d.vars[m]).some(function (k) { return d.vars[m][k]; }); }));
   }
-  /* uploaded photos / PDFs in page edits become files under media/site/ */
+  /* uploaded photos / PDFs in page edits become files under media/site/ (About: media/home/) */
   function materialiseSite(sc, html) {
-    var jobs = [], taken = {}, re = /media\/site\/[^"'()\s,<>?#\\]+\.[a-z0-9]{2,5}/gi;
+    var jobs = [], taken = {}, re = /media\/(?:site|home)\/[^"'()\s,<>?#\\]+\.[a-z0-9]{2,5}/gi;
     Object.keys(html || {}).forEach(function (p) { var t = html[p] || "", m; while ((m = re.exec(t))) taken[m[0]] = 1; });
-    walkStrings({ o: sc }, function (v) { if (/^media\/site\//i.test(v)) taken[v] = 1; });
+    walkStrings({ o: sc }, function (v) { if (/^media\/(?:site|home)\//i.test(v)) taken[v.split(/[?#]/)[0]] = 1; });
     Object.keys(sc).forEach(function (p) {
       var d = sc[p]; if (!d) return;
       ["img", "href"].forEach(function (b) {
         var set = d[b] || {};
         Object.keys(set).forEach(function (k) { if (isData(set[k])) jobs.push({ set: set, k: k, p: p }); });
+      });
+      Object.keys(d.attr || {}).forEach(function (k) {          // e.g. About · Interests data-mp4 clip
+        var o = d.attr[k]; if (!o || typeof o !== "object") return;
+        Object.keys(o).forEach(function (a) { if (isData(o[a])) jobs.push({ set: o, k: a, p: p }); });
       });
       if (d.meta && isData(d.meta.image)) jobs.push({ set: d.meta, k: "image", p: p, og: true });
     });
@@ -484,8 +529,9 @@
         if (!j.bytes) return;
         var v = j.set[j.k], ext = extFor(mimeOf(v)), path = byHash[j.hx];
         if (path) { j.set[j.k] = path; return; }
-        var base = PSLUG[j.p] || slug(j.p);
-        return name({ dir: "media/site/", base: base, fixed: j.og ? "og-" + base : null, kind: kindOf(mimeOf(v), ext), ext: ext, bytes: j.bytes, hx: j.hx })
+        var base = PSLUG[j.p] || slug(j.p), ab = j.p === "about", kd = kindOf(mimeOf(v), ext);
+        if (ab && (ext === "mp4" || ext === "gif")) kd = ext;   // About: about-mp4-<n> (clips) · about-gif-<n> (kept GIFs) · about-image-<n>
+        return name({ dir: ab ? "media/home/" : "media/site/", base: base, fixed: j.og ? "og-" + base : null, kind: kd, own: ab, ext: ext, bytes: j.bytes, hx: j.hx })
           .then(function (r) {
             byHash[j.hx] = r.ref; j.set[j.k] = r.ref;
             files.push({ name: r.path, bytes: j.bytes, hx: j.hx, fixed: !!j.og, over: !!r.over });
@@ -496,8 +542,10 @@
   }
   function bakePage(src, d) {
     var E = window.AK_EDIT, doc;
+    src = cleanHTML(src);
     try { doc = new DOMParser().parseFromString(src, "text/html"); } catch (e) { doc = null; }
     if (!doc || !doc.body || !E || !E.applyDraft) return { html: null, skipped: [] };
+    [].forEach.call(doc.querySelectorAll("[data-omelette-injected],[data-om-host]"), function (n) { n.remove(); });
     var skipped = E.applyDraft(doc, d) || [];
     var dt = /^\s*(<!doctype[^>]*>)/i.exec(src);
     var html = (dt ? dt[1] : "<!DOCTYPE html>") + "\n" + doc.documentElement.outerHTML + "\n";
@@ -685,13 +733,15 @@
     if (meas[url] && (meas[url].w || meas[url].skip)) return Promise.resolve(meas[url]);
     var staged = meas[url] && meas[url].staged;
     return fetch(url).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) {
-      if (!b || !resizable(b.type)) return (meas[url] = { skip: true });
-      return decode(b).then(function (dec) {
-        var m = { w: dec.w, h: dec.h, size: b.size, fmt: b.type, staged: staged };
-        dec.release();
-        m.over = Math.max(m.w, m.h) > IMG_OVER_EDGE;
-        m.notWebp = b.type !== "image/webp";
-        return (meas[url] = m);
+      return stillOK(b).then(function (ok) {
+        if (!ok) return (meas[url] = { skip: true });
+        return decode(b).then(function (dec) {
+          var m = { w: dec.w, h: dec.h, size: b.size, fmt: b.type, staged: staged };
+          dec.release();
+          m.over = Math.max(m.w, m.h) > IMG_OVER_EDGE;
+          m.notWebp = b.type !== "image/webp";
+          return (meas[url] = m);
+        });
       });
     })["catch"](function () { return (meas[url] = { skip: true }); });
   }
@@ -708,6 +758,9 @@
     return s;
   }
   function shrink(blob, isPng) {
+    return stillOK(blob).then(function (ok) { return ok ? shrinkStill(blob, isPng) : { skip: "animated \u2014 left as is" }; });
+  }
+  function shrinkStill(blob, isPng) {
     return decode(blob).then(function (dec) {
       var long = Math.max(dec.w, dec.h), from = dec.w + "\u00d7" + dec.h;
       if (long <= IMG_OVER_EDGE) { dec.release(); return { skip: "already " + from }; }
@@ -796,7 +849,7 @@
     function grab(path) {
       return fetch(BASE + path.split("/").map(encodeURIComponent).join("/"), { cache: "no-store" }).then(function (r) {
         if (!r.ok) throw 0;
-        return r.arrayBuffer();
+        return /\.html?$/i.test(path) ? r.text().then(function (t) { return new TextEncoder().encode(cleanHTML(t)).buffer; }) : r.arrayBuffer();
       }).then(function (b) { out[path] = new Uint8Array(b); bytes += b.byteLength; })["catch"](function () { missing.push(path); });
     }
     var core = Object.keys(want);
