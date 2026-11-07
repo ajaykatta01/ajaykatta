@@ -105,7 +105,13 @@ header{
   border-bottom:1px solid var(--line);
 }
 .nav{display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{font-family:'Space Grotesk';font-weight:700;font-size:1.05rem;letter-spacing:.08em;text-decoration:none;color:var(--text);display:flex;align-items:center;gap:11px}
+.logo{font-family:'Space Grotesk';font-weight:700;font-size:1.38rem;letter-spacing:.01em;line-height:1;text-decoration:none;color:var(--text);display:inline-flex;align-items:flex-end;gap:3px;white-space:nowrap}
+.logo .lg-dot{width:.27em;height:.27em;border-radius:50%;background:var(--accent);margin-bottom:.14em;transform-origin:50% 100%}
+.logo{transition:transform .35s cubic-bezier(.3,1.4,.5,1);transform-origin:0 50%}
+@media (hover:hover){.logo:hover{transform:scale(1.08)}}
+.logo:focus-visible{transform:scale(1.08)}
+@media (prefers-reduced-motion:reduce){.logo,.logo:hover,.logo:focus-visible{transition:none;transform:none}}
+@media (max-width:400px){.logo{font-size:1.22rem}}
 .logo .orb{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--accent-2),var(--accent));box-shadow:0 0 14px var(--glow);animation:pulse 3s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
 .nav-right{display:flex;align-items:center;gap:22px}
@@ -1375,13 +1381,13 @@ footer.ab-foot{padding-top:56px;padding-bottom:24px}
 }
 @media(max-width:350px){.nav.container{padding:0 12px}.nav-div{display:none}.nw-btn svg{display:none}.nav-right{gap:10px}.nav-links{gap:11px}.nav-actions{gap:12px}.nav-actions .resume-btn{padding:6px 10px}}
 </style>
-<script src="site-content.js?v=49"></script>
+<script src="site-content.js?v=50"></script>
 </head>
 <body>
 
 <header>
   <div class="container nav">
-    <a class="logo" href="#top" aria-label="Ajay Katta — home">AK</a>
+    <a class="logo" href="#top" aria-label="Ajay Katta — home" data-ak-noedit><span>AK</span><span class="lg-dot" aria-hidden="true"></span></a>
     <div class="nav-right">
       <nav class="nav-links">
         <a href="about.html">About</a>
@@ -1397,7 +1403,7 @@ footer.ab-foot{padding-top:56px;padding-bottom:24px}
       </nav>
       <span class="nav-div" aria-hidden="true"></span>
       <div class="nav-actions">
-        <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=3" id="resumeBtn" target="_blank" rel="noopener">Resume</a>
+        <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=5" id="resumeBtn" target="_blank" rel="noopener">Resume</a>
         <button class="home-admin" id="homeAdmin" type="button" title="Admin login" aria-label="Admin login"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="dot"></span></button>
         <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark and light mode" data-ak-noedit><span class="lamp" aria-hidden="true"><span class="lamp-shade"></span><span class="lamp-rays"></span><span class="knob" id="knob">🌙</span><span class="lamp-chain"></span></span></button>
       </div>
@@ -1415,7 +1421,7 @@ footer.ab-foot{padding-top:56px;padding-bottom:24px}
   <a href="#skills"><span class="mm-label">Skills</span><span class="mm-sub">Tools &amp; expertise</span></a>
   <a class="mm-about" href="about.html"><span class="mm-label">About</span><span class="mm-sub">My story &amp; how I work</span></a>
   <a href="#contact"><span class="mm-label">Connect</span><span class="mm-sub">Get in touch</span></a>
-  <a class="mm-resume" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=3" target="_blank" rel="noopener">Resume ↗</a>
+  <a class="mm-resume" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=5" target="_blank" rel="noopener">Resume ↗</a>
 </div>
 
 <!-- RESUME VIEWER -->
@@ -1423,7 +1429,7 @@ footer.ab-foot{padding-top:56px;padding-bottom:24px}
   <div class="rv-bar">
     <span class="rv-title">Ajay Katta — Résumé</span>
     <div class="rv-actions">
-      <a class="rv-link" id="rvDownload" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=3" download="Ajay Katta - Resume.pdf">Download ↓</a>
+      <a class="rv-link" id="rvDownload" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=5" download="Ajay Katta - Resume.pdf">Download ↓</a>
       <a class="rv-link" id="rvOpen" href="#" target="_blank" rel="noopener">Open in new tab ↗</a>
       <button type="button" class="rv-close" id="rvClose" aria-label="Close résumé">✕</button>
     </div>
@@ -3798,5 +3804,9 @@ document.querySelectorAll('.gravity-card').forEach((card,idx)=>{
 })();
 </script>
 <script src="theme-ripple.js?v=5"></script>
+<script>/* logo dot: 3 decaying bounces on load + on hover */(function(){var d=document.querySelector('.logo .lg-dot');if(!d||!d.animate||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+var up='cubic-bezier(.2,.6,.35,1)',dn='cubic-bezier(.6,0,.9,.5)',K=[{transform:'translateY(0) scale(1)',easing:up},{offset:.18,transform:'translateY(-12px) scale(1)',easing:dn},{offset:.34,transform:'translateY(0) scale(1.3,.7)',easing:'ease-out'},{offset:.42,transform:'translateY(0) scale(1)',easing:up},{offset:.55,transform:'translateY(-6px) scale(1)',easing:dn},{offset:.67,transform:'translateY(0) scale(1.15,.85)',easing:'ease-out'},{offset:.73,transform:'translateY(0) scale(1)',easing:up},{offset:.83,transform:'translateY(-2.5px) scale(1)',easing:dn},{offset:.93,transform:'translateY(0) scale(1)'},{transform:'translateY(0) scale(1)'}],a;
+function hop(){if(a&&a.playState==='running')return;a=d.animate(K,{duration:1300});}
+setTimeout(hop,600);var l=d.closest('.logo');l.addEventListener('mouseenter',hop);l.addEventListener('focus',hop);l.addEventListener('touchstart',hop,{passive:true});})();</script>
 </body>
 </html>

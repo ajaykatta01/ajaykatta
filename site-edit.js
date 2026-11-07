@@ -149,10 +149,16 @@
     var s = box.getAttribute("data-ak-items");
     return Array.prototype.filter.call(box.children, function (c) { return !skip(c) && (!s || c.matches(s)); });
   }
+  /* nearest list that holds el inside one of its items — a section's own label (outside its
+     inner job / paragraph items) falls through to the outer list of sections */
   function itemOf(el) {
-    var box = el && el.closest ? el.closest("[data-ak-list]") : null; if (!box) return null;
-    var it = el; while (it && it.parentElement !== box) it = it.parentElement;
-    return it && listItems(box).indexOf(it) >= 0 ? { box: box, it: it } : null;
+    var box = el && el.closest ? el.closest("[data-ak-list]") : null;
+    while (box) {
+      var it = el; while (it && it.parentElement !== box) it = it.parentElement;
+      if (it && listItems(box).indexOf(it) >= 0) return { box: box, it: it };
+      box = box.parentElement ? box.parentElement.closest("[data-ak-list]") : null;
+    }
+    return null;
   }
   function itemIn(el, box) {
     var it = el; while (it && it.parentElement !== box) it = it.parentElement;
@@ -239,7 +245,7 @@
     if (d.order) Object.keys(d.order).forEach(function (ck) {
       var box = ck === "" ? doc.body : resolve(ck, doc), list = d.order[ck];
       if (!box) { missed.push("order of " + (ck || "body")); return; }
-      if (!Array.isArray(list)) return;
+      if (!Array.isArray(list) || box.hasAttribute("data-ak-list")) return;   // a list's order lives in d.list
       var by = {};
       tagOI(box).forEach(function (c) { by[c.getAttribute("data-ak-oi")] = c; });
       list.forEach(function (oi) { if (by[oi]) box.appendChild(by[oi]); });
@@ -637,6 +643,11 @@
     .aks-m{width:min(460px,100%);max-height:88vh;overflow:auto;padding:20px;border-radius:18px;background:var(--surface,#1D1C1A);
       border:1px solid var(--line,#373634);box-shadow:0 30px 80px rgba(0,0,0,.5)}
     .aks-m.wide{width:min(580px,100%)}
+    .aks-pick{display:grid;gap:6px;margin:2px 0 6px}
+    .aks-pick .aks-b{justify-content:flex-start;height:auto;min-height:46px;padding:8px 14px;border:1px solid var(--line,#373634);border-radius:12px;color:var(--text,#fff);white-space:normal;text-align:left}
+    .aks-pick .aks-b:hover,.aks-pick .aks-b:focus-visible{border-color:var(--accent,#E5783A)}
+    .aks-pick .aks-b.on{border-color:var(--accent,#E5783A);color:var(--text,#fff)}
+    .aks-pick .aks-b small{margin-left:auto;font-size:.7rem;font-weight:600;color:var(--muted,#C9C8C6)}
     .aks-m h3{margin:0 0 6px;font-family:'Space Grotesk',sans-serif;font-size:1.1rem;color:var(--text,#fff)}
     .aks-m .sub{font-size:.83rem;color:var(--muted,#C9C8C6);line-height:1.55;margin-bottom:14px}
     .aks-m input[type=password],.aks-m input[type=text]{width:100%;height:48px;padding:0 13px;border-radius:11px;border:1px solid var(--line,#373634);
@@ -674,6 +685,7 @@
   var I = {
     pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+    type: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>',
     panel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
     eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
     eyeoff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17.94 17.94A10.1 10.1 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>',
@@ -808,11 +820,14 @@
     var li = itemOf(el);
     if (li && li.box.__akP) return true;          // list items are rebuilt from the file's own markup
     var k = keyOf(el); if (!k) return false;
-    var o = resolve(k, SRC);
-    if (!o || o.tagName !== el.tagName) return false;
-    var b = kind === "i" ? "img" : "text";
-    if (getOv(b, k) !== undefined || (b === "text" && getOv("html", k) !== undefined)) return true;
-    return kind === "i" ? (o.getAttribute("src") || "") === (el.getAttribute("src") || "") : norm(o.textContent) === norm(el.textContent);
+    var o = resolve(k, SRC), ok = false;
+    if (o && o.tagName === el.tagName) {
+      var b = kind === "i" ? "img" : "text";
+      ok = getOv(b, k) !== undefined || (b === "text" && getOv("html", k) !== undefined) ||
+        (kind === "i" ? (o.getAttribute("src") || "") === (el.getAttribute("src") || "") : norm(o.textContent) === norm(el.textContent));
+    }
+    if (!ok && li) { tagList(li.box, document); ok = !!li.box.__akP; }   // inside a copied item (e.g. a new section's jobs)
+    return ok;
   }
   function mark() {
     var all = document.body.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li,a,button,span,small,strong,em,b,i,figcaption,blockquote,label,td,th,dt,dd,summary,div,time,address");
@@ -875,6 +890,7 @@
         tb.appendChild(b);
       });
       el.__aksBefore = richOf(el); lastOff = null; syncFmt();
+      if (Array.isArray(window.AK_TEXT_STYLES) && window.AK_TEXT_STYLES.length) tb.appendChild(btn(I.type, "Style", function () { pickStyle(el); }));
     } else {
       tb.appendChild(btn(I.img, "Replace photo", function () { pickImage(el, key); }, "pri"));
     }
@@ -1015,6 +1031,7 @@
     function ib(icon, title, fn, off) { var b = btn(icon, "", fn); b.title = title; b.setAttribute("aria-label", title); if (off) b.disabled = true; return b; }
     tb.appendChild(h("span", { class: "aks-sep", "aria-hidden": "true" }, []));
     tb.appendChild(btn(I.plus, "Add " + nm, function () {
+      if (box.hasAttribute("data-ak-pick")) { pickAdd(box, it); return; }
       var n = listOp(box, it, "add"); if (!n) return;
       var im = kind === "i" ? n.querySelector("img") : null;
       if (im) { pickImage(im, keyOf(im)); return; }
@@ -1025,7 +1042,7 @@
     tb.appendChild(ib(I.trash, "Remove " + nm, function () { listOp(box, it, "remove"); }, all.length < 2));
   }
   /* add (copy after) · remove · move one item; every edit inside the list follows its item */
-  function listOp(box, it, kind) {
+  function listOp(box, it, kind, quiet) {
     deselect();
     tagList(box, document);
     var d = pd(), ck = keyOf(box), name = box.getAttribute("data-ak-list") || "item";
@@ -1072,8 +1089,68 @@
     save(); applyAll(); fireList(box);
     if (ON) { unmark(); mark(); }
     syncBar();
-    toast(kind === "add" ? "Added a " + name + " \u2014 edit it, then publish" : kind === "remove" ? "Removed the " + name + " \u00b7 Undo brings it back" : "Moved");
+    if (!quiet) toast(kind === "add" ? "Added a " + name + " \u2014 edit it, then publish" : kind === "remove" ? "Removed the " + name + " \u00b7 Undo brings it back" : "Moved");
     return nid ? box.querySelector(':scope > [data-ak-li="' + nid + '"]') : null;
+  }
+  /* Add on a data-ak-pick list (résumé sections): choose which item's layout to copy;
+     the copy lands right after the item the owner clicked */
+  function pickAdd(box, it) {
+    deselect(); tagList(box, document);
+    var nm = box.getAttribute("data-ak-list") || "item";
+    sheet(function (m, close) {
+      m.appendChild(h("h3", {}, ["Add a " + nm]));
+      m.appendChild(h("div", { class: "sub" }, ["Pick a layout to start from. A copy goes after \u201c" + labelOf(it) + "\u201d \u2014 rewrite its text, then add or remove the items inside it."]));
+      var g = h("div", { class: "aks-pick" });
+      listItems(box).forEach(function (src) {
+        g.appendChild(h("button", { class: "aks-b", type: "button", onclick: function () { close(); addFrom(box, it, src); } }, [labelOf(src)]));
+      });
+      m.appendChild(g);
+      m.appendChild(acts([h("button", { class: "aks-b", onclick: close }, ["Cancel"])]));
+    });
+  }
+  function addFrom(box, after, src) {
+    var aid = after.getAttribute("data-ak-li"), nm = box.getAttribute("data-ak-list") || "item", nid = null;
+    apiBatch(function () {
+      var n = listOp(box, src, "add", true); if (!n) return;
+      nid = n.getAttribute("data-ak-li");
+      for (var g = 0; g < 60; g++) {
+        var ks = listItems(box), ids = ks.map(function (c) { return c.getAttribute("data-ak-li"); });
+        var i = ids.indexOf(nid), a = ids.indexOf(aid);
+        if (i < 0 || a < 0 || i === a + 1) break;
+        listOp(box, ks[i], i > a ? "prev" : "next", true);
+      }
+    });
+    var n = nid && box.querySelector(':scope > [data-ak-li="' + nid + '"]'); if (!n) return;
+    toast("Added a " + nm + " \u2014 rewrite it, then publish");
+    var t = n.querySelector('[data-aks="t"]'); if (t) selectEl(t);
+  }
+  /* Style: a page-defined text look (window.AK_TEXT_STYLES = [[value, name, preview css]]),
+     stored as data-ts in the attr bucket — the page's CSS draws it */
+  function pickStyle(el) {
+    var key = keyOf(el); if (!key) return;
+    deselect();
+    var cur = el.getAttribute("data-ts") || "";
+    sheet(function (m, close) {
+      m.appendChild(h("h3", {}, ["Text style"]));
+      m.appendChild(h("div", { class: "sub" }, ["\u201c" + short(el.textContent, 48) + "\u201d"]));
+      var g = h("div", { class: "aks-pick" });
+      window.AK_TEXT_STYLES.forEach(function (s) {
+        g.appendChild(h("button", { class: "aks-b" + (s[0] === cur ? " on" : ""), type: "button", onclick: function () { close(); setStyle(el, key, s[0]); } },
+          [h("span", { style: s[2] || "" }, [s[1]]), s[0] === cur ? h("small", {}, ["Current"]) : null]));
+      });
+      m.appendChild(g);
+      m.appendChild(acts([h("button", { class: "aks-b", onclick: close }, ["Cancel"])]));
+    });
+  }
+  function setStyle(el, key, v) {
+    if ((el.getAttribute("data-ts") || "") === v) return;
+    var o = origNode(el, key), ov = (o && o.getAttribute("data-ts")) || "";
+    UNDO.push({ page: PAGE, snap: clone(DATA[PAGE] || {}) });
+    var b = bucket("attr"), cur = b[key] || {};
+    if (v === ov) delete cur["data-ts"]; else cur["data-ts"] = v;
+    if (Object.keys(cur).length) b[key] = cur; else delete b[key];
+    if (v) el.setAttribute("data-ts", v); else el.removeAttribute("data-ts");
+    save(); syncBar(); toast(v ? "Style changed" : "Back to the designed style");
   }
   function resetEl(el, key, kind) {
     loadSource().then(function () {
@@ -1536,7 +1613,10 @@
     });
     return list;
   }
-  function labelOf(el) { var hd = el.querySelector("h1,h2,h3"); return short((hd && hd.textContent) || el.id || el.tagName.toLowerCase(), 34); }
+  function labelOf(el) {
+    var hd = el.querySelector(":scope > .mono, :scope > [data-ak-label]") || el.querySelector("h1,h2,h3");
+    return short(((hd && hd.textContent) || el.id || el.tagName.toLowerCase()).replace(/^[\s\/\u00b7\u2022\u2013\u2014-]+/, ""), 34);
+  }
   function isHidden(el, key) { var v = getOv("hide", key); return v === true || (v !== false && el.hasAttribute("data-aks-baked")); }
   function toggleHide(el, key) {
     var hidden = isHidden(el, key), baked = el.hasAttribute("data-aks-baked");
@@ -1546,7 +1626,9 @@
   function tabSections(box) {
     var els = sectionEls();
     if (!els.length) { box.appendChild(note("No top-level sections found on this page.")); return; }
-    box.appendChild(note("Hide a section from visitors, or move it up and down. Changes apply to this page only."));
+    var inList = els.some(function (el) { return el.parentElement && el.parentElement.hasAttribute("data-ak-list"); });
+    box.appendChild(note("Hide a section from visitors, or move it up and down. Changes apply to this page only." +
+      (inList ? " To add, copy or remove a section, turn on Edit and click its label on the page." : "")));
     els.forEach(function (el) {
       var key = keyOf(el), hidden = isHidden(el, key);
       var row = h("div", { class: "aks-row" }, [
@@ -1562,6 +1644,7 @@
   }
   function move(el, dir) {
     var box = el.parentElement, ck = box === document.body ? "" : keyOf(box);
+    if (box.hasAttribute("data-ak-list") && listItems(box).indexOf(el) >= 0) { listOp(box, el, dir < 0 ? "prev" : "next"); return; }
     var kids = tagOI(box), secs = sectionEls();
     var i = kids.indexOf(el), j = i + dir;
     while (j >= 0 && j < kids.length && secs.indexOf(kids[j]) < 0) j += dir;   // hop over non-sections
