@@ -812,6 +812,51 @@
     .ak-d-hero h1{font-family:'Space Grotesk','Inter',sans-serif;font-size:clamp(2rem,5vw,3.3rem);letter-spacing:-.03em;margin:14px 0 16px;color:var(--text);
       background:linear-gradient(180deg,var(--text),color-mix(in srgb,var(--text) 55%,var(--accent)));-webkit-background-clip:text;background-clip:text;color:transparent}
     .ak-d-hero p{color:var(--muted);font-size:1.05rem;max-width:600px;margin:0 auto 26px}
+    /* live site button (it.live) — under the hero description */
+    .ak-d-hero .ak-live{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 18px 0 16px;margin:0 0 26px;border-radius:999px;background:var(--text);color:var(--bg);font-family:'Inter',sans-serif;font-weight:600;font-size:.9rem;text-decoration:none;transition:transform .2s,box-shadow .2s}
+    .ak-d-hero .ak-live:hover,.ak-d-hero .ak-live:focus-visible{transform:translateY(-1px);box-shadow:0 10px 24px -10px color-mix(in srgb,var(--text) 60%,transparent)}
+    .ak-d-hero .ak-live:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+    .ak-live-dot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--lv,var(--accent));flex:none}
+    .ak-live-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--lv,var(--accent));animation:akLivePulse 1.8s ease-out infinite}
+    @keyframes akLivePulse{to{transform:scale(2.6);opacity:0}}
+    .ak-live-host{font-weight:500;opacity:.66;padding-left:10px;border-left:1px solid color-mix(in srgb,var(--bg) 30%,transparent)}
+    .ak-live-arr svg{width:14px;height:14px;display:block;transition:transform .2s}
+    .ak-d-hero .ak-live:hover .ak-live-arr svg{transform:translate(2px,-2px)}
+    @media(prefers-reduced-motion:reduce){.ak-live-dot::after{animation:none}.ak-d-hero .ak-live,.ak-live-arr svg{transition:none}}
+    @media(max-width:440px){.ak-live-host{display:none}}
+    /* showcase row (thumbnail left text): minimal text link — label rolls to the host, underline draws in, arrow swaps */
+    .ps-live{align-self:flex-start;position:relative;display:inline-flex;align-items:center;gap:10px;margin-top:18px;color:var(--text);font:600 .9rem/1 'Inter',sans-serif;text-decoration:none;-webkit-tap-highlight-color:transparent}
+    .ps-live::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
+    .ps-live:focus-visible{outline:2px solid var(--accent);outline-offset:6px;border-radius:6px}
+    .ps-live .lv-dot{position:relative;width:7px;height:7px;border-radius:50%;background:var(--lv,var(--accent));flex:none}
+    .ps-live .lv-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--lv,var(--accent));animation:akLivePulse 1.8s ease-out infinite}
+    .ps-live .lv-t{padding-bottom:5px;background:linear-gradient(var(--lv,var(--accent-ink,var(--accent))),var(--lv,var(--accent-ink,var(--accent)))) 0 100%/0 1px no-repeat,linear-gradient(var(--line),var(--line)) 0 100%/100% 1px no-repeat;transition:background-size .5s cubic-bezier(.22,1,.36,1)}
+    .ps-live .lv-w{display:block;height:1.3em;overflow:hidden}
+    .ps-live .lv-in{display:grid;transition:transform .5s cubic-bezier(.22,1,.36,1)}
+    .ps-live .lv-in>span{height:1.3em;line-height:1.3em;white-space:nowrap}
+    .ps-live .lv-in>span+span{color:var(--lv,var(--accent-ink,var(--accent)))}
+    .ps-live .lv-arr{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);overflow:hidden;flex:none;transition:background-color .35s,border-color .35s,color .35s}
+    .ps-live .lv-arr svg{grid-area:1/1;width:12px;height:12px;transition:transform .45s cubic-bezier(.22,1,.36,1)}
+    .ps-live .lv-arr svg+svg{transform:translate(-170%,170%)}
+    .ps-live:is(:hover,:focus-visible) .lv-t{background-size:100% 1px,100% 1px}
+    .ps-live:is(:hover,:focus-visible) .lv-in{transform:translateY(-1.3em)}
+    .ps-live:is(:hover,:focus-visible) .lv-arr{background:var(--text);border-color:var(--text);color:var(--bg)}
+    .ps-live:is(:hover,:focus-visible) .lv-arr svg{transform:translate(170%,-170%)}
+    .ps-live:is(:hover,:focus-visible) .lv-arr svg+svg{transform:none}
+    @media(prefers-reduced-motion:reduce){.ps-live .lv-dot::after{animation:none}.ps-live .lv-in,.ps-live .lv-arr svg,.ps-live .lv-t{transition:none}}
+    /* live link highlight picker (Edit + Add live site) */
+    .ak-lvc{display:flex;align-items:center;flex-wrap:wrap;gap:10px;min-height:44px}
+    .ak-lvc button{position:relative;width:28px;height:28px;border-radius:50%;border:0;padding:0;background:var(--sw);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 20%,transparent);cursor:pointer;transition:transform .15s}
+    .ak-lvc button::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid transparent;transition:border-color .15s}
+    .ak-lvc button.on::after{border-color:var(--text)}
+    .ak-lvc button:hover{transform:scale(1.08)}
+    .ak-lvc button:focus-visible{outline:2px solid var(--accent);outline-offset:5px}
+    .ak-lvc-c{position:relative;width:28px;height:28px;border-radius:50%;background:conic-gradient(#ff5c5c,#ffd25c,#5cff8a,#5cd6ff,#8a5cff,#ff5cd6,#ff5c5c);cursor:pointer;outline:2px solid transparent;outline-offset:2px}
+    .ak-lvc-c.on{outline-color:var(--text)}
+    .ak-lvc-c input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+    .ak-lvc-pv{margin-left:auto;display:inline-flex;align-items:center;gap:8px;padding-bottom:5px;border-bottom:1px solid var(--lv);font:600 .85rem/1 'Inter',sans-serif;color:var(--text)}
+    .ak-lvc-pv i{width:7px;height:7px;border-radius:50%;background:var(--lv)}
+    .ak-lvc-pv b{font-weight:600;color:var(--lv)}
     .ak-meta{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
     .ak-meta .m{display:flex;flex-direction:column;gap:4px;padding:12px 16px;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb,var(--surface) 55%,transparent);min-width:120px}
     .ak-meta .mk{font-family:'Inter',sans-serif;font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
@@ -1223,6 +1268,7 @@
     media: '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="2"/><path d="M10 9.5v5l4-2.5z" fill="currentColor"/></svg>',
     cube: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5l8 4.5v9l-8 4.5-8-4.5v-9z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 11.5l8-4.5M12 11.5v9M12 11.5L4 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
     text: '<svg viewBox="0 0 24 24" fill="none"><path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 19V6M6 11l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v13M6 13l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-3-3L5 17v3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
@@ -1486,6 +1532,7 @@
       menuEl.appendChild(mi(I.media, "Add video / audio", function () { addBlock("media"); }));
       menuEl.appendChild(mi(I.cube, "Add 3D model", function () { addBlock("model"); }));
       menuEl.appendChild(mi(I.text, "Add text block", function () { addBlock("text"); }));
+      menuEl.appendChild(mi(I.globe, it && it.live ? "Edit live site link" : "Add live site", function () { editLive(it); }));
       menuEl.appendChild(h("div", { class: "ak-sep" }));
       menuEl.appendChild(h("div", { class: "ak-label" }, ["Layout Studio"]));
       if (studioEnabled()) {
@@ -1714,7 +1761,8 @@
       h("div", { class: "ps-text" }, [
         h("div", { class: "ps-meta" }, [h("strong", {}, [it.tag || "Project"]), when ? " \u00b7 " + when : null]),
         title,
-        pts.length ? h("ul", { class: "ps-pts", "data-b": it.bullet || null }, pts) : null
+        pts.length ? h("ul", { class: "ps-pts", "data-b": it.bullet || null }, pts) : null,
+        liveBtn(it, "ps-live")
       ]),
       h("div", { class: "ps-media" }, [
         h("div", { class: "ptile-img", role: "img", "aria-label": it.title || "", style: coverStyle }, it.label ? [h("span", { class: "ph-label" }, [it.label])] : []),
@@ -2012,17 +2060,22 @@
         { key: "role", label: "Role", value: it ? (it.meta || {}).role : "", placeholder: "e.g. Product Designer" },
         { key: "platform", label: "Platform", value: it ? (it.meta || {}).platform : "", placeholder: "e.g. iOS · Web" },
         { key: "focus", label: "Focus", value: it ? (it.meta || {}).focus : "", placeholder: "e.g. Research → UI" },
-        { key: "software", label: "Software", value: it ? (it.meta || {}).software : "", placeholder: "e.g. Figma · Blender · After Effects" }
+        { key: "software", label: "Software", value: it ? (it.meta || {}).software : "", placeholder: "e.g. Figma · Blender · After Effects" },
+        { key: "live", label: "Live site", full: true, value: it ? it.live || "" : "", placeholder: "https://your-live-website.com", hint: "Optional. A working website \u2014 shown as a \u201cVisit live site\u201d button at the top of the " + CFG.noun + "." },
+        (function () { var lp = livePicker(it && it.liveColor); return { key: "liveColor", type: "custom", label: "Live link highlight", full: true, el: lp.el, get: lp.get, hint: "Colour of the dot, underline and web address on hover. Coral is the default." }; })(),
       ].filter(Boolean),
       submitLabel: creating ? "Create" : "Save changes",
-      validate: function (v) { if (!v.title) return "Please enter a title."; }
+      validate: function (v) { if (!v.title) return "Please enter a title."; if (v.live && !liveUrl(v.live)) return "Live site: enter a full web address, e.g. https://example.com"; }
     }).then(function (v) {
       if (!v) return;
+      var live = liveUrl(v.live);
       var meta = { role: v.role, timeline: v.timeline, platform: v.platform, focus: v.focus, software: v.software };
       var bullet = v.bullet && v.bullet !== "tick" ? v.bullet : "";
       if (creating) {
         var item = { id: uid(), title: v.title, tag: v.tag, desc: v.desc, cover: v.cover || "", meta: meta, blocks: [] };
         if (bullet) item.bullet = bullet;
+        if (live) item.live = live;
+        if (live && liveColor(v.liveColor)) item.liveColor = liveColor(v.liveColor);
         DATA.items.unshift(item); // newest project/case study first
         save().then(function () {
           renderTiles(); openDetail(item.id);
@@ -2033,9 +2086,86 @@
         it.title = v.title; it.tag = v.tag; it.desc = v.desc; it.meta = meta;
         if (CFG.showcase) { if (bullet) it.bullet = bullet; else delete it.bullet; delete it.descWeight; }
         it.cover = v.cover || "";
+        if (live) it.live = live; else { delete it.live; delete it.liveLabel; }
+        if (live && liveColor(v.liveColor)) it.liveColor = liveColor(v.liveColor); else delete it.liveColor;
         save().then(function () { renderTiles(); if (openItemId) renderDetail(); });
       }
     });
+  }
+  /* live site link: it.live = http(s) URL, it.liveLabel = optional button text.
+     Set in Edit (Live site) or Add → Add live site; shown as a button under the detail hero text. */
+  function liveUrl(s) {
+    s = String(s || "").trim(); if (!s) return "";
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = "https://" + s.replace(/^\/+/, "");
+    try { var u = new URL(s); return /^https?:$/.test(u.protocol) && /\./.test(u.hostname) ? u.href : ""; } catch (e) { return ""; }
+  }
+  function editLive(it) {
+    if (!it) return;
+    modal({
+      title: it.live ? "Live site link" : "Add live site",
+      sub: "Link a working website so visitors can try it. It shows as a button at the top of this " + CFG.noun + ". Clear the address to remove it.",
+      fields: [
+        { key: "live", label: "Website address", value: it.live || "", placeholder: "https://your-live-website.com" },
+        { key: "label", label: "Button text", value: it.liveLabel || "", placeholder: "Visit live site" },
+        (function () { var lp = livePicker(it.liveColor); return { key: "liveColor", type: "custom", label: "Highlight colour", el: lp.el, get: lp.get }; })()
+      ],
+      submitLabel: "Save",
+      validate: function (v) { if (v.live && !liveUrl(v.live)) return "Enter a full web address, e.g. https://example.com"; }
+    }).then(function (v) {
+      if (!v) return;
+      var u = liveUrl(v.live), l = String(v.label || "").trim();
+      if (u) { it.live = u; if (l && l !== "Visit live site") it.liveLabel = l; else delete it.liveLabel; }
+      else { delete it.live; delete it.liveLabel; }
+      if (u && liveColor(v.liveColor)) it.liveColor = liveColor(v.liveColor); else delete it.liveColor;
+      save().then(function () { renderTiles(); if (openItemId) renderDetail(); });
+    });
+  }
+  /* it.liveColor: "" = coral (default) · "text" = white in dark / ink in light · or #rrggbb */
+  var LV_SW = [["", "Coral (default)"], ["text", "White / ink"], ["#e3b04b", "Gold"], ["#34d399", "Mint"], ["#60a5fa", "Sky"], ["#a78bfa", "Violet"]];
+  function liveColor(c) { c = String(c || "").trim().toLowerCase(); return c === "text" || /^#[0-9a-f]{6}$/.test(c) ? c : ""; }
+  function liveColorCss(c) { c = liveColor(c); return c === "text" ? "var(--text)" : c; }
+  function livePicker(cur) {
+    var val = liveColor(cur), btns = [];
+    var wrap = h("div", { class: "ak-lvc", role: "radiogroup", "aria-label": "Live link highlight colour" });
+    var custom = h("input", { type: "color", "aria-label": "Custom colour" });
+    var cw = h("label", { class: "ak-lvc-c", title: "Custom colour" }, [custom]);
+    var preview = h("span", { class: "ak-lvc-pv", "aria-hidden": "true" }, [h("i"), "Live site · ", h("b", {}, ["host.com"])]);
+    function isSw(v) { return LV_SW.some(function (s) { return s[0] === v; }); }
+    function paint() {
+      btns.forEach(function (b) { var on = b._v === val; b.classList.toggle("on", on); b.setAttribute("aria-checked", on ? "true" : "false"); });
+      var cOn = !isSw(val); cw.classList.toggle("on", cOn); cw.style.background = cOn ? val : "";
+      preview.style.setProperty("--lv", liveColorCss(val) || "var(--accent-ink,var(--accent))");
+    }
+    LV_SW.forEach(function (s) {
+      var b = h("button", { type: "button", role: "radio", title: s[1], "aria-label": s[1], style: "--sw:" + (s[0] ? liveColorCss(s[0]) : "var(--accent)") });
+      b._v = s[0]; b.addEventListener("click", function () { val = s[0]; paint(); });
+      btns.push(b); wrap.appendChild(b);
+    });
+    custom.value = isSw(val) ? "#ff6b5c" : val;
+    custom.addEventListener("input", function () { val = liveColor(custom.value); paint(); });
+    wrap.appendChild(cw); wrap.appendChild(preview);
+    paint();
+    return { el: wrap, get: function () { return val; } };
+  }
+  function liveBtn(it, cls) {
+    var u = liveUrl(it.live); if (!u) return null;
+    var lc = liveColorCss(it.liveColor), lvs = lc ? "--lv:" + lc : null;
+    var label = it.liveLabel || "Visit live site", host = new URL(u).hostname.replace(/^www\./, "");
+    var stop = function (e) { e.stopPropagation(); };
+    if (cls) {
+      var arr = '<svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M8 7h9v9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      return h("a", { class: cls, style: lvs, href: u, target: "_blank", rel: "noopener", "aria-label": label + " \u2014 " + host + " (opens in a new tab)", onclick: stop, onkeydown: stop }, [
+        h("span", { class: "lv-dot", "aria-hidden": "true" }),
+        h("span", { class: "lv-t", "aria-hidden": "true" }, [h("span", { class: "lv-w" }, [h("span", { class: "lv-in" }, [h("span", {}, [label]), h("span", {}, [host])])])]),
+        h("span", { class: "lv-arr", "aria-hidden": "true", html: arr + arr })
+      ]);
+    }
+    return h("a", { class: "ak-live", style: lvs, href: u, target: "_blank", rel: "noopener", "aria-label": label + " \u2014 " + host + " (opens in a new tab)", onclick: stop, onkeydown: stop }, [
+      h("span", { class: "ak-live-dot", "aria-hidden": "true" }),
+      h("span", {}, [label]),
+      h("span", { class: "ak-live-host", "aria-hidden": "true" }, [host]),
+      h("span", { class: "ak-live-arr", "aria-hidden": "true", html: '<svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M8 7h9v9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' })
+    ]);
   }
   /* ============================================================ COVER STUDIO — UI/UX standard cover
      ref: owner's dp.JPG (28.10.2026). cover-studio.js draws it; its settings stay on the item as
@@ -2586,6 +2716,7 @@
         it.tag ? h("div", { class: "tag" }, [it.tag]) : null,
         h("h1", {}, [it.title || "Untitled"]),
         it.desc ? h("p", {}, [String(it.desc).replace(/\*\*/g, "")]) : null,
+        liveBtn(it),
         metaChips.length ? h("div", { class: "ak-meta" }, metaChips) : null
       ])
     ]);

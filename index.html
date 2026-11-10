@@ -592,6 +592,27 @@ section[data-num] > .container, footer[data-num] > .container{position:relative;
 }
 @media (max-width:860px) and (prefers-reduced-motion:reduce){.pj-row,.pj-rt{transition:none}}
 @media (prefers-reduced-motion:reduce){.pj-row:is(:hover,.is-on) .pj-rmedia img{transform:scale(var(--pz,1))}.pj-tools{transition:none}}
+/* live site link (it.live) under the row's bullets — minimal: label rolls to the host, underline draws in, arrow swaps */
+.pj-live{align-self:flex-start;position:relative;display:inline-flex;align-items:center;gap:10px;margin-top:18px;color:var(--text);font:600 .9rem/1 'Inter';cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pj-live::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%)}
+.pj-live:focus-visible{outline:2px solid var(--accent);outline-offset:6px;border-radius:6px}
+.pj-live .lv-dot{position:relative;width:7px;height:7px;border-radius:50%;background:var(--lv,var(--accent));flex:none}
+.pj-live .lv-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--lv,var(--accent));animation:pjLivePulse 1.8s ease-out infinite}
+@keyframes pjLivePulse{to{transform:scale(2.6);opacity:0}}
+.pj-live .lv-t{padding-bottom:5px;background:linear-gradient(var(--lv,var(--accent-ink,var(--accent))),var(--lv,var(--accent-ink,var(--accent)))) 0 100%/0 1px no-repeat,linear-gradient(var(--line),var(--line)) 0 100%/100% 1px no-repeat;transition:background-size .5s cubic-bezier(.22,1,.36,1)}
+.pj-live .lv-w{display:block;height:1.3em;overflow:hidden}
+.pj-live .lv-in{display:grid;transition:transform .5s cubic-bezier(.22,1,.36,1)}
+.pj-live .lv-in>span{height:1.3em;line-height:1.3em;white-space:nowrap}
+.pj-live .lv-in>span+span{color:var(--lv,var(--accent-ink,var(--accent)))}
+.pj-live .lv-arr{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);overflow:hidden;flex:none;transition:background-color .35s,border-color .35s,color .35s}
+.pj-live .lv-arr svg{grid-area:1/1;width:12px;height:12px;transition:transform .45s cubic-bezier(.22,1,.36,1)}
+.pj-live .lv-arr svg+svg{transform:translate(-170%,170%)}
+.pj-live:is(:hover,:focus-visible) .lv-t{background-size:100% 1px,100% 1px}
+.pj-live:is(:hover,:focus-visible) .lv-in{transform:translateY(-1.3em)}
+.pj-live:is(:hover,:focus-visible) .lv-arr{background:var(--text);border-color:var(--text);color:var(--bg)}
+.pj-live:is(:hover,:focus-visible) .lv-arr svg{transform:translate(170%,-170%)}
+.pj-live:is(:hover,:focus-visible) .lv-arr svg+svg{transform:none}
+@media (prefers-reduced-motion:reduce){.pj-live .lv-dot::after{animation:none}.pj-live .lv-in,.pj-live .lv-arr svg,.pj-live .lv-t{transition:none}}
 /* ONE universal card: every project is a 3:2 cover that fills edge-to-edge (focal point from the project's coverPos), title + tag + arrow overlaid as the hook */
 .pj{--c:#C792EA;--cw:clamp(290px,54vw,680px);--ease:cubic-bezier(.65,.05,.36,1)}
 .pj[data-cat="ui-ux"]{--c:#FF6B5C}
@@ -1403,7 +1424,7 @@ footer.ab-foot{padding-top:56px;padding-bottom:24px}
       </nav>
       <span class="nav-div" aria-hidden="true"></span>
       <div class="nav-actions">
-        <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=5" id="resumeBtn" target="_blank" rel="noopener">Resume</a>
+        <a class="resume-btn" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=6" id="resumeBtn" target="_blank" rel="noopener">Resume</a>
         <button class="home-admin" id="homeAdmin" type="button" title="Admin login" aria-label="Admin login"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="dot"></span></button>
         <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark and light mode" data-ak-noedit><span class="lamp" aria-hidden="true"><span class="lamp-shade"></span><span class="lamp-rays"></span><span class="knob" id="knob">🌙</span><span class="lamp-chain"></span></span></button>
       </div>
@@ -1421,7 +1442,7 @@ footer.ab-foot{padding-top:56px;padding-bottom:24px}
   <a href="#skills"><span class="mm-label">Skills</span><span class="mm-sub">Tools &amp; expertise</span></a>
   <a class="mm-about" href="about.html"><span class="mm-label">About</span><span class="mm-sub">My story &amp; how I work</span></a>
   <a href="#contact"><span class="mm-label">Connect</span><span class="mm-sub">Get in touch</span></a>
-  <a class="mm-resume" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=5" target="_blank" rel="noopener">Resume ↗</a>
+  <a class="mm-resume" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=6" target="_blank" rel="noopener">Resume ↗</a>
 </div>
 
 <!-- RESUME VIEWER -->
@@ -1429,7 +1450,7 @@ footer.ab-foot{padding-top:56px;padding-bottom:24px}
   <div class="rv-bar">
     <span class="rv-title">Ajay Katta — Résumé</span>
     <div class="rv-actions">
-      <a class="rv-link" id="rvDownload" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=5" download="Ajay Katta - Resume.pdf">Download ↓</a>
+      <a class="rv-link" id="rvDownload" href="media/home/Ajay-Katta-uiux-product-designer-2026.pdf?v=6" download="Ajay Katta - Resume.pdf">Download ↓</a>
       <a class="rv-link" id="rvOpen" href="#" target="_blank" rel="noopener">Open in new tab ↗</a>
       <button type="button" class="rv-close" id="rvClose" aria-label="Close résumé">✕</button>
     </div>
@@ -2096,6 +2117,7 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
   /* ---- UI/UX tab: showcase list rows ---- */
   const SHOW='ui-ux';
   const clean=v=>String(v||'').replace(/\s*\.\s+/g,' · ').replace(/\s{2,}/g,' · ').replace(/^[\s·]+|[\s·.]+$/g,'');
+  const LV_ARR='<svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M8 7h9v9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function rowHTML(it,tab){
     const m=it.meta||{}, href=tab.dataset.href+'#p='+encodeURIComponent(it.id);
     const cp=it.coverPos, fp=cp?' style="--px:'+(+cp.x||50)+'%;--py:'+(+cp.y||50)+'%;--pz:'+(+cp.s||1)+'"':'';
@@ -2103,9 +2125,12 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
     let pts=String(it.desc||'').split(/\n+/).map(l=>l.replace(/^\s*(?:[-\u2022\u2013\u2014\u2192\u2713\u2714\u2605\u25c6]|\*(?=\s))\s*/,'').trim()).filter(Boolean).map(l=>'<li data-d>'+esc(l).replace(/\*\*([^*]+?)\*\*/g,'<strong>$1</strong>').replace(/\*\*/g,'')+'</li>').join('');
     [['Role',m.role],['Platform',m.platform],['Focus',m.focus]].forEach(r=>{ const v=clean(r[1]); if(v) pts+='<li>'+r[0]+' — <strong>'+esc(v)+'</strong></li>'; });
     const tools=String(m.software||'').split(/\s*[,|\/·]\s*|\s*\.\s+|\s{2,}/).map(x=>x.replace(/\.$/,'').trim()).filter(Boolean);
+    let live='';
+    try{ const u=new URL(String(it.live||'')); if(/^https?:$/.test(u.protocol)){ const host=u.hostname.replace(/^www\./,''), lb=it.liveLabel||'Visit live site', lc=String(it.liveColor||'').toLowerCase(), lv=lc==='text'?'var(--text)':(/^#[0-9a-f]{6}$/.test(lc)?lc:'');
+      live='<span class="pj-live"'+(lv?' style="--lv:'+lv+'"':'')+' role="link" tabindex="0" data-live="'+esc(u.href)+'" aria-label="'+esc(lb+' — '+host+' (opens in a new tab)')+'"><span class="lv-dot" aria-hidden="true"></span><span class="lv-t" aria-hidden="true"><span class="lv-w"><span class="lv-in"><span>'+esc(lb)+'</span><span>'+esc(host)+'</span></span></span></span><span class="lv-arr" aria-hidden="true">'+LV_ARR+LV_ARR+'</span></span>'; } }catch(_){}
     return '<a class="pj-row" href="'+href+'" data-ak-transient>'+
       '<div class="pj-rt"><div class="pj-rmeta"><strong>'+esc(tagText(it.tag||'Project'))+'</strong>'+(when?' · '+esc(when):'')+'</div>'+
-      '<h3 class="pj-rh">'+esc(it.title||'Untitled')+'</h3>'+(pts?'<ul class="pj-rp"'+(it.bullet?' data-b="'+esc(it.bullet)+'"':'')+(it.descWeight==='bold'?' data-w="bold"':'')+'>'+pts+'</ul>':'')+'</div>'+
+      '<h3 class="pj-rh">'+esc(it.title||'Untitled')+'</h3>'+(pts?'<ul class="pj-rp"'+(it.bullet?' data-b="'+esc(it.bullet)+'"':'')+(it.descWeight==='bold'?' data-w="bold"':'')+'>'+pts+'</ul>':'')+live+'</div>'+
       '<div class="pj-rmedia'+(it.cover?'':' empty')+'"'+fp+' data-i="'+esc((it.title||'?').trim().charAt(0).toUpperCase())+'">'+
       (it.cover?'<img src="'+esc(it.cover)+'" alt="'+esc(it.title||'')+'" loading="lazy" decoding="async">':'')+
       (tools.length?'<div class="pj-tools" aria-hidden="true">'+tools.map(t=>'<span>'+esc(t)+'</span>').join('')+'</div>':'')+'</div></a>';
@@ -2142,6 +2167,11 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
     el._flyT=setTimeout(function(){ if(el._fly){ el._fly.forEach(function(a){ a.cancel(); }); el._fly=null; } },(n-1)*step+dur+120);
   }
   let rowOn=null;
+  /* live site pill inside a row (the row itself is a link, so the pill is a span opening its own tab) */
+  const openLive=e=>{ const l=e.target.closest&&e.target.closest('.pj-live'); if(!l) return false;
+    e.preventDefault(); e.stopPropagation(); window.open(l.dataset.live,'_blank','noopener'); return true; };
+  track.addEventListener('click',openLive,true);
+  track.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' ') openLive(e); },true);
   track.addEventListener('mouseover',e=>{ const r=e.target.closest('.pj-row'); if(r===rowOn) return; rowOn=r; if(r) retype(r.querySelector('.pj-rh')); });
   track.addEventListener('mouseleave',()=>{ rowOn=null; });
   track.addEventListener('focusin',e=>{ const r=e.target.closest('.pj-row'); if(r) retype(r.querySelector('.pj-rh')); });
@@ -2327,7 +2357,7 @@ document.querySelectorAll('.reveal').forEach(el=>revealIO.observe(el));
   if(document.fonts&&document.fonts.ready) document.fonts.ready.then(force);
   /* warm the project page + its script in the HTTP cache as soon as the rail is touched, so a card opens instantly */
   const warmed={};
-  function warm(){ const t=tabFor(cur); if(!t) return; [t.dataset.href,'admin.js?v=92'].forEach(u=>{ if(warmed[u]) return; warmed[u]=1;
+  function warm(){ const t=tabFor(cur); if(!t) return; [t.dataset.href,'admin.js?v=96'].forEach(u=>{ if(warmed[u]) return; warmed[u]=1;
     const l=document.createElement('link'); l.rel='prefetch'; l.href=u; document.head.appendChild(l); }); }
   track.addEventListener('pointerenter',warm); track.addEventListener('touchstart',warm,{passive:true}); panel.addEventListener('focusin',warm);
   /* UI/UX opens on every fresh load / reload; coming BACK from a project (Back link or browser back) restores that category + card */
